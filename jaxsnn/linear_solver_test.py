@@ -15,7 +15,5 @@ def test_hines_solver():
     x = hines_solver(jnp.array(d), jnp.array(u), jnp.array(b), jnp.array(p))
     x_ = jnp.linalg.solve(a, b)
 
-    assert(onp.allclose(x, x_))
-
-if __name__ == '__main__':
-    test_hines_solver()
+    # TODO: This is a rather liberal error tolerance...
+    onp.testing.assert_allclose(x, x_, rtol=1e-4)
