@@ -3,7 +3,6 @@ from typing import NamedTuple
 
 import jax.numpy as jnp
 from jax import custom_vjp, grad, jit, random, vmap
-from jax.experimental import optimizers
 from jax.lax import scan
 from typing import Tuple
 
@@ -119,9 +118,9 @@ def lif_step(
     # compute current jumps
     i_new = (
         i_decayed
-        + jnp.matmul(recurrent_weights, z)
+        + jnp.matmul(z, recurrent_weights)
     )
-    i_new = i_new + jnp.einsum("s,ns->n", spikes, input_weights)
+    i_new = i_new + jnp.matmul(spikes, input_weights)
 
     return LIFState(z_new, v_new, i_new), z_new
 
@@ -142,11 +141,11 @@ def lif_init_weights(key: random.KeyArray, input_size: float, size: float, scale
         Tuple[jnp.DeviceArray, jnp.DeviceArray]: Randomly initialized weights
     """
     i_key, r_key = random.split(key)
-    input_weights = scale * random.normal(i_key, (size, input_size))
+    input_weights = scale * random.normal(i_key, (input_size, size))
     recurrent_weights = scale * \
         random.normal(r_key, (size, size))
     return input_weights, recurrent_weights
 
 
-def lif_init_state(size: int) -> LIFState:
+def lif_init_state(size: Tuple[int]) -> LIFState:
     return LIFState(jnp.zeros(size), jnp.zeros(size), jnp.zeros(size))

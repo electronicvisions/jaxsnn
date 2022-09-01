@@ -37,7 +37,7 @@ def li_feed_forward_step(
     dt: float = 0.001,
 ) -> Tuple[jnp.DeviceArray, LIState]:
     # compute current jumps
-    i_jump = state.i + jnp.einsum("s,ns->n", spikes, input_weights)
+    i_jump = state.i + jnp.matmul(spikes, input_weights)
     # compute voltage updates
     dv = dt * p.tau_mem_inv * ((p.v_leak - state.v) + i_jump)
     v_new = state.v + dv
@@ -60,7 +60,7 @@ def li_init_weights(key: random.KeyArray, input_size: float, size: float, scale:
     Returns:
         Tuple[jnp.DeviceArray]: Randomly initialized weights
     """
-    return (scale * random.normal(key, (size, input_size)),)
+    return (scale * random.normal(key, (input_size, size)), )
 
 
 def li_init_state(size: int) -> LIState:

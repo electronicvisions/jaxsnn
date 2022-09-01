@@ -59,8 +59,8 @@ class YinYangDataset:
         """
         self.r_small = r_small
         self.r_big = r_big
-        self.__vals = []
-        self.__cs = []
+        self.vals = []
+        self.classes = []
         self.class_names = ["yin", "yang", "dot"]
         key, subkey = random.split(key)
 
@@ -75,14 +75,14 @@ class YinYangDataset:
             [jnp.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)])
 
         idx = random.permutation(subkey, idx, axis=0)
-        self.__vals = jnp.hstack((coords, 1 - coords))
-        self.__cs = classes[idx]
+        self.vals = jnp.hstack((coords, 1 - coords))
+        self.classes = classes[idx]
 
     def __getitem__(self, index: int):
-        return (self.__vals[index], self.__cs[index])
+        return (self.vals[index], self.classes[index])
 
     def __len__(self):
-        return len(self.__cs)
+        return len(self.classes)
 
 
 if __name__ == "__main__":
