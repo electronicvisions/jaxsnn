@@ -1,10 +1,8 @@
-from functools import partial
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 
 import jax.numpy as jnp
-from jax import custom_vjp, grad, jit, random, vmap
+from jax import custom_vjp, jit, random
 from jax.lax import scan
-from typing import Tuple
 
 
 class LIFState(NamedTuple):
@@ -17,6 +15,7 @@ class LIFState(NamedTuple):
         input_weights (jnp.DeviceArray): input weights
         recurrent_weights (jnp.DeviceArray): recurrentweights
     """
+
     z: jnp.DeviceArray
     v: jnp.DeviceArray
     i: jnp.DeviceArray
@@ -41,7 +40,7 @@ class LIFParameters(NamedTuple):
     tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)
     tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)
     v_leak: jnp.DeviceArray = jnp.array(0.0)
-    v_th: jnp.DeviceArray = jnp.array(1.0)
+    v_th: jnp.DeviceArray = jnp.array(0.5)
     v_reset: jnp.DeviceArray = jnp.array(0.0)
 
 
@@ -55,7 +54,7 @@ def heaviside_fwd(x):
 
 
 def heaviside_bwd(res, g):
-    x, = res
+    (x,) = res
     grad = g / (100.0 * jnp.abs(x) + 1.0) ** 2
     return (grad,)
 
@@ -64,7 +63,7 @@ heaviside.defvjp(heaviside_fwd, heaviside_bwd)
 
 
 def lif_current_encoder(
-    voltage: jnp.DeviceArray,
+    voltage,
     input_current: jnp.DeviceArray,
     p: LIFParameters = LIFParameters(),
     dt: float = 0.001,
@@ -92,14 +91,14 @@ def lif_current_encoder(
     return voltage, z
 
 
+@jit
 def lif_step(
-    state: LIFState,
-    input_weights: jnp.DeviceArray,
-    recurrent_weights: jnp.DeviceArray,
-    spikes: jnp.DeviceArray,
+    init,
+    spikes,
     params: LIFParameters = LIFParameters(),
     dt=0.001,
 ):
+    state, input_weights, recurrent_weights = init
     z, v, i = state
     tau_syn_inv, tau_mem_inv, v_leak, v_th, v_reset = params
 
@@ -116,20 +115,20 @@ def lif_step(
     # compute reset
     v_new = (1 - z_new) * v_decayed + z_new * v_reset
     # compute current jumps
-    i_new = (
-        i_decayed
-        + jnp.matmul(z, recurrent_weights)
-    )
+    i_new = i_decayed + jnp.matmul(z, recurrent_weights)
     i_new = i_new + jnp.matmul(spikes, input_weights)
 
-    return LIFState(z_new, v_new, i_new), z_new
+    return (LIFState(z_new, v_new, i_new), input_weights, recurrent_weights), z_new
 
 
+@jit
 def lif_integrate(init, spikes):
     return scan(lif_step, init, spikes)
 
 
-def lif_init_weights(key: random.KeyArray, input_size: float, size: float, scale: float = 1e-2) -> Tuple[jnp.DeviceArray, jnp.DeviceArray]:
+def lif_init_weights(
+    key: random.KeyArray, input_size: int, size: int, scale: float = 1e-2
+) -> Tuple[jnp.DeviceArray, jnp.DeviceArray]:
     """Randomly initialize weights and recurrent weights for a snn layer
 
     Args:
@@ -142,10 +141,9 @@ def lif_init_weights(key: random.KeyArray, input_size: float, size: float, scale
     """
     i_key, r_key = random.split(key)
     input_weights = scale * random.normal(i_key, (input_size, size))
-    recurrent_weights = scale * \
-        random.normal(r_key, (size, size))
+    recurrent_weights = scale * random.normal(r_key, (size, size))
     return input_weights, recurrent_weights
 
 
-def lif_init_state(size: Tuple[int]) -> LIFState:
+def lif_init_state(size: Tuple[int, int]) -> LIFState:
     return LIFState(jnp.zeros(size), jnp.zeros(size), jnp.zeros(size))

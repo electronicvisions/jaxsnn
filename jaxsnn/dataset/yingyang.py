@@ -1,8 +1,5 @@
-import time
-
 import jax.numpy as jnp
-from jax import random
-from jax import vmap
+from jax import random, vmap
 
 
 def outside_circle(x: float, y: float, r_big) -> bool:
@@ -17,7 +14,7 @@ def dist_to_left_dot(x: int, y: int, r_big) -> float:
     return jnp.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2)
 
 
-def get_class(coords, r_big: float, r_small: float) -> jnp.DeviceArray:
+def get_class(coords, r_big: float, r_small: float):
     # # equations inspired by
     # # https://link.springer.com/content/pdf/10.1007/11564126_19.pdf
     # outside of circle is a different class
@@ -29,7 +26,11 @@ def get_class(coords, r_big: float, r_small: float) -> jnp.DeviceArray:
     criterion3 = jnp.logical_and(y > r_big, d_right > 0.5 * r_big)
     is_yin = jnp.logical_or(jnp.logical_or(criterion1, criterion2), criterion3)
     is_circles = jnp.logical_or(d_right < r_small, d_left < r_small)
-    return is_circles.astype(int) * 2 + jnp.invert(is_circles).astype(int) * is_yin.astype(int) + outside_circle(x, y, r_big) * 10
+    return (
+        is_circles.astype(int) * 2
+        + jnp.invert(is_circles).astype(int) * is_yin.astype(int)
+        + outside_circle(x, y, r_big) * 10
+    )
 
 
 get_class_batched = vmap(get_class, in_axes=(0, None, None))
@@ -65,21 +66,21 @@ class YinYangDataset:
         key, subkey = random.split(key)
 
         # on average we need arount 7 tries for one sample
-        coords = random.uniform(
-            key, (size * 10 + 100, 2)) * 2.0 * self.r_big
+        coords = random.uniform(key, (size * 10 + 100, 2)) * 2.0 * self.r_big
 
         classes = get_class_batched(coords, self.r_big, self.r_small)
 
-        n_per_class = jnp.array([size // 3, size // 3, size - 2 * size // 3])
+        n_per_class = [size // 3, size // 3, size - 2 * size // 3]
         idx = jnp.concatenate(
-            [jnp.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)])
+            [jnp.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)]
+        )
 
         idx = random.permutation(subkey, idx, axis=0)
-        self.vals = jnp.hstack((coords, 1 - coords))
+        self.vals = jnp.hstack((coords[idx], 1 - coords[idx]))
         self.classes = classes[idx]
 
     def __getitem__(self, index: int):
-        return (self.vals[index], self.classes[index])
+        return (self.vals[index], self.classes[index])  # type: ignore
 
     def __len__(self):
         return len(self.classes)

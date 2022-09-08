@@ -1,6 +1,8 @@
 import jax.numpy as jnp
-from .lif import lif_current_encoder
+from jax import jit
 from jax.lax import scan
+
+from .lif import lif_current_encoder
 
 
 def one_hot(x, k, dtype=jnp.float32):
@@ -9,9 +11,9 @@ def one_hot(x, k, dtype=jnp.float32):
 
 
 def constant_current_lif_encode(
-    input_current: jnp.DeviceArray,
+    input_current,
     seq_length: int,
-) -> jnp.DeviceArray:
+):
     """
     Encodes input currents as fixed (constant) voltage currents, and simulates the spikes that
     occur during a number of timesteps/iterations (seq_length).
@@ -40,11 +42,11 @@ def constant_current_lif_encode(
 
 
 def spatio_temporal_encode(
-    input_values: jnp.DeviceArray,
+    input_values,
     seq_length: int,
     t_late: float,
     dt: float,
-) -> jnp.DeviceArray:
+):
     """
     Encodes n-dimensional input coordinates with range [0, 1], and simulates the spikes that
     occur during a number of timesteps/iterations (seq_length).
@@ -68,12 +70,12 @@ def spatio_temporal_encode(
         A tensor with an extra dimension of size `seq_length` containing spikes (1) or no spikes (0).
     """
     if len(input_values.shape) > 2:
-        raise ValueError(
-            "Tensor with input values must be one or two dimensional")
+        raise ValueError("Tensor with input values must be one or two dimensional")
 
     idx = (input_values * t_late / dt).round().astype(int)
     idx = jnp.clip(idx, 0, seq_length)
-    return jnp.eye(seq_length)[:, idx]
+    encoded = jnp.eye(seq_length)[:, idx]
+    return encoded
 
 
 if __name__ == "__main__":
@@ -81,4 +83,3 @@ if __name__ == "__main__":
     # value = spatio_temporal_encode(data, 10)
 
     data = jnp.array([0.5, 0.8, 0.5, 0.2])
-    value = spatio_temporal_encode(data, 20)
