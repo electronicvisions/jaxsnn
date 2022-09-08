@@ -3,13 +3,13 @@ import time
 from dataclasses import dataclass
 
 import jax.numpy as jnp
-from jax import random
-from jax.tree_util import tree_map
+from jax import random, value_and_grad
+from jax.example_libraries.optimizers import adam
 from jaxsnn.dataset.yingyang import YinYangDataset
 from jaxsnn.functional.encode import one_hot, spatio_temporal_encode
 from jaxsnn.functional.leaky_integrator import li_init_state, li_init_weights
 from jaxsnn.functional.lif import LIFParameters, lif_init_state, lif_init_weights
-from jaxsnn.model.snn import accuracy_and_loss, update
+from jaxsnn.model.snn import accuracy_and_loss, nll_loss
 
 
 @dataclass
@@ -39,7 +39,7 @@ class Loader:
 if __name__ == "__main__":
     batch_size = 64
     epochs = 100
-    step_size = 0.05
+    step_size = 1e-3
     n_classes = 3
     hidden_features = 50
     input_features = 4  # make this more generic
@@ -53,18 +53,20 @@ if __name__ == "__main__":
     # TODO use scan over update for train function
     # train = scan(update, trainloader)
     # train()
-    def train(params, state, trainloader, step_size):
+    def train(opt_state, state, trainloader):
         losses = []
-        grads = tree_map(lambda p: jnp.zeros_like(p), params)
-        for (input, output) in trainloader:
+        # grads = tree_map(lambda p: jnp.zeros_like(p), params)
+        for i, (input, output) in enumerate(trainloader):
             input = spatio_temporal_encode(input, T, t_late, DT)
             output = one_hot(output, n_classes)
             state = copy.deepcopy(state)
-            params, grads, loss, recording = update(
-                params, grads, state, input, output, momentum, step_size
+            net_params = get_params(opt_state)
+            (loss, recording), grads = value_and_grad(nll_loss, has_aux=True)(
+                net_params, state, (input, output)
             )
+            opt_state = opt_update(i, grads, opt_state)
             losses.append(loss)
-        return params, losses, jnp.mean(jnp.array(losses))
+        return opt_state, jnp.mean(jnp.array(losses))
 
     # TODO vmap over accuracy and loss
     # test = vmap(accuracy_and_loss, testloader)
@@ -87,7 +89,7 @@ if __name__ == "__main__":
 
     # define network with states and params
     # maybe just define forward function which we can pass to train?
-    # TODO look how this is done in flax
+    # TODO look how this is done in stax
     params = [
         lif_init_weights(key, input_features, hidden_features, scale=0.5),
         li_init_weights(key, hidden_features, n_classes, scale=0.2),
@@ -98,15 +100,15 @@ if __name__ == "__main__":
     ]
 
     # TODO we need adam optimizer or adaptive lr for better results
+    opt_init, opt_update, get_params = adam(step_size)
+    opt_state = opt_init(params)
 
     for epoch in range(epochs):
         start = time.time()
-        params, training_losses, mean_loss = train(
-            params, states, Loader(dataset, batch_size), step_size
-        )
+        opt_state, mean_loss = train(opt_state, states, Loader(dataset, batch_size))
         train_time = time.time() - start
         start = time.time()
-        accuracy, loss = test(params, test_dataset)
+        accuracy, loss = test(get_params(opt_state), test_dataset)
         test_time = time.time() - start
         print(
             f"Epoch: {epoch}, Loss: {mean_loss}, Test accuracy: {accuracy:.2f}, Seconds: {train_time:.3f}, {test_time:.3f}"

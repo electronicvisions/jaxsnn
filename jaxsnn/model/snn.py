@@ -31,7 +31,7 @@ def update(
     step_size: float,
 ):
     # at the moment we do not take grad of state or grad of topology
-    (loss_value, recording), grads = value_and_grad(loss, has_aux=True)(
+    (loss, recording), grads = value_and_grad(nll_loss, has_aux=True)(
         params, state, (x, y)
     )
     params = tree_map(
@@ -40,10 +40,10 @@ def update(
         grads,
         last_grads,
     )
-    return params, grads, loss_value, recording
+    return params, grads, loss, recording
 
 
-def loss(params, state, batch) -> Tuple[float, jnp.DeviceArray]:
+def nll_loss(params, state, batch) -> Tuple[float, jnp.DeviceArray]:
     inputs, targets = batch
     preds, recording = forward(params, state, inputs)
     return -jnp.mean(jnp.sum(targets * preds, axis=1)), recording
