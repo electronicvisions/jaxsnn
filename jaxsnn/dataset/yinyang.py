@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import jax.numpy as jnp
 from jax import random, vmap
 
@@ -48,7 +50,7 @@ class YinYangDataset:
         Initializing the dataset:
 
         .. code: python
-            from jaxsnn.dataset.yingyang import YinYangDataset
+            from jaxsnn.dataset.yinyang import YinYangDataset
 
             dataset_train = YinYangDataset(size=5000, key=42)
             dataset_validation = YinYangDataset(size=1000, key=41)
@@ -84,6 +86,36 @@ class YinYangDataset:
 
     def __len__(self):
         return len(self.classes)
+
+
+def DataLoader(dataset, batch_size):
+    vals = dataset.vals.reshape(-1, batch_size, dataset.vals.shape[1])  # type: ignore
+    classes = dataset.classes.reshape(-1, batch_size)  # type: ignore
+    return vals, classes
+
+
+# @dataclass
+# class DataLoader:
+#     # [time, batch, x, y]
+#     dataset: YinYangDataset
+#     batch_size: int
+#     idx: int = 0
+
+#     def __iter__(self):
+#         return self
+
+#     def __next__(self):
+#         if self.idx < len(self):
+#             start = self.idx * self.batch_size
+#             stop = (self.idx + 1) * self.batch_size
+#             result = self.dataset.vals[start:stop], self.dataset.classes[start:stop]  # type: ignore
+#             self.idx += 1
+#             return result
+#         else:
+#             raise StopIteration
+
+#     def __len__(self):
+#         return len(self.dataset.classes) // self.batch_size
 
 
 if __name__ == "__main__":

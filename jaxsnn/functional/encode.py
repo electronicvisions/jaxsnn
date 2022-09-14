@@ -1,3 +1,5 @@
+from functools import partial
+
 import jax.numpy as jnp
 from jax import jit
 from jax.lax import scan
@@ -5,6 +7,7 @@ from jax.lax import scan
 from .lif import lif_current_encoder
 
 
+@partial(jit, static_argnames=["k"])
 def one_hot(x, k, dtype=jnp.float32):
     """Create a one-hot encoding of x of size k."""
     return jnp.array(x[:, None] == jnp.arange(k), dtype)
@@ -41,6 +44,7 @@ def constant_current_lif_encode(
     return scan(lif_current_encoder, init, input_current)
 
 
+@partial(jit, static_argnames=["seq_length"])
 def spatio_temporal_encode(
     input_values,
     seq_length: int,

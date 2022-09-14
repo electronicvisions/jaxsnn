@@ -37,11 +37,11 @@ class LIFParameters(NamedTuple):
         alpha (float): hyper parameter to use in surrogate gradient computation
     """
 
-    tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)
-    tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)
-    v_leak: jnp.DeviceArray = jnp.array(0.0)
-    v_th: jnp.DeviceArray = jnp.array(0.5)
-    v_reset: jnp.DeviceArray = jnp.array(0.0)
+    tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)  # type: ignore
+    tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)  # type: ignore
+    v_leak: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
+    v_th: jnp.DeviceArray = jnp.array(0.5)  # type: ignore
+    v_reset: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
 
 
 @custom_vjp
@@ -83,7 +83,7 @@ def lif_current_encoder(
         p (LIFParameters): parameters of a leaky integrate and fire neuron
         dt (float): Integration timestep to use
     """
-    dv = dt * p.tau_mem_inv * ((p.v_leak - voltage) + input_current)
+    dv = dt * p.tau_mem_inv * ((p.v_leak - voltage) + input_current)  # type: ignore
     voltage = voltage + dv
     z = heaviside(voltage - p.v_th)
 
@@ -98,16 +98,17 @@ def lif_step(
     params: LIFParameters = LIFParameters(),
     dt=0.001,
 ):
-    state, input_weights, recurrent_weights = init
+    state, weights = init
+    input_weights, recurrent_weights = weights
     z, v, i = state
     tau_syn_inv, tau_mem_inv, v_leak, v_th, v_reset = params
 
     # compute voltage updates
-    dv = dt * tau_mem_inv * ((v_leak - v) + i)
+    dv = dt * tau_mem_inv * ((v_leak - v) + i)  # type: ignore
     v_decayed = v + dv
 
     # compute current updates
-    di = -dt * tau_syn_inv * i
+    di = -dt * tau_syn_inv * i  # type: ignore
     i_decayed = i + di
 
     # compute new spikes
@@ -118,10 +119,9 @@ def lif_step(
     i_new = i_decayed + jnp.matmul(z, recurrent_weights)
     i_new = i_new + jnp.matmul(spikes, input_weights)
 
-    return (LIFState(z_new, v_new, i_new), input_weights, recurrent_weights), z_new
+    return (LIFState(z_new, v_new, i_new), (input_weights, recurrent_weights)), z_new
 
 
-@jit
 def lif_integrate(init, spikes):
     return scan(lif_step, init, spikes)
 

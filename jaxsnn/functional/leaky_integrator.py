@@ -26,9 +26,9 @@ class LIParameters(NamedTuple):
         v_leak (jnp.DeviceArray): leak potential
     """
 
-    tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)
-    tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)
-    v_leak: jnp.DeviceArray = jnp.array(0.0)
+    tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)  # type: ignore
+    tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)  # type: ignore
+    v_leak: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
 
 
 @jit
@@ -42,11 +42,11 @@ def li_feed_forward_step(
     # compute current jumps
     i_jump = state.i + jnp.matmul(spikes, input_weights)
     # compute voltage updates
-    dv = dt * p.tau_mem_inv * ((p.v_leak - state.v) + i_jump)
+    dv = dt * p.tau_mem_inv * ((p.v_leak - state.v) + i_jump)  # type: ignore
     v_new = state.v + dv
 
     # compute current updates
-    di = -dt * p.tau_syn_inv * i_jump
+    di = -dt * p.tau_syn_inv * i_jump  # type: ignore
     i_decayed = i_jump + di
 
     return (LIState(v_new, i_decayed), input_weights), v_new
