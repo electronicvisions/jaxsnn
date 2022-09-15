@@ -52,7 +52,6 @@ def li_feed_forward_step(
     return (LIState(v_new, i_decayed), input_weights), v_new
 
 
-@jit
 def li_integrate(init, spikes):
     return scan(li_feed_forward_step, init, spikes)
 

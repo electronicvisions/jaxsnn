@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from typing import Optional
 
 import jax.numpy as jnp
 from jax import random, vmap
@@ -88,34 +88,15 @@ class YinYangDataset:
         return len(self.classes)
 
 
-def DataLoader(dataset, batch_size):
-    vals = dataset.vals.reshape(-1, batch_size, dataset.vals.shape[1])  # type: ignore
-    classes = dataset.classes.reshape(-1, batch_size)  # type: ignore
+def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
+    permutation = (
+        random.permutation(rng, len(dataset))
+        if rng is not None
+        else jnp.arange(len(dataset))
+    )
+    vals = dataset.vals[permutation].reshape(-1, batch_size, dataset.vals.shape[1])  # type: ignore
+    classes = dataset.classes[permutation].reshape(-1, batch_size)  # type: ignore
     return vals, classes
-
-
-# @dataclass
-# class DataLoader:
-#     # [time, batch, x, y]
-#     dataset: YinYangDataset
-#     batch_size: int
-#     idx: int = 0
-
-#     def __iter__(self):
-#         return self
-
-#     def __next__(self):
-#         if self.idx < len(self):
-#             start = self.idx * self.batch_size
-#             stop = (self.idx + 1) * self.batch_size
-#             result = self.dataset.vals[start:stop], self.dataset.classes[start:stop]  # type: ignore
-#             self.idx += 1
-#             return result
-#         else:
-#             raise StopIteration
-
-#     def __len__(self):
-#         return len(self.dataset.classes) // self.batch_size
 
 
 if __name__ == "__main__":
