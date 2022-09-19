@@ -1,1 +1,10 @@
-from .module import LI, LIF, MaxOverTimeDecode, SpatioTemporalEncode, serial
+from .module import (
+    LI,
+    LIF,
+    LIFStep,
+    LIStep,
+    MaxOverTimeDecode,
+    SpatioTemporalEncode,
+    euler_integrate,
+    serial,
+)

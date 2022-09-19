@@ -20,3 +20,22 @@ def LI(out_dim, scale_in=0.2):
         return voltages
 
     return init_fn, apply_fn
+
+
+def LIStep(out_dim, scale_in=0.2):
+    """Layer constructor function for a li (leaky-integrated) layer."""
+
+    def init_fn(rng, input_shape):
+        i_key, r_key = random.split(rng)
+        input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
+        return out_dim, input_weights
+
+    def apply_fn(state, params, inputs, **kwargs):
+        return li_feed_forward_step((state, params), inputs)
+
+    def state_fn(batch_size):
+        shape = (batch_size, out_dim)
+        state = LIState(jnp.zeros(shape), jnp.zeros(shape))
+        return state
+
+    return init_fn, apply_fn, state_fn

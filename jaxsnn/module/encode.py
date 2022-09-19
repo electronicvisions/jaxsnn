@@ -2,8 +2,6 @@ from jaxsnn.functional.encode import spatio_temporal_encode
 
 
 def SpatioTemporalEncode(T, t_late, DT):
-    """Layer constructor function for a li (leaky-integrated) layer."""
-
     def init_fn(rng, input_shape):
         return (input_shape, None)
 

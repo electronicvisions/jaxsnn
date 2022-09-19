@@ -1,6 +1,3 @@
-import jax.numpy as jnp
-from jax import jit
-from jax.nn import log_softmax
 from jaxsnn.functional.decode import decode
 
 

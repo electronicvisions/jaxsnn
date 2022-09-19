@@ -46,10 +46,13 @@ if __name__ == "__main__":
     rng, test_key = random.split(rng)
     test_dataset = YinYangDataset(test_key, 1000)
 
+    # TODO: Why is training behavior different when backpropagating through time and through layer changes
     snn_init, snn_apply = jaxsnn.serial(
         jaxsnn.SpatioTemporalEncode(T, t_late, DT),
-        jaxsnn.LIF(hidden_features),
-        jaxsnn.LI(n_classes),
+        jaxsnn.euler_integrate(
+            jaxsnn.LIFStep(hidden_features),
+            jaxsnn.LIStep(n_classes),
+        ),
         jaxsnn.MaxOverTimeDecode(),
     )
 
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     opt_init, opt_update, get_params = optimizers.adam(step_size)
     opt_state = opt_init(params_initial)
 
-    # define functinos
+    # define functions
     snn_apply = partial(snn_apply, recording=True)
     loss_fn = partial(nll_loss, snn_apply, expected_spikes=expected_spikes)
     train_step_fn = partial(
