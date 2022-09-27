@@ -2,6 +2,7 @@ import time
 from functools import partial
 
 import jaxsnn
+import matplotlib.pyplot as plt
 import optax
 from jax import numpy as jnp
 from jax import random, value_and_grad
@@ -9,6 +10,7 @@ from jax.lax import scan
 from jaxsnn.dataset.yinyang import DataLoader, YinYangDataset
 from jaxsnn.functional.lif import LIFParameters
 from jaxsnn.functional.loss import acc_and_loss, nll_loss
+from jaxsnn.module.threshhold import HeaviErfc, Heaviside, Logistic, SuperSpike
 
 
 def train_step(state, batch, loss_fn):
@@ -38,26 +40,21 @@ if __name__ == "__main__":
     T = int(2 * t_late / DT)
 
     rng = random.PRNGKey(42)
-    rng, train_key = random.split(rng)
+    rng, train_key, test_key, init_key = random.split(rng, 4)
     trainset = YinYangDataset(train_key, 6400)
 
-    rng, test_key = random.split(rng)
     test_dataset = YinYangDataset(test_key, 1000)
 
-    # TODO: Why is training behavior different when backpropagating through time and through layer changes
     snn_init, snn_apply = jaxsnn.serial(
         jaxsnn.SpatioTemporalEncode(T, t_late, DT),
         jaxsnn.euler_integrate(
-            jaxsnn.LIFStep(hidden_features),
-            jaxsnn.LIStep(n_classes),
+            jaxsnn.LIFStep(hidden_features, Heaviside()), jaxsnn.LIStep(n_classes)
         ),
         jaxsnn.MaxOverTimeDecode(),
     )
 
-    rng, init_key = random.split(rng)
     output_shape, params = snn_init(init_key, input_shape=input_shape)
 
-    # opt_init, opt_update, get_params = optimizers.adam(step_size)
     optimizer = optax.adam(step_size)
     opt_state = optimizer.init(params)
 
@@ -68,15 +65,26 @@ if __name__ == "__main__":
 
     overall_time = time.time()
     for epoch in range(epochs):
-        # Shuffle the training data before each epoch using jax.random.permutation?
         start = time.time()
-
-        # rng, shuffle_key = random.split(rng)
         trainloader = DataLoader(trainset, batch_size, rng=None)
         (opt_state, params, i), recording = scan(
             train_step_fn, (opt_state, params, 0), trainloader
         )
-        spikes_per_item = jnp.count_nonzero(recording[1]) / len(trainset)
+
+        def plot_neuron_voltage(recording):
+            # recording[layer_idx].observable[step idx, time_idx, batch idx, neuron_idx]
+            for neuron_idx in range(5):
+                x = recording[1].v[0, :, 0, neuron_idx]
+                plt.plot(jnp.arange(T), x)
+            plt.savefig("./plots/voltage.png")
+
+        def plot_spikes_per_step(recording):
+            # recording[layer_idx].observable[step idx, time_idx, batch idx, neuron_idx]
+            x = jnp.sum(recording[1].z, axis=(1, 2, 3))
+            plt.plot(jnp.arange(len(x)), x)
+            plt.savefig("./plots/spikes.png")
+
+        spikes_per_item = jnp.count_nonzero(recording[1].z) / len(trainset)
         accuracy, test_loss = acc_and_loss(
             snn_apply, params, (test_dataset.vals, test_dataset.classes)
         )

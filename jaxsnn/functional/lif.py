@@ -1,8 +1,9 @@
 from typing import NamedTuple, Tuple
 
 import jax.numpy as jnp
-from jax import custom_vjp, jit, random
+from jax import random
 from jax.lax import scan
+from jaxsnn.functional.heaviside import heaviside
 
 
 class LIFState(NamedTuple):
@@ -44,24 +45,6 @@ class LIFParameters(NamedTuple):
     v_reset: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
 
 
-@custom_vjp
-def heaviside(x):
-    return 0.5 + 0.5 * jnp.sign(x)
-
-
-def heaviside_fwd(x):
-    return heaviside(x), (x,)
-
-
-def heaviside_bwd(res, g):
-    (x,) = res
-    grad = g / (100.0 * jnp.abs(x) + 1.0) ** 2
-    return (grad,)
-
-
-heaviside.defvjp(heaviside_fwd, heaviside_bwd)
-
-
 def lif_current_encoder(
     voltage,
     input_current: jnp.DeviceArray,
@@ -91,10 +74,10 @@ def lif_current_encoder(
     return voltage, z
 
 
-@jit
 def lif_step(
     init,
     spikes,
+    method=heaviside,
     params: LIFParameters = LIFParameters(),
     dt=0.001,
 ):
@@ -112,7 +95,7 @@ def lif_step(
     i_decayed = i + di
 
     # compute new spikes
-    z_new = heaviside(v_decayed - v_th)
+    z_new = method(v_decayed - v_th)
     # compute reset
     v_new = (1 - z_new) * v_decayed + z_new * v_reset
     # compute current jumps
@@ -120,6 +103,15 @@ def lif_step(
     i_new = i_new + jnp.matmul(spikes, input_weights)
 
     return (LIFState(z_new, v_new, i_new), (input_weights, recurrent_weights)), z_new
+
+
+def liv_derivative(t, y, **kwargs):
+    v, i = y
+    tau_syn_inv, tau_mem_inv, v_leak, v_th, v_reset = LIFParameters()
+
+    dv = tau_mem_inv * ((v_leak - v) + i)  # type: ignore
+    di = -tau_syn_inv * i  # type: ignore
+    return (dv, di)
 
 
 def lif_integrate(init, spikes):

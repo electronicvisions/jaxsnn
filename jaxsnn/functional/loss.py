@@ -12,7 +12,7 @@ def nll_loss(
     targets = one_hot(targets, preds.shape[1])
     loss = -jnp.mean(jnp.sum(targets * preds, axis=1))
     regularization = rho * jnp.sum(
-        jnp.square(jnp.sum(recording[1], axis=0) - expected_spikes)
+        jnp.square(jnp.sum(recording[1].z, axis=0) - expected_spikes)
     )
     return loss + regularization, recording
 

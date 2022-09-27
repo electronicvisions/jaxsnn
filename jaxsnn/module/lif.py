@@ -1,14 +1,17 @@
+from functools import partial
+
+import diffrax
 import jax.numpy as jnp
-from jax import random
+from jax import jit, random
 from jax.lax import scan
-from jaxsnn.functional.lif import LIFState, lif_step
+from jaxsnn.functional.lif import LIFParameters, LIFState, lif_step, liv_derivative
 
 
 def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
     """Layer constructor function for a lif (leaky-integrated-fire) layer."""
 
     def init_fn(rng, input_shape):
-        i_key, r_key = random.split(rng)
+        rng, i_key, r_key = random.split(rng, 3)
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
         recurrent_weights = scale_rec * random.normal(r_key, (out_dim, out_dim))
         return out_dim, (input_weights, recurrent_weights)
@@ -24,21 +27,46 @@ def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
     return init_fn, apply_fn
 
 
-def LIFStep(out_dim, scale_in=0.7, scale_rec=0.2):
+def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
     """Layer constructor function for a lif (leaky-integrated-fire) layer."""
 
     def init_fn(rng, input_shape):
-        i_key, r_key = random.split(rng)
+        rng, i_key, r_key = random.split(rng, 3)
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
         recurrent_weights = scale_rec * random.normal(r_key, (out_dim, out_dim))
-        return out_dim, (input_weights, recurrent_weights)
+        return out_dim, (input_weights, recurrent_weights), rng
 
-    def state_fn(batch_size):
+    def state_fn(batch_size, **kwargs):
         shape = (batch_size, out_dim)
         state = LIFState(jnp.zeros(shape), jnp.zeros(shape), jnp.zeros(shape))
         return state
 
+    lif_step_fn = jit(partial(lif_step, method=method))
+
     def apply_fn(state, params, inputs, **kwargs):
-        return lif_step((state, params), inputs)
+        return lif_step_fn((state, params), inputs)
+
+    # def derivative_fn(state, params, **kwargs):
+    #     return liv_derivative(None, state)
+
+    # @jit
+    # def apply_fn(state, params, inputs, **kwargs):
+
+    #     term = diffrax.ODETerm(liv_derivative)
+
+    #     z, v, i = state
+    #     solver = diffrax.Tsit5()
+    #     sol = diffrax.diffeqsolve(term, solver, t0=0, t1=1e-3, dt0=5e-4, y0=(v, i))
+    #     v_decayed, i_decayed = sol.ys[0][0], sol.ys[1][0]
+
+    #     input_weights, recurrent_weights = params
+    #     tau_syn_inv, tau_mem_inv, v_leak, v_th, v_reset = LIFParameters()
+    #     z_new = method(v_decayed - v_th)
+    #     # compute reset
+    #     v_new = (1 - z_new) * v_decayed + z_new * v_reset
+    #     # compute current jumps
+    #     i_new = i_decayed + jnp.matmul(z, recurrent_weights)
+    #     i_new = i_new + jnp.matmul(inputs, input_weights)
+    #     return (LIFState(z_new, v_new, i_new), params), z_new
 
     return init_fn, apply_fn, state_fn

@@ -1,4 +1,4 @@
-from jax import random
+from jax import jit
 from jax.lax import scan
 
 
@@ -15,18 +15,19 @@ def serial(*layers):
     def init_fn(rng, input_shape):
         params = []
         for init_fn in init_fns:
-            rng, layer_rng = random.split(rng)
-            input_shape, param = init_fn(layer_rng, input_shape)
+            input_shape, param, rng = init_fn(rng, input_shape)
             params.append(param)
         return input_shape, params
 
-    # @jit
+    @jit
     def apply_fn(params, input, **kwargs):
         recording = []
         for fn, param in zip(apply_fns, params):
-            input = fn(param, input, **kwargs)
-            if kwargs.get("recording"):
-                recording.append(input)
+            input, layer_records = fn(param, input, **kwargs)
+            if isinstance(layer_records, list):
+                recording.extend(layer_records)
+            else:
+                recording.append(layer_records)
         return input, recording
 
     return init_fn, apply_fn
@@ -38,27 +39,23 @@ def euler_integrate(*layers):
     def init_fn(rng, input_shape):
         params = []
         for init_fn in init_fns:
-            rng, layer_rng = random.split(rng)
-            input_shape, param = init_fn(layer_rng, input_shape)
+            input_shape, param, rng = init_fn(rng, input_shape)
             params.append(param)
-        return input_shape, params
+        return input_shape, params, rng
 
     def apply_fn(params, input, **kwargs):
         batch_size = input.shape[1]
         states = [state_fn(batch_size) for state_fn in state_fns]
 
-        def inner(states, input_ts):
+        def inner(states, input_ts, **kwargs):
             new_states = []
             for fn, param, state in zip(apply_fns, params, states):
-                (new_state, weights), input_ts = fn(state, param, input_ts, **kwargs)
+                (new_state, _), input_ts = fn(state, param, input_ts, **kwargs)
                 new_states.append(new_state)
-            return new_states, input_ts
 
-        _, output = scan(inner, states, input)
-        return output
+            return new_states, (input_ts, new_states)
+
+        _, (output, recording) = scan(inner, states, input)
+        return output, recording
 
     return init_fn, apply_fn
-
-
-# where is batch size?
-# aktuell (70, 3)
