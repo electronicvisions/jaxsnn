@@ -47,9 +47,7 @@ if __name__ == "__main__":
 
     snn_init, snn_apply = jaxsnn.serial(
         jaxsnn.SpatioTemporalEncode(T, t_late, DT),
-        jaxsnn.euler_integrate(
-            jaxsnn.LIFStep(hidden_features, Heaviside()), jaxsnn.LIStep(n_classes)
-        ),
+        jaxsnn.euler_integrate(jaxsnn.LIFStep(hidden_features, Heaviside()), jaxsnn.LIStep(n_classes)), 
         jaxsnn.MaxOverTimeDecode(),
     )
 
