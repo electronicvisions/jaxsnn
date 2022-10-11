@@ -1,7 +1,12 @@
-from re import A
 import jax.numpy as jnp
 import jax.lax as lax
 from functools import partial
+
+import dataclasses
+from typing import Callable, Sequence, TypeVar
+
+
+PyTreeState = TypeVar("PyTreeState")
 
 
 def tree_to_matrix(d, u, p):
@@ -44,7 +49,6 @@ def hines_solver(d, u, p, b):
 
   return b
 
-
 def tree_solve(d, u, p, b):
   """
   A solver for 'tree' matrices, which is compatible with the jax tracer.
@@ -56,3 +60,8 @@ def tree_solve(d, u, p, b):
     symmetric = True)
 
   return solver(b)
+
+
+def implicit_tree_solve(state: PyTreeState, step_size: float) -> PyTreeState:
+  """Solves `y - step_size * implicit_terms(y) = x` for y."""
+  d = 1 - step_size * d

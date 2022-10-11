@@ -1,4 +1,4 @@
-from jaxsnn.linear_solver import hines_solver
+from jaxsnn.tree_solver import hines_solver
 
 import jax.numpy as jnp
 import numpy as onp
@@ -17,3 +17,6 @@ def test_hines_solver():
 
     # TODO: This is a rather liberal error tolerance...
     onp.testing.assert_allclose(x, x_, rtol=1e-4)
+
+def test_tree_solver():
+    pass
