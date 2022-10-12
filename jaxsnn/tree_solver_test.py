@@ -1,10 +1,12 @@
-from jaxsnn.tree_solver import hines_solver
+from jaxsnn.tree_solver import hines_solver, tree_to_matrix
 
 import jax.numpy as jnp
 import numpy as onp
 
+from absl.testing import absltest
+from absl.testing import parameterized
+
 def test_hines_solver():
-    # TODO: This only tests the tri-diagonal case.
     N = 10
     d = 2*onp.random.randn(N)
     u = onp.random.randn(N-1)
@@ -18,5 +20,23 @@ def test_hines_solver():
     # TODO: This is a rather liberal error tolerance...
     onp.testing.assert_allclose(x, x_, rtol=1e-4)
 
-def test_tree_solver():
-    pass
+
+
+def test_tree_to_matrix():
+    N = 3
+    d = 2*onp.ones(N)
+    u = onp.ones(N-1)
+    p = onp.arange(-1,N,1)
+
+    expected = [
+        [2, 1, 0],
+        [1, 2, 1],
+        [0, 1, 2]
+    ]
+    actual = tree_to_matrix(d, u, p)
+    onp.testing.assert_allclose(expected, actual)
+
+
+
+if __name__ == '__main__':
+  absltest.main()

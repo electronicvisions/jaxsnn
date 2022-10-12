@@ -1,12 +1,17 @@
 import jax.numpy as jnp
+import numpy as np
 import jax.lax as lax
 from functools import partial
 
 import dataclasses
-from typing import Callable, Sequence, TypeVar
+import tree_math
+from typing import Callable, Sequence, TypeVar, Union
+
+
 
 
 PyTreeState = TypeVar("PyTreeState")
+ArrayLike = Union[jnp.ndarray, np.ndarray, float]
 
 
 def tree_to_matrix(d, u, p):
@@ -20,6 +25,7 @@ def tree_to_matrix(d, u, p):
   for i in range(1,N):
     a = a.at[p[i],i].set(u[i-1])
     a = a.at[i, p[i]].set(u[i-1])
+  
   return a
 
 
@@ -60,8 +66,3 @@ def tree_solve(d, u, p, b):
     symmetric = True)
 
   return solver(b)
-
-
-def implicit_tree_solve(state: PyTreeState, step_size: float) -> PyTreeState:
-  """Solves `y - step_size * implicit_terms(y) = x` for y."""
-  d = 1 - step_size * d
