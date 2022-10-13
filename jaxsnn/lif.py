@@ -1,12 +1,9 @@
 import jax
 import jax.api as api
 import jax.numpy as np
-import tqdm
-
 from functools import partial
 
 from jax import jit, grad, random, vmap
-from jax.experimental import optimizers
 from jax.lax import scan
 
 @api.custom_vjp

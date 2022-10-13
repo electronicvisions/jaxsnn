@@ -1,7 +1,17 @@
-from re import A
 import jax.numpy as jnp
+import numpy as np
 import jax.lax as lax
 from functools import partial
+
+import dataclasses
+import tree_math
+from typing import Callable, Sequence, TypeVar, Union
+
+
+
+
+PyTreeState = TypeVar("PyTreeState")
+ArrayLike = Union[jnp.ndarray, np.ndarray, float]
 
 
 def tree_to_matrix(d, u, p):
@@ -15,6 +25,7 @@ def tree_to_matrix(d, u, p):
   for i in range(1,N):
     a = a.at[p[i],i].set(u[i-1])
     a = a.at[i, p[i]].set(u[i-1])
+  
   return a
 
 
@@ -43,7 +54,6 @@ def hines_solver(d, u, p, b):
     b = b.at[i].set((b[i] - u[p[i]] * b[p[i]]) / d[i])
 
   return b
-
 
 def tree_solve(d, u, p, b):
   """
