@@ -33,7 +33,7 @@ def harmonic_oscillator(x0, t):
 ALL_TEST_PROBLEMS = [
     dict(testcase_name='_harmonic_oscillator_explicit',
          explicit_terms=lambda x: jnp.stack([x[1], -x[0]]),
-         pressure_projection=lambda x: x,
+         projection=lambda x: x,
          dt=1e-2,
          inner_steps=20,
          outer_steps=5,
@@ -57,7 +57,7 @@ class TimeSteppingTest(parameterized.TestCase):
   def test_integration(
       self,
       explicit_terms,
-      pressure_projection,
+      projection,
       dt,
       inner_steps,
       outer_steps,
@@ -73,8 +73,8 @@ class TimeSteppingTest(parameterized.TestCase):
     # Compute trajectory using time-stepper.
     for atol, time_stepper in zip(tolerances, ALL_TIME_STEPPERS):
       with self.subTest(time_stepper.__name__):
-        equation = explicit.ExplicitNavierStokesODE(
-            explicit_terms, pressure_projection)
+        equation = explicit.ExplicitConstrainedODE(
+            explicit_terms, projection)
         step_fn = time_stepper(equation, dt)
         integrator = funcutils.trajectory(
             funcutils.repeated(step_fn, inner_steps), outer_steps)

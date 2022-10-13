@@ -21,23 +21,24 @@ PyTreeState = TypeVar("PyTreeState")
 TimeStepFn = Callable[[PyTreeState], PyTreeState]
 
 
-class ExplicitNavierStokesODE:
-  """Spatially discretized version of Navier-Stokes.
-  The equation is given by:
-    ∂u/∂t = explicit_terms(u)
-    0 = incompressibility_constraint(u)
+class ExplicitConstrainedODE:
   """
 
-  def __init__(self, explicit_terms, pressure_projection):
+  The equation is given by:
+    ∂u/∂t = explicit_terms(u)
+    0 = constraint(u)
+  """
+
+  def __init__(self, explicit_terms, projection):
     self.explicit_terms = explicit_terms
-    self.pressure_projection = pressure_projection
+    self.projection = projection
 
   def explicit_terms(self, state):
     """Explicitly evaluate the ODE."""
     raise NotImplementedError
 
-  def pressure_projection(self, state):
-    """Enforce the incompressibility constraint."""
+  def projection(self, state):
+    """Enforce the constraint."""
     raise NotImplementedError
 
 
@@ -52,9 +53,9 @@ class ButcherTableau:
       raise ValueError("inconsistent Butcher tableau")
 
 
-def navier_stokes_rk(
+def constrained_rk(
     tableau: ButcherTableau,
-    equation: ExplicitNavierStokesODE,
+    equation: ExplicitConstrainedODE,
     time_step: float,
 ) -> TimeStepFn:
   """Create a forward Runge-Kutta time-stepper for incompressible Navier-Stokes.
@@ -72,7 +73,7 @@ def navier_stokes_rk(
   # pylint: disable=invalid-name
   dt = time_step
   F = tree_math.unwrap(equation.explicit_terms)
-  P = tree_math.unwrap(equation.pressure_projection)
+  P = tree_math.unwrap(equation.projection)
 
   a = tableau.a
   b = tableau.b
@@ -100,10 +101,10 @@ def navier_stokes_rk(
 
 
 def forward_euler(
-    equation: ExplicitNavierStokesODE, time_step: float,
+    equation: ExplicitConstrainedODE, time_step: float,
 ) -> TimeStepFn:
   return jax.named_call(
-      navier_stokes_rk(
+      constrained_rk(
           ButcherTableau(a=[], b=[1]),
           equation,
           time_step),
@@ -112,10 +113,10 @@ def forward_euler(
 
 
 def midpoint_rk2(
-    equation: ExplicitNavierStokesODE, time_step: float,
+    equation: ExplicitConstrainedODE, time_step: float,
 ) -> TimeStepFn:
   return jax.named_call(
-      navier_stokes_rk(
+      constrained_rk(
           ButcherTableau(a=[[1/2]], b=[0, 1]),
           equation=equation,
           time_step=time_step,
@@ -125,10 +126,10 @@ def midpoint_rk2(
 
 
 def heun_rk2(
-    equation: ExplicitNavierStokesODE, time_step: float,
+    equation: ExplicitConstrainedODE, time_step: float,
 ) -> TimeStepFn:
   return jax.named_call(
-      navier_stokes_rk(
+      constrained_rk(
           ButcherTableau(a=[[1]], b=[1/2, 1/2]),
           equation=equation,
           time_step=time_step,
@@ -138,10 +139,10 @@ def heun_rk2(
 
 
 def classic_rk4(
-    equation: ExplicitNavierStokesODE, time_step: float,
+    equation: ExplicitConstrainedODE, time_step: float,
 ) -> TimeStepFn:
   return jax.named_call(
-      navier_stokes_rk(
+      constrained_rk(
           ButcherTableau(a=[[1/2], [0, 1/2], [0, 0, 1]],
                          b=[1/6, 1/3, 1/3, 1/6]),
           equation=equation,
