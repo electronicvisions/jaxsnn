@@ -2,6 +2,7 @@ from jaxsnn.tree_solver import ArrayLike
 
 import jax.numpy as jnp
 import tree_math
+from typing import Callable
 
 @tree_math.struct
 class AdexParameters:
@@ -37,7 +38,7 @@ def adex_threshold_projection(p : AdexParameters):
     def projection(state : AdexState):
         return AdexState(
             v = jnp.where(state.v > p.v_th, p.v_reset, state.v),
-            w = jnp.where(state.v > p.v_th, jnp.ones_like(state.w), state.w),
+            w = jnp.where(state.v > p.v_th, state.w + jnp.ones_like(state.w), state.w),
             s = state.s
         )
     return projection
