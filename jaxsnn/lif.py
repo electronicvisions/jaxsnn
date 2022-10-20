@@ -6,6 +6,9 @@ from functools import partial
 from jax import jit, grad, random, vmap
 from jax.lax import scan
 
+from jaxsnn.tree_solver import ArrayLike
+import tree_math
+
 @api.custom_vjp
 def heaviside(x):
   return 0.5 + 0.5 * np.sign(x)
@@ -19,6 +22,37 @@ def heaviside_bwd(res, g):
   return (grad,)
 
 heaviside.defvjp(heaviside_fwd, heaviside_bwd)
+
+
+@tree_math.struct
+class LIFState:
+  v : ArrayLike
+  I : ArrayLike
+
+@tree_math.struct
+class LIFParameters:
+  tau_syn_inv : ArrayLike
+  tau_mem_inv : ArrayLike
+  v_leak : ArrayLike
+  v_th : ArrayLike
+  v_reset : ArrayLike
+
+
+def lif_dynamics(p : LIFParameters):
+  def dynamics(s : LIFState, z : ArrayLike):
+    return LIFState(
+      p.tau_mem_inv * ((p.v_leak - s.v) + s.I),
+      -p.tau_syn_inv * s.I
+    )
+  return dynamics
+
+def lif_projection(p: LIFParameters):
+  def projection(s : LIFState):
+    return LIFState(
+      np.where(s.v > p.v_th, p.v_reset, s.v),
+      s.I
+    )
+  return projection
 
 def lif_step(
     state,
