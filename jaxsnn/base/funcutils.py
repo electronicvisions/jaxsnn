@@ -121,3 +121,33 @@ def trajectory(
     return scan(step, values, xs=None, length=steps)
 
   return multistep
+
+def controlled_trajectory(
+    step_fn: Callable,
+    xs: PyTree,
+    # post_process: Callable = _identity,
+    *,
+    start_with_input: bool = False,
+) -> Callable:
+  """Returns a function that accumulates repeated applications of `step_fn`.
+  Args:
+    step_fn: function that takes a state and returns state after one time step.
+    xs: control input to generate the trajectory
+    post_process: transformation to be applied to each frame of the trajectory.
+    start_with_input: if True, output the trajectory at steps [0, ..., steps-1]
+      instead of steps [1, ..., steps].
+  Returns:
+    A function that takes an initial state and returns a tuple consisting of:
+      (1) the final frame of the trajectory _before_ `post_process` is applied.
+      (2) trajectory of length `steps` representing time evolution.
+  """
+
+  def step(carry_in, x):
+    carry_out, out = step_fn(carry_in, x)
+    # frame = post_process(carry_in if start_with_input else carry_out)
+    return carry_out, out
+
+  def multistep(values):
+    return scan(step, values, xs=xs)
+
+  return multistep
