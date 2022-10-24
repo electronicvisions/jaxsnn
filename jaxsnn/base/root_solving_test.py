@@ -31,11 +31,11 @@ def test_bisection():
     actual = root_solving.bisection(f, 0, 2, 0.001)
     np.testing.assert_allclose(expected, actual, atol=tol)
 
-def test_newton():
+def test_newton_1d():
     expected = math.sqrt(2)
     f = lambda x: x**2 - 2
     tol = 0.1
-    actual = root_solving.newton(f, 1.0)
+    actual = root_solving.newton_1d(f, 1.0)
     np.testing.assert_allclose(actual, expected, atol=tol)
 
 

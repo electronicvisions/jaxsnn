@@ -11,10 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import jax
 import jax.numpy as jnp
 
-def newton(f, x0):
+def linear_interpolation(f_a, f_b, a, b, x):
+    return (x-a)/(b-a) * f_b + (b-x)/(b-a) * f_a
+
+def linear_interpolated_root(f_a, f_b, a, b):
+    return (a * f_b -  b * f_a) / f_b - f_a
+
+
+def illinois_method():
+    """
+    Reference: 
+    Kathie L. Hiebert and Lawrence F. Shampine, Implicitly
+    Defined Output Points for Solutions of ODEs, Sandia National
+    Laboratory Report SAND80-0180, February 1980.
+    """
+    pass
+
+
+def newton_1d(f, x0):
 
   initial_state = (0, x0)
 
@@ -27,6 +45,28 @@ def newton(f, x0):
     fx, dfx = f(x), jax.grad(f)(x)
     step = fx / dfx
     new_state = it + 1, x - step
+    return new_state
+
+  return jax.lax.while_loop(
+    cond,
+    body,
+    initial_state,
+  )[1]
+
+def newton_nd(f, x0):
+
+  initial_state = (0, x0)
+
+  def cond(state):
+    it, x = state
+    return (it < 10)
+
+  def body(state):
+    it, x = state
+    fx, dfx = f(x), jax.grad(f)(x)
+    step = jax.numpy.linalg.solve(dfx, -fx)
+
+    new_state = it + 1, x + step
     return new_state
 
   return jax.lax.while_loop(
