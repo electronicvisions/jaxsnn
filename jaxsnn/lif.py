@@ -37,22 +37,31 @@ class LIFParameters:
   v_th : ArrayLike
   v_reset : ArrayLike
 
+@tree_math.struct
+class LIFInput:
+  spikes : ArrayLike
+  current : ArrayLike
 
 def lif_dynamics(p : LIFParameters):
-  def dynamics(s : LIFState, z : ArrayLike):
+  def dynamics(s : LIFState, i : LIFInput):
     return LIFState(
-      p.tau_mem_inv * ((p.v_leak - s.v) + s.I),
-      -p.tau_syn_inv * s.I
+      p.tau_mem_inv * ((p.v_leak - s.v) + s.I + i.current),
+      -p.tau_syn_inv * (s.I)
     )
   return dynamics
 
 def lif_projection(p: LIFParameters):
-  def projection(s : LIFState):
+  def projection(s : LIFState, i : LIFInput):
     return LIFState(
       np.where(s.v > p.v_th, p.v_reset, s.v),
-      s.I
+      s.I + i.spikes
     )
   return projection
+
+def lif_output(p: LIFParameters):
+  def output(s : LIFState, _ : LIFInput):
+    return np.where(s.v > p.v_th, p.v_reset, s.v)
+  return output
 
 def lif_step(
     state,
