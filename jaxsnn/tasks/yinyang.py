@@ -4,7 +4,7 @@ from functools import partial
 import jaxsnn
 import matplotlib.pyplot as plt
 import optax
-from jax import numpy as jnp
+from jax import numpy as np
 from jax import random, value_and_grad
 from jax.lax import scan
 from jaxsnn.dataset.yinyang import DataLoader, YinYangDataset
@@ -47,7 +47,9 @@ if __name__ == "__main__":
 
     snn_init, snn_apply = jaxsnn.serial(
         jaxsnn.SpatioTemporalEncode(T, t_late, DT),
-        jaxsnn.euler_integrate(jaxsnn.LIFStep(hidden_features, Heaviside()), jaxsnn.LIStep(n_classes)), 
+        jaxsnn.euler_integrate(
+            jaxsnn.LIFStep(hidden_features, Heaviside()), jaxsnn.LIStep(n_classes)
+        ),
         jaxsnn.MaxOverTimeDecode(),
     )
 
@@ -73,16 +75,16 @@ if __name__ == "__main__":
             # recording[layer_idx].observable[step idx, time_idx, batch idx, neuron_idx]
             for neuron_idx in range(5):
                 x = recording[1].v[0, :, 0, neuron_idx]
-                plt.plot(jnp.arange(T), x)
+                plt.plot(np.arange(T), x)
             plt.savefig("./plots/voltage.png")
 
         def plot_spikes_per_step(recording):
             # recording[layer_idx].observable[step idx, time_idx, batch idx, neuron_idx]
-            x = jnp.sum(recording[1].z, axis=(1, 2, 3))
-            plt.plot(jnp.arange(len(x)), x)
+            x = np.sum(recording[1].z, axis=(1, 2, 3))
+            plt.plot(np.arange(len(x)), x)
             plt.savefig("./plots/spikes.png")
 
-        spikes_per_item = jnp.count_nonzero(recording[1].z) / len(trainset)
+        spikes_per_item = np.count_nonzero(recording[1].z) / len(trainset)
         accuracy, test_loss = acc_and_loss(
             snn_apply, params, (test_dataset.vals, test_dataset.classes)
         )

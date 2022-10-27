@@ -1,6 +1,6 @@
 from typing import Tuple
 
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import custom_vjp
 from jaxsnn.functional.lif import LIFParameters, LIFState, lif_step
 

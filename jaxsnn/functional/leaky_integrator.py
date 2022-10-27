@@ -1,6 +1,6 @@
 from typing import NamedTuple, Tuple
 
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import jit, random
 from jax.lax import scan
 
@@ -9,38 +9,38 @@ class LIState(NamedTuple):
     """State of a leaky-integrator
 
     Parameters:
-        v (jnp.DeviceArray): membrane voltage
-        i (jnp.DeviceArray): input current
+        v (np.DeviceArray): membrane voltage
+        i (np.DeviceArray): input current
     """
 
-    v: jnp.DeviceArray
-    i: jnp.DeviceArray
+    v: np.DeviceArray
+    i: np.DeviceArray
 
 
 class LIParameters(NamedTuple):
     """Parameters of a leaky integrator
 
     Parameters:
-        tau_syn_inv (jnp.DeviceArray): inverse synaptic time constant
-        tau_mem_inv (jnp.DeviceArray): inverse membrane time constant
-        v_leak (jnp.DeviceArray): leak potential
+        tau_syn_inv (np.DeviceArray): inverse synaptic time constant
+        tau_mem_inv (np.DeviceArray): inverse membrane time constant
+        v_leak (np.DeviceArray): leak potential
     """
 
-    tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)  # type: ignore
-    tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)  # type: ignore
-    v_leak: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
+    tau_syn_inv: np.DeviceArray = np.array(1.0 / 5e-3)  # type: ignore
+    tau_mem_inv: np.DeviceArray = np.array(1.0 / 1e-2)  # type: ignore
+    v_leak: np.DeviceArray = np.array(0.0)  # type: ignore
 
 
 @jit
 def li_feed_forward_step(
     init,
-    spikes: jnp.DeviceArray,
+    spikes: np.DeviceArray,
     p: LIParameters = LIParameters(),
     dt: float = 0.001,
 ):
     state, input_weights = init
     # compute current jumps
-    i_jump = state.i + jnp.matmul(spikes, input_weights)
+    i_jump = state.i + np.matmul(spikes, input_weights)
     # compute voltage updates
     dv = dt * p.tau_mem_inv * ((p.v_leak - state.v) + i_jump)  # type: ignore
     v_new = state.v + dv
@@ -58,7 +58,7 @@ def li_integrate(init, spikes):
 
 def li_init_weights(
     key: random.KeyArray, input_size: int, size: int, scale: float = 1e-2
-) -> Tuple[jnp.DeviceArray]:
+) -> Tuple[np.DeviceArray]:
     """Randomly initialize weights for a li layer
 
     Args:
@@ -67,10 +67,10 @@ def li_init_weights(
         scale (float, optional): Defaults to 1e-2.
 
     Returns:
-        Tuple[jnp.DeviceArray]: Randomly initialized weights
+        Tuple[np.DeviceArray]: Randomly initialized weights
     """
     return (scale * random.normal(key, (input_size, size)),)
 
 
 def li_init_state(size: Tuple[int, int]) -> LIState:
-    return LIState(jnp.zeros(size), jnp.zeros(size))
+    return LIState(np.zeros(size), np.zeros(size))

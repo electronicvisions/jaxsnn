@@ -1,19 +1,19 @@
 from typing import Optional
 
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import random, vmap
 
 
 def outside_circle(x: float, y: float, r_big) -> bool:
-    return jnp.sqrt((x - r_big) ** 2 + (y - r_big) ** 2) >= r_big
+    return np.sqrt((x - r_big) ** 2 + (y - r_big) ** 2) >= r_big
 
 
 def dist_to_right_dot(x: int, y: int, r_big) -> float:
-    return jnp.sqrt((x - 1.5 * r_big) ** 2 + (y - r_big) ** 2)
+    return np.sqrt((x - 1.5 * r_big) ** 2 + (y - r_big) ** 2)
 
 
 def dist_to_left_dot(x: int, y: int, r_big) -> float:
-    return jnp.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2)
+    return np.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2)
 
 
 def get_class(coords, r_big: float, r_small: float):
@@ -24,13 +24,13 @@ def get_class(coords, r_big: float, r_small: float):
     d_right = dist_to_right_dot(x, y, r_big)
     d_left = dist_to_left_dot(x, y, r_big)
     criterion1 = d_right <= r_small
-    criterion2 = jnp.logical_and(d_left > r_small, d_left <= 0.5 * r_big)
-    criterion3 = jnp.logical_and(y > r_big, d_right > 0.5 * r_big)
-    is_yin = jnp.logical_or(jnp.logical_or(criterion1, criterion2), criterion3)
-    is_circles = jnp.logical_or(d_right < r_small, d_left < r_small)
+    criterion2 = np.logical_and(d_left > r_small, d_left <= 0.5 * r_big)
+    criterion3 = np.logical_and(y > r_big, d_right > 0.5 * r_big)
+    is_yin = np.logical_or(np.logical_or(criterion1, criterion2), criterion3)
+    is_circles = np.logical_or(d_right < r_small, d_left < r_small)
     return (
         is_circles.astype(int) * 2
-        + jnp.invert(is_circles).astype(int) * is_yin.astype(int)
+        + np.invert(is_circles).astype(int) * is_yin.astype(int)
         + outside_circle(x, y, r_big) * 10
     )
 
@@ -73,12 +73,12 @@ class YinYangDataset:
         classes = get_class_batched(coords, self.r_big, self.r_small)
 
         n_per_class = [size // 3, size // 3, size - 2 * size // 3]
-        idx = jnp.concatenate(
-            [jnp.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)]
+        idx = np.concatenate(
+            [np.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)]
         )
 
         idx = random.permutation(subkey, idx, axis=0)
-        self.vals = jnp.hstack((coords[idx], 1 - coords[idx]))
+        self.vals = np.hstack((coords[idx], 1 - coords[idx]))
         self.classes = classes[idx]
 
     def __getitem__(self, index: int):
@@ -92,7 +92,7 @@ def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
     permutation = (
         random.permutation(rng, len(dataset))
         if rng is not None
-        else jnp.arange(len(dataset))
+        else np.arange(len(dataset))
     )
     vals = dataset.vals[permutation].reshape(-1, batch_size, dataset.vals.shape[1])  # type: ignore
     classes = dataset.classes[permutation].reshape(-1, batch_size)  # type: ignore

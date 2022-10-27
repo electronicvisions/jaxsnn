@@ -1,5 +1,5 @@
 import jax
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import custom_vjp
 from jaxsnn.functional.heaviside import heaviside
 
@@ -11,14 +11,14 @@ def Heaviside():
 def SuperSpike(alpha=100.0):
     @custom_vjp
     def step_fn(x):
-        return 0.5 + 0.5 * jnp.sign(x)
+        return 0.5 + 0.5 * np.sign(x)
 
     def step_fn_fwd(x):
         return step_fn(x), (x,)
 
     def step_fn_bwd(res, g):
         (x,) = res
-        grad = g / (alpha * jnp.abs(x) + 1.0) ** 2
+        grad = g / (alpha * np.abs(x) + 1.0) ** 2
         return (grad,)
 
     step_fn.defvjp(step_fn_fwd, step_fn_bwd)
@@ -36,14 +36,14 @@ def HeaviErfc(k):
 
     @custom_vjp
     def step_fn(x):
-        return 0.5 + 0.5 * jnp.sign(x)
+        return 0.5 + 0.5 * np.sign(x)
 
     def step_fn_fwd(x):
         return step_fn(x), (x,)
 
     def step_fn_bwd(res, g):
         (x,) = res
-        derfc = (2 * jnp.exp(-((k * x) ** 2))) / (jnp.sqrt(jnp.pi))
+        derfc = (2 * np.exp(-((k * x) ** 2))) / (np.sqrt(np.pi))
 
         grad = g * derfc
         return (grad,)
@@ -61,14 +61,14 @@ def HeaviTanh(k):
 
     @custom_vjp
     def step_fn(x):
-        return 0.5 + 0.5 * jnp.sign(x)
+        return 0.5 + 0.5 * np.sign(x)
 
     def step_fn_fwd(x):
         return step_fn(x), (x,)
 
     def step_fn_bwd(res, g):
         (x,) = res
-        dtanh = 1 - jnp.tanh(x * k) ** 2
+        dtanh = 1 - np.tanh(x * k) ** 2
 
         grad = g * dtanh
         return (grad,)
@@ -86,7 +86,7 @@ def Logistic(k):
 
     @custom_vjp
     def step_fn(x, rng):
-        p = 0.5 + 0.5 * jnp.tanh(k * x)
+        p = 0.5 + 0.5 * np.tanh(k * x)
         return jax.random.bernoulli(rng, p=p)
 
     def step_fn_fwd(x):
@@ -94,7 +94,7 @@ def Logistic(k):
 
     def step_fn_bwd(res, g):
         (x,) = res
-        dtanh = 1 - jnp.tanh(x * k) ** 2
+        dtanh = 1 - np.tanh(x * k) ** 2
 
         grad = g * dtanh
         return (grad,)

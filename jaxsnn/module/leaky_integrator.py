@@ -1,4 +1,4 @@
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import random
 from jax.lax import scan
 from jaxsnn.functional.leaky_integrator import LIState, li_feed_forward_step
@@ -15,7 +15,7 @@ def LI(out_dim, scale_in=0.2):
     def apply_fn(params, inputs, **kwargs):
         batch = inputs.shape[1]
         shape = (batch, out_dim)
-        state = LIState(jnp.zeros(shape), jnp.zeros(shape))
+        state = LIState(np.zeros(shape), np.zeros(shape))
         _, voltages = scan(li_feed_forward_step, (state, params), inputs)
         return voltages
 
@@ -35,7 +35,7 @@ def LIStep(out_dim, scale_in=0.2):
 
     def state_fn(batch_size):
         shape = (batch_size, out_dim)
-        state = LIState(jnp.zeros(shape), jnp.zeros(shape))
+        state = LIState(np.zeros(shape), np.zeros(shape))
         return state
 
     return init_fn, apply_fn, state_fn

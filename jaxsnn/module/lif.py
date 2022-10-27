@@ -1,7 +1,7 @@
 from functools import partial
 
 import diffrax
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import jit, random
 from jax.lax import scan
 from jaxsnn.functional.lif import LIFParameters, LIFState, lif_step, liv_derivative
@@ -19,7 +19,7 @@ def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
     def apply_fn(params, inputs, **kwargs):
         batch = inputs.shape[1]
         shape = (batch, out_dim)
-        state = LIFState(jnp.zeros(shape), jnp.zeros(shape), jnp.zeros(shape))
+        state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
         (state, _), spikes = scan(lif_step, (state, params), inputs)
 
         return spikes
@@ -38,7 +38,7 @@ def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
 
     def state_fn(batch_size, **kwargs):
         shape = (batch_size, out_dim)
-        state = LIFState(jnp.zeros(shape), jnp.zeros(shape), jnp.zeros(shape))
+        state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
         return state
 
     lif_step_fn = jit(partial(lif_step, method=method))
@@ -65,8 +65,8 @@ def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
     #     # compute reset
     #     v_new = (1 - z_new) * v_decayed + z_new * v_reset
     #     # compute current jumps
-    #     i_new = i_decayed + jnp.matmul(z, recurrent_weights)
-    #     i_new = i_new + jnp.matmul(inputs, input_weights)
+    #     i_new = i_decayed + np.matmul(z, recurrent_weights)
+    #     i_new = i_new + np.matmul(inputs, input_weights)
     #     return (LIFState(z_new, v_new, i_new), params), z_new
 
     return init_fn, apply_fn, state_fn

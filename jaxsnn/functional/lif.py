@@ -1,6 +1,6 @@
 from typing import NamedTuple, Tuple
 
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import random
 from jax.lax import scan
 from jaxsnn.functional.heaviside import heaviside
@@ -10,47 +10,47 @@ class LIFState(NamedTuple):
     """State of a LIF neuron
 
     Parameters:
-        z (jnp.DeviceArray): recurrent spikes
-        v (jnp.DeviceArray): membrane potential
-        i (jnp.DeviceArray): synaptic input current
-        input_weights (jnp.DeviceArray): input weights
-        recurrent_weights (jnp.DeviceArray): recurrentweights
+        z (np.DeviceArray): recurrent spikes
+        v (np.DeviceArray): membrane potential
+        i (np.DeviceArray): synaptic input current
+        input_weights (np.DeviceArray): input weights
+        recurrent_weights (np.DeviceArray): recurrentweights
     """
 
-    z: jnp.DeviceArray
-    v: jnp.DeviceArray
-    i: jnp.DeviceArray
+    z: np.DeviceArray
+    v: np.DeviceArray
+    i: np.DeviceArray
 
 
 class LIFParameters(NamedTuple):
     """Parametrization of a LIF neuron
 
     Parameters:
-        tau_syn_inv (jnp.DeviceArray): inverse synaptic time
+        tau_syn_inv (np.DeviceArray): inverse synaptic time
                                     constant (:math:`1/\\tau_\\text{syn}`) in 1/ms
-        tau_mem_inv (jnp.DeviceArray): inverse membrane time
+        tau_mem_inv (np.DeviceArray): inverse membrane time
                                     constant (:math:`1/\\tau_\\text{mem}`) in 1/ms
-        v_leak (jnp.DeviceArray): leak potential in mV
-        v_th (jnp.DeviceArray): threshold potential in mV
-        v_reset (jnp.DeviceArray): reset potential in mV
+        v_leak (np.DeviceArray): leak potential in mV
+        v_th (np.DeviceArray): threshold potential in mV
+        v_reset (np.DeviceArray): reset potential in mV
         method (str): method to determine the spike threshold
                       (relevant for surrogate gradients)
         alpha (float): hyper parameter to use in surrogate gradient computation
     """
 
-    tau_syn_inv: jnp.DeviceArray = jnp.array(1.0 / 5e-3)  # type: ignore
-    tau_mem_inv: jnp.DeviceArray = jnp.array(1.0 / 1e-2)  # type: ignore
-    v_leak: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
-    v_th: jnp.DeviceArray = jnp.array(0.5)  # type: ignore
-    v_reset: jnp.DeviceArray = jnp.array(0.0)  # type: ignore
+    tau_syn_inv: np.DeviceArray = np.array(1.0 / 5e-3)  # type: ignore
+    tau_mem_inv: np.DeviceArray = np.array(1.0 / 1e-2)  # type: ignore
+    v_leak: np.DeviceArray = np.array(0.0)  # type: ignore
+    v_th: np.DeviceArray = np.array(0.5)  # type: ignore
+    v_reset: np.DeviceArray = np.array(0.0)  # type: ignore
 
 
 def lif_current_encoder(
     voltage,
-    input_current: jnp.DeviceArray,
+    input_current: np.DeviceArray,
     p: LIFParameters = LIFParameters(),
     dt: float = 0.001,
-) -> Tuple[jnp.DeviceArray, jnp.DeviceArray]:
+) -> Tuple[np.DeviceArray, np.DeviceArray]:
     r"""Computes a single euler-integration step of a leaky integrator. More
     specifically it implements one integration step of the following ODE
 
@@ -61,8 +61,8 @@ def lif_current_encoder(
         \end{align*}
 
     Parameters:
-        input (jnp.DeviceArray): the input current at the current time step
-        voltage (jnp.DeviceArray): current state of the LIF neuron
+        input (np.DeviceArray): the input current at the current time step
+        voltage (np.DeviceArray): current state of the LIF neuron
         p (LIFParameters): parameters of a leaky integrate and fire neuron
         dt (float): Integration timestep to use
     """
@@ -99,8 +99,8 @@ def lif_step(
     # compute reset
     v_new = (1 - z_new) * v_decayed + z_new * v_reset
     # compute current jumps
-    i_new = i_decayed + jnp.matmul(z, recurrent_weights)
-    i_new = i_new + jnp.matmul(spikes, input_weights)
+    i_new = i_decayed + np.matmul(z, recurrent_weights)
+    i_new = i_new + np.matmul(spikes, input_weights)
 
     return (LIFState(z_new, v_new, i_new), (input_weights, recurrent_weights)), z_new
 
@@ -120,7 +120,7 @@ def lif_integrate(init, spikes):
 
 def lif_init_weights(
     key: random.KeyArray, input_size: int, size: int, scale: float = 1e-2
-) -> Tuple[jnp.DeviceArray, jnp.DeviceArray]:
+) -> Tuple[np.DeviceArray, np.DeviceArray]:
     """Randomly initialize weights and recurrent weights for a snn layer
 
     Args:
@@ -129,7 +129,7 @@ def lif_init_weights(
         scale (float, optional): Defaults to 1e-2.
 
     Returns:
-        Tuple[jnp.DeviceArray, jnp.DeviceArray]: Randomly initialized weights
+        Tuple[np.DeviceArray, np.DeviceArray]: Randomly initialized weights
     """
     i_key, r_key = random.split(key)
     input_weights = scale * random.normal(i_key, (input_size, size))
@@ -138,4 +138,4 @@ def lif_init_weights(
 
 
 def lif_init_state(size: Tuple[int, int]) -> LIFState:
-    return LIFState(jnp.zeros(size), jnp.zeros(size), jnp.zeros(size))
+    return LIFState(np.zeros(size), np.zeros(size), np.zeros(size))

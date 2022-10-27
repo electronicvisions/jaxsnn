@@ -1,6 +1,6 @@
 from functools import partial
 
-import jax.numpy as jnp
+import jax.numpy as np
 from jax import jit
 from jax.lax import scan
 
@@ -8,9 +8,9 @@ from .lif import lif_current_encoder
 
 
 @partial(jit, static_argnames=["k"])
-def one_hot(x, k, dtype=jnp.float32):
+def one_hot(x, k, dtype=np.float32):
     """Create a one-hot encoding of x of size k."""
-    return jnp.array(x[:, None] == jnp.arange(k), dtype)
+    return np.array(x[:, None] == np.arange(k), dtype)
 
 
 def constant_current_lif_encode(
@@ -22,7 +22,7 @@ def constant_current_lif_encode(
     occur during a number of timesteps/iterations (seq_length).
 
     Example:
-        >>> data = jnp.array([2, 4, 8, 16])
+        >>> data = np.array([2, 4, 8, 16])
         >>> seq_length = 2 # Simulate two iterations
         >>> constant_current_lif_encode(data, seq_length)
          # State in terms of membrane voltage
@@ -33,14 +33,14 @@ def constant_current_lif_encode(
                  [0., 0., 1., 1.]]))
 
     Parameters:
-        input_current (jnp.DeviceArray): The input array, representing LIF current
+        input_current (np.DeviceArray): The input array, representing LIF current
         seq_length (int): The number of iterations to simulate
 
     Returns:
         An array with an extra dimension of size `seq_length` containing spikes (1) or no spikes (0).
     """
-    init = jnp.zeros(*input_current.shape)
-    input_current = jnp.tile(input_current, (seq_length, 1))
+    init = np.zeros(*input_current.shape)
+    input_current = np.tile(input_current, (seq_length, 1))
     return scan(lif_current_encoder, init, input_current)
 
 
@@ -56,7 +56,7 @@ def spatio_temporal_encode(
     occur during a number of timesteps/iterations (seq_length).
 
     Example:
-        >>> data = jnp.array([2, 4, 8, 16])
+        >>> data = np.array([2, 4, 8, 16])
         >>> seq_length = 2 # Simulate two iterations
         >>> spatio_temporal_encode(data, seq_length)
          # Spikes for each iteration
@@ -77,13 +77,13 @@ def spatio_temporal_encode(
         raise ValueError("Tensor with input values must be one or two dimensional")
 
     idx = (input_values * t_late / dt).round().astype(int)
-    idx = jnp.clip(idx, 0, seq_length)
-    encoded = jnp.eye(seq_length)[:, idx]
+    idx = np.clip(idx, 0, seq_length)
+    encoded = np.eye(seq_length)[:, idx]
     return encoded
 
 
 if __name__ == "__main__":
-    # data = jnp.array([[0.1, 0.1, 0.9, 0.9], [0.5, 0.8, 0.5, 0.2]])
+    # data = np.array([[0.1, 0.1, 0.9, 0.9], [0.5, 0.8, 0.5, 0.2]])
     # value = spatio_temporal_encode(data, 10)
 
-    data = jnp.array([0.5, 0.8, 0.5, 0.2])
+    data = np.array([0.5, 0.8, 0.5, 0.2])
