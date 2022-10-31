@@ -19,34 +19,37 @@ from absl.testing import parameterized
 from jaxsnn.base import funcutils
 import numpy as np
 
+
 class TrajectoryTests(parameterized.TestCase):
+    @parameterized.named_parameters(
+        dict(
+            testcase_name="identity",
+            trajectory_length=6,
+            post_process=funcutils._identity,
+        ),
+        dict(
+            testcase_name="squared_postprocessing",
+            trajectory_length=12,
+            post_process=lambda x: (x[0] ** 2,),
+        ),
+    )
+    def test_trajectory(self, trajectory_length, post_process):
+        def step_fn(x):
+            return (x[0] + 1,)
 
-  @parameterized.named_parameters(
-      dict(testcase_name='identity',
-           trajectory_length=6,
-           post_process=funcutils._identity),
-      dict(testcase_name='squared_postprocessing',
-           trajectory_length=12,
-           post_process=lambda x: (x[0] ** 2,)),
-  )
-  def test_trajectory(self, trajectory_length, post_process):
-    def step_fn(x):
-      return (x[0] + 1,)
+        trajectory_fn = funcutils.trajectory(step_fn, trajectory_length, post_process)
 
-    trajectory_fn = funcutils.trajectory(
-        step_fn, trajectory_length, post_process)
-
-    initial_state = (2 * np.ones(1),)
-    expected_frames = []
-    frame = initial_state
-    for _ in range(trajectory_length):
-      frame = step_fn(frame)
-      expected_frames.append(post_process(frame))
-    expected_output = (np.stack([x[0] for x in expected_frames]),)
-    _, actual_output = trajectory_fn(initial_state)
-    for expected, actual in zip(expected_output, actual_output):
-      np.testing.assert_allclose(expected, actual, atol=1e-9)
+        initial_state = (2 * np.ones(1),)
+        expected_frames = []
+        frame = initial_state
+        for _ in range(trajectory_length):
+            frame = step_fn(frame)
+            expected_frames.append(post_process(frame))
+        expected_output = (np.stack([x[0] for x in expected_frames]),)
+        _, actual_output = trajectory_fn(initial_state)
+        for expected, actual in zip(expected_output, actual_output):
+            np.testing.assert_allclose(expected, actual, atol=1e-9)
 
 
-if __name__ == '__main__':
-  absltest.main()
+if __name__ == "__main__":
+    absltest.main()

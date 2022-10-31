@@ -31,6 +31,7 @@ def test_bisection():
     actual = root_solving.bisection(f, 0, 2, 0.001)
     np.testing.assert_allclose(expected, actual, atol=tol)
 
+
 def test_newton_1d():
     expected = math.sqrt(2)
     f = lambda x: x**2 - 2
@@ -39,7 +40,5 @@ def test_newton_1d():
     np.testing.assert_allclose(actual, expected, atol=tol)
 
 
-
-
-if __name__ == '__main__':
-  absltest.main()
+if __name__ == "__main__":
+    absltest.main()
