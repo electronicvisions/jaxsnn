@@ -5,7 +5,7 @@ import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
 
-from jaxsnn.event.functional import f, forward_integration, step
+from jaxsnn.event.functional import f, forward_integration, scan, step
 from jaxsnn.event.root import ttfs_solver
 
 tau_mem = 1e-2
@@ -19,6 +19,7 @@ t_max = 2 * t_late
 A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
 
 
+@jax.jit
 def loss_fn(first_spikes, target):
     loss_value = -np.sum(np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem)))
     return loss_value
@@ -43,6 +44,7 @@ dynamics = jax.vmap(single_dynamics, in_axes=(0, None))
 solver = partial(ttfs_solver, tau_mem, v_th)
 batched_solver = jax.vmap(solver, in_axes=(0, None))
 step_fn = partial(step, dynamics, batched_solver)
+forward_int = partial(forward_integration, step_fn, 10)
 
 rng = jax.random.PRNGKey(42)
 n_input = 2
@@ -101,13 +103,11 @@ def forward2(weights, input_spikes):
 
 
 def forward3(weights, input_spikes):
-    forward_int = partial(forward_integration, step_fn, 4)
     state, (spike_times, spike_idx) = forward_int(weights, input_spikes, t_max)
     return spike_times[2] + spike_times[3]
 
 
 def forward4(weights, input_spikes):
-    forward_int = partial(forward_integration, step_fn, 4)
     state, (spike_times, spike_idx) = forward_int(weights, input_spikes, t_max)
     time1 = np.nanmin(np.where(spike_idx == 3, spike_times, np.nan))
     time2 = np.nanmin(np.where(spike_idx == 1, spike_times, np.nan))
@@ -116,11 +116,15 @@ def forward4(weights, input_spikes):
 
 def forward5(weights, batch):
     input_spikes, target = batch
-    forward_int = partial(forward_integration, step_fn, 4)
     state, (spike_times, spike_idx) = forward_int(weights, input_spikes, t_max)
+
     time1 = np.nanmin(np.where(spike_idx == 3, spike_times, np.nan))
     time2 = np.nanmin(np.where(spike_idx == 1, spike_times, np.nan))
-    return loss_fn(np.array([time1, time2]), target), np.array([time1, time2])
+
+    return (
+        loss_fn(np.array([time1, time2]), target),
+        (np.array([time1, time2]), (spike_times, spike_idx)),
+    )
 
 
 def inspect(forward, input_spikes):
@@ -139,29 +143,77 @@ def assert_vals_equal(funcs: List[Callable], input_spikes):
 
 def update(weights, batch):
     value, grad = jax.value_and_grad(forward5, has_aux=True)(weights, batch)
+    # if any([(np.isnan(g)) for g in grad]):
+    # assert False
     weights = jax.tree_map(lambda f, df: f - 0.1 * df, weights, grad)
     return weights, value
 
 
-def train(input_spikes):
+def plot_spike_times(spikes, axs):
+    for i in range(4):
+        it = i * 200
+        spike_times = spikes[0][it]
+        spike_idx = spikes[1][it]
+        axs[i].scatter(
+            x=spike_times,
+            y=spike_idx + 1,
+            s=3 * (120.0 / len(spike_times)) ** 2.0,
+            marker="|",
+            c="black",
+        )
+        axs[i].set_ylabel("neuron id")
+        axs[i].set_xlabel(r"$t$ [us]")
+
+
+def train(batch):
     rng = jax.random.PRNGKey(42)
-    target = np.array([0.12, 0.03]) * t_max  # type: ignore
-    batch = (input_spikes, target)
     n_input = 2
     n_hidden = 4
     n_epochs = 1000
     weights = init_weights(rng, (n_input, n_hidden))
     inputs = (np.tile(batch[0], (n_epochs, 1)), np.tile(batch[1], (n_epochs, 1)))
-    weights, (loss, spike_times) = jax.lax.scan(update, weights, inputs)
-    fix, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-    ax1.plot(np.arange(len(loss)), loss, label="Loss")
-    ax2.plot(np.arange(len(spike_times)), spike_times[:, 0], label="t_spike 1")
-    ax2.plot(np.arange(len(spike_times)), spike_times[:, 1], label="t_spike 2")
-    ax2.legend()
+
+    weights, (loss, (t_output, spikes)) = jax.lax.scan(update, weights, inputs)
+
+    fix, (ax1, ax2) = plt.subplots(2, 4, figsize=(18, 6))
+    ax1[0].plot(np.arange(len(loss)), loss, label="Loss")
+    ax1[1].plot(np.arange(len(t_output)), t_output[:, 0] / t_max, label="t_spike 1")
+    ax1[1].plot(np.arange(len(t_output)), t_output[:, 1] / t_max, label="t_spike 2")
+    ax1[1].legend()
+    plot_spike_times(spikes, ax2)
     plt.show()
 
 
 if __name__ == "__main__":
-    input_spikes = np.array([0.01, 0.04, np.inf, np.inf]) * t_max  # type: ignore
-    # assert_vals_equal([forward1, forward2, forward3, forward4], input_spikes)
-    train(input_spikes)
+    input_spikes = np.array([0.01, 0.04, 1.0, 1.0]) * t_max  # type: ignore
+    target = np.array([0.12, 0.03]) * t_max  # type: ignore
+    batch = (input_spikes, target)
+    train(batch)
+
+    from jax.config import config
+
+    # # TODO How to do nan debugging properly
+    # config.update("jax_debug_nans", False)
+    # # assert_vals_equal([forward1, forward2, forward3, forward4], input_spikes)
+    # # train(input_spikes)
+    # input_weights = np.array(
+    #     [
+    #         [-4.3501244, 0.57454103, -2.3635213, 2.8807988],
+    #         [-2.5026827, 1.1196982, 1.3948648, -0.49777567],
+    #     ]
+    # )
+    # recurrent_weights = np.array(
+    #     [
+    #         [0.0, 0.93933487, -2.9768891, -2.311438],
+    #         [-2.5148706, -0.0, -2.6628385, 1.2941467],
+    #         [-1.1024845, -0.6427008, 0.0, -0.8432432],
+    #         [0.6479611, 2.7001774, -0.45818463, 0.0],
+    #     ]
+    # )
+    # weights = [input_weights, recurrent_weights]
+    # # forward5(weights, batch)
+    # (loss, (output, spikes)), grads = jax.value_and_grad(forward5, has_aux=True)(
+    #     weights, batch
+    # )
+    # print(f"Output times: {output}")
+    # print(grads[0])

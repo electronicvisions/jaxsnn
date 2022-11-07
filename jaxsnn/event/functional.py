@@ -2,8 +2,23 @@ from typing import Callable, Tuple
 
 import jax
 import jax.numpy as np
+from jax.tree_util import tree_flatten, tree_map, tree_unflatten
 
 from jaxsnn.types import Array
+
+
+def scan(f, init, xs, length=None):
+    xs_flat, xs_tree = tree_flatten(xs)
+    carry = init
+    ys = []
+    length = len(xs_flat[0])
+    for i in range(length):
+        xs_slice = [x[i] for x in xs_flat]
+        carry, y = f(carry, tree_unflatten(xs_tree, xs_slice))
+        ys.append(y)
+    stack = lambda *ys: jax.numpy.stack(ys)
+    stacked_y = tree_map(stack, *ys)
+    return carry, stacked_y
 
 
 def f(A, x0, t):
@@ -36,14 +51,15 @@ def step(
        Tuple: (State after transition, time of transition, index of spike or -1 if external / no spike)
     """
     input_weights, recurrent_weights = weights
-    t_spike = solver(y, 1e-3)
+    t_spike = solver(y, dt)
 
-    t_spike = np.where(np.isnan(t_spike), np.inf, t_spike)
+    # t_spike = np.where(np.isnan(t_spike), dt, t_spike)
     spike_idx = np.argmin(t_spike)
     spike_time = t_spike[spike_idx]
 
     # only regard future input spikes
-    input_spikes = np.where(input_spikes > 0.0, input_spikes, np.inf)
+    # TODO replace where by single next input
+    input_spikes = np.where(input_spikes > 0.0, input_spikes, dt)
     input_spike_idx = np.argmin(input_spikes)
     input_spike_time = input_spikes[input_spike_idx]
 
