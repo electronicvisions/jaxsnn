@@ -3,6 +3,7 @@ from typing import Callable, List, Tuple
 
 import jax
 import jax.numpy as np
+import matplotlib.pyplot as plt
 
 from jaxsnn.event.functional import f, forward_integration, step
 from jaxsnn.event.root import ttfs_solver
@@ -136,20 +137,31 @@ def assert_vals_equal(funcs: List[Callable], input_spikes):
         assert t_spikes == 0.003840894
 
 
+def update(weights, batch):
+    value, grad = jax.value_and_grad(forward5, has_aux=True)(weights, batch)
+    weights = jax.tree_map(lambda f, df: f - 0.1 * df, weights, grad)
+    return weights, value
+
+
 def train(input_spikes):
     rng = jax.random.PRNGKey(42)
-    target = np.array([0.1, 0.3]) * t_max  # type: ignore
+    target = np.array([0.12, 0.03]) * t_max  # type: ignore
     batch = (input_spikes, target)
     n_input = 2
     n_hidden = 4
+    n_epochs = 1000
     weights = init_weights(rng, (n_input, n_hidden))
-    for i in range(100):
-        value, grad = jax.value_and_grad(forward5, has_aux=True)(weights, batch)
-        weights = jax.tree_map(lambda f, df: f - 0.1 * df, weights, grad)
-        print(forward5(weights, batch)[1], target)
+    inputs = (np.tile(batch[0], (n_epochs, 1)), np.tile(batch[1], (n_epochs, 1)))
+    weights, (loss, spike_times) = jax.lax.scan(update, weights, inputs)
+    fix, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    ax1.plot(np.arange(len(loss)), loss, label="Loss")
+    ax2.plot(np.arange(len(spike_times)), spike_times[:, 0], label="t_spike 1")
+    ax2.plot(np.arange(len(spike_times)), spike_times[:, 1], label="t_spike 2")
+    ax2.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
     input_spikes = np.array([0.01, 0.04, np.inf, np.inf]) * t_max  # type: ignore
-    assert_vals_equal([forward1, forward2, forward3, forward4], input_spikes)
+    # assert_vals_equal([forward1, forward2, forward3, forward4], input_spikes)
     train(input_spikes)
