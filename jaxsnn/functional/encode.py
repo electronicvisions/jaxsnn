@@ -33,7 +33,7 @@ def constant_current_lif_encode(
                  [0., 0., 1., 1.]]))
 
     Parameters:
-        input_current (np.DeviceArray): The input array, representing LIF current
+        input_current (Array): The input array, representing LIF current
         seq_length (int): The number of iterations to simulate
 
     Returns:

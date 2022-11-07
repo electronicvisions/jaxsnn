@@ -1,12 +1,13 @@
 import time
 from functools import partial
 
-import jaxsnn
 import matplotlib.pyplot as plt
 import optax
 from jax import numpy as np
 from jax import random, value_and_grad
 from jax.lax import scan
+
+import jaxsnn
 from jaxsnn.dataset.yinyang import DataLoader, YinYangDataset
 from jaxsnn.functional.lif import LIFParameters
 from jaxsnn.functional.loss import acc_and_loss, nll_loss
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     step_size = 1e-3
     DT = 5e-4
 
-    t_late = 1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv  # type: ignore
+    t_late = 1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
     T = int(2 * t_late / DT)
 
     rng = random.PRNGKey(42)

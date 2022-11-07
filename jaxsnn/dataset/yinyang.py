@@ -82,7 +82,7 @@ class YinYangDataset:
         self.classes = classes[idx]
 
     def __getitem__(self, index: int):
-        return (self.vals[index], self.classes[index])  # type: ignore
+        return (self.vals[index], self.classes[index])
 
     def __len__(self):
         return len(self.classes)
@@ -94,8 +94,8 @@ def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
         if rng is not None
         else np.arange(len(dataset))
     )
-    vals = dataset.vals[permutation].reshape(-1, batch_size, dataset.vals.shape[1])  # type: ignore
-    classes = dataset.classes[permutation].reshape(-1, batch_size)  # type: ignore
+    vals = dataset.vals[permutation].reshape(-1, batch_size, dataset.vals.shape[1])
+    classes = dataset.classes[permutation].reshape(-1, batch_size)
     return vals, classes
 
 

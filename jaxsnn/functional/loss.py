@@ -1,12 +1,14 @@
 from typing import Tuple
 
 import jax.numpy as np
+
 from jaxsnn.functional.encode import one_hot
+from jaxsnn.types import Array
 
 
 def nll_loss(
     snn_apply, params, batch, expected_spikes=0.5, rho=1e-4
-) -> Tuple[float, np.DeviceArray]:
+) -> Tuple[float, Array]:
     inputs, targets = batch
     preds, recording = snn_apply(params, inputs)
     targets = one_hot(targets, preds.shape[1])

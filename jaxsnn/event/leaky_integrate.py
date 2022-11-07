@@ -16,14 +16,14 @@ def f(A, t0, x0, t):
     return np.einsum("ijk, ik -> j", jax.vmap(partial(kernel, A, t))(t0), x0)
 
 
-def li_cell(A, weights, inputs, ts):
-    spike_times, spike_idx = inputs
+def li_cell(A, weights, spikes, ts):
+    spike_times, spike_idx = spikes
 
-    # place a mask where spike_idx == -1
     current = weights[spike_idx] * np.where(spike_idx == -1, 0.0, 1.0)
     voltage = np.zeros(len(spike_idx))
-    xk = np.stack((voltage, current), axis=1)  # type: ignore
-    ys = jax.vmap(partial(f, A, spike_times, xk))(ts)
+    xk = np.stack((voltage, current), axis=1)
+
+    ys = jax.jit(jax.vmap(partial(f, A, spike_times, xk)))(ts)
     return ys
 
 
@@ -34,11 +34,12 @@ def max_over_time(output):
     return np.max(output[::, 0], axis=0)
 
 
-def nll_loss(max_voltage, targets):
-    preds = jax.nn.softmax(max_voltage)
+@jax.jit
+def nll_loss(x, targets):
+    x = np.maximum(x, 0)
+    preds = jax.nn.log_softmax(x)
     loss = -np.sum(targets * preds)
-
-    return loss  # + regularization
+    return loss
 
 
 if __name__ == "__main__":
@@ -59,7 +60,7 @@ if __name__ == "__main__":
         ]
     )
     spike_idx = np.array([0, 1, 2, 1, -1])
-    spike_times = np.array([1e-4, 1.2e-4, 2e-4, 2.2e-4, 5e-4])
+    spike_times = np.array([1e-4, 1.2e-4, 2e-4, 2.2e-4, 1e-2])
 
     # time grid to evaluate on
     ts = np.arange(0, 1e-2, 1e-4)
@@ -71,8 +72,29 @@ if __name__ == "__main__":
     def loss_fn(weights, batch):
         inputs, targets = batch
         output = leaky_integrator(A, weights, inputs, ts)
+        print(output)
         max_voltage = max_over_time(output)
 
         return nll_loss(max_voltage, targets)
 
     print(loss_fn(weights, batch))
+
+    # try this combi
+    weights = np.array(
+        [
+            [1.6818058, 0.21550512],
+            [0.8131372, 1.9255047],
+            [0.9046461, 0.63647914],
+            [0.8039566, 0.8206086],
+        ]
+    )
+
+    inputs = (
+        np.array([2.6588023e-05, 3.2267941e-04, 1.0000000e-01]),
+        np.array([0, 1, -1]),
+    )
+    ts = np.arange(0, 1e-2, 1e-4)
+
+    output = leaky_integrator(A, weights, inputs, ts)
+
+    nll_loss(np.array([0.0, 0.0]), np.array([1.0, 0.0]))

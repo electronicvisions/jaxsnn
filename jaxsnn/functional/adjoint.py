@@ -2,6 +2,7 @@ from typing import Tuple
 
 import jax.numpy as np
 from jax import custom_vjp
+
 from jaxsnn.functional.lif import LIFParameters, LIFState, lif_step
 
 
@@ -23,7 +24,7 @@ def lif_adjoint_step_fwd(
     s_old, weights = init
 
     # dv before spiking
-    dv_m = p.tau_mem_inv * ((p.v_leak - s_old.v) + s_old.i)  # type: ignore
+    dv_m = p.tau_mem_inv * ((p.v_leak - s_old.v) + s_old.i)
     # dv after spiking
     dv_p = p.tau_mem_inv * ((p.v_leak - s_new.v) + s_old.i)
 

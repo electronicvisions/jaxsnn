@@ -6,9 +6,8 @@ import jax.numpy as np
 
 def solve(f, initial_guess):
     """Newton's method for root-finding.
-    
-    Does not need to be differentiable"""
 
+    Does not need to be differentiable"""
 
     initial_state = initial_guess
 
@@ -39,7 +38,7 @@ if __name__ == "__main__":
     x0 = np.array([0.0, 2.0])
 
     def f(x0, t):
-        return np.dot(jax.scipy.linalg.expm(A * t), x0)  # type: ignore
+        return np.dot(jax.scipy.linalg.expm(A * t), x0)
 
     def jc(x0, t):
         return f(x0, t)[0] - v_th

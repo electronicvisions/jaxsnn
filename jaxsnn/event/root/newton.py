@@ -31,7 +31,7 @@ if __name__ == "__main__":
     x0 = np.array([0.0, 2.0])
 
     def f(x0, t):
-        return np.dot(jax.scipy.linalg.expm(A * t), x0)  # type: ignore
+        return np.dot(jax.scipy.linalg.expm(A * t), x0)
 
     def jc(x0, t):
         return f(x0, t)[0] - v_th

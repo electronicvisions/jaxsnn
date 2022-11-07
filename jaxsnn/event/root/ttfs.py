@@ -3,7 +3,16 @@ import jax.numpy as np
 
 
 def ttfs_solver(tau_mem, v_th, state, initial_guess):
-    """Find the next spike time for special case $\tau_mem = 2 * \tau_syn$"""
+    """Find the next spike time for special case $\tau_mem = 2 * \tau_syn$
+
+    Args:
+        tau_mem float: Membrane time constant
+        v_th float: Treshhold Voltage
+        state Array: State of the neuron (voltage, current)
+
+    Returns:
+        float: Time of next threshhold crossing or np.nan if no crossing
+    """
     v_0, i_0 = state
     a_1 = i_0
     a_2 = v_0 + i_0
