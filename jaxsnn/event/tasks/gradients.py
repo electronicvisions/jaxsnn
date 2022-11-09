@@ -5,15 +5,16 @@ import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
 
-from jaxsnn.event.functional import f, forward_integration, scan, step
+from jaxsnn.event.functional import f, forward_integration, step, transition
 from jaxsnn.event.root import ttfs_solver
+from jaxsnn.types import Spike
 
 tau_mem = 1e-2
 tau_syn = 5e-3
 tau_mem_inv = 1 / tau_mem
 tau_syn_inv = 1 / tau_syn
 
-v_th = 0.3
+v_th = 0.6
 t_late = tau_syn + tau_mem
 t_max = 2 * t_late
 A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
@@ -29,9 +30,9 @@ def init_weights(rng: jax.random.KeyArray, layers: Tuple[int, int]):
     n_input, n_hidden = layers
     scale_factor = 2.0
     input_rng, hidden_rng = jax.random.split(rng)
-    input_weights = jax.random.normal(input_rng, (n_input, n_hidden)) * scale_factor
+    input_weights = jax.random.uniform(input_rng, (n_input, n_hidden)) * scale_factor
     recurrent_weights = (
-        jax.random.normal(hidden_rng, (n_hidden, n_hidden))
+        jax.random.uniform(hidden_rng, (n_hidden, n_hidden))
         * (1 - np.eye(n_hidden))
         * scale_factor
     )
@@ -43,13 +44,8 @@ single_dynamics = partial(f, A)
 dynamics = jax.vmap(single_dynamics, in_axes=(0, None))
 solver = partial(ttfs_solver, tau_mem, v_th)
 batched_solver = jax.vmap(solver, in_axes=(0, None))
-step_fn = partial(step, dynamics, batched_solver)
-forward_int = partial(forward_integration, step_fn, 10)
-
-rng = jax.random.PRNGKey(42)
-n_input = 2
-n_hidden = 4
-
+step_fn = partial(step, dynamics, batched_solver, transition, t_max)
+forward = partial(forward_integration, step_fn, 10)
 
 # minimal forward example
 def forward1(weights, input_spikes):
@@ -91,50 +87,39 @@ def forward1(weights, input_spikes):
     return recording[0] + recording[1]
 
 
-def forward2(weights, input_spikes):
-    y0 = np.zeros((weights[1].shape[0], 2))
-    t = 0
-    times = np.zeros(4)
-    for i in range(4):
-        y0, t_dyn, spike_idx = step_fn(weights, input_spikes - t, y0, t_max)  # type: ignore
-        t += t_dyn
-        times = times.at[i].set(t)
-    return times[2] + times[3]
-
-
 def forward3(weights, input_spikes):
-    state, (spike_times, spike_idx) = forward_int(weights, input_spikes, t_max)
-    return spike_times[2] + spike_times[3]
+    state, spikes = forward(weights, input_spikes)
+    return spikes.time[2] + spikes.time[3]
 
 
 def forward4(weights, input_spikes):
-    state, (spike_times, spike_idx) = forward_int(weights, input_spikes, t_max)
-    time1 = np.nanmin(np.where(spike_idx == 3, spike_times, np.nan))
-    time2 = np.nanmin(np.where(spike_idx == 1, spike_times, np.nan))
+    state, spikes = forward(weights, input_spikes)
+    time1 = np.nanmin(np.where(spikes.idx == 3, spikes.time, np.nan))
+    time2 = np.nanmin(np.where(spikes.idx == 1, spikes.time, np.nan))
     return time1 + time2
 
 
 def forward5(weights, batch):
     input_spikes, target = batch
-    state, (spike_times, spike_idx) = forward_int(weights, input_spikes, t_max)
+    state, spikes = forward(weights, input_spikes)
 
-    time1 = np.nanmin(np.where(spike_idx == 3, spike_times, np.nan))
-    time2 = np.nanmin(np.where(spike_idx == 1, spike_times, np.nan))
+    time1 = np.nanmin(np.where(spikes.idx == 3, spikes.time, np.nan))
+    time2 = np.nanmin(np.where(spikes.idx == 1, spikes.time, np.nan))
 
     return (
         loss_fn(np.array([time1, time2]), target),
-        (np.array([time1, time2]), (spike_times, spike_idx)),
+        (np.array([time1, time2]), (spikes.time, spikes.idx)),
     )
 
 
-def inspect(forward, input_spikes):
+def inspect(rng, n_input, n_hidden, forward, input_spikes):
     weights = init_weights(rng, (n_input, n_hidden))
     print(forward(weights, input_spikes))
     grad = jax.grad(forward)(weights, input_spikes)
     print(grad)
 
 
-def assert_vals_equal(funcs: List[Callable], input_spikes):
+def assert_vals_equal(rng, n_input, n_hidden, funcs: List[Callable], input_spikes):
     weights = init_weights(rng, (n_input, n_hidden))
     for fn in funcs:
         t_spikes = fn(weights, input_spikes)
@@ -165,15 +150,17 @@ def plot_spike_times(spikes, axs):
         axs[i].set_xlabel(r"$t$ [us]")
 
 
-def train(batch):
-    rng = jax.random.PRNGKey(42)
+def train(trainset):
     n_input = 2
     n_hidden = 4
-    n_epochs = 1000
+    rng = jax.random.PRNGKey(42)
     weights = init_weights(rng, (n_input, n_hidden))
-    inputs = (np.tile(batch[0], (n_epochs, 1)), np.tile(batch[1], (n_epochs, 1)))
 
-    weights, (loss, (t_output, spikes)) = jax.lax.scan(update, weights, inputs)
+    # state, (times, spikes) = forward5(
+    #     weights, (Spike(trainset[0].time[0], trainset[0].idx[0]), trainset[1][0])
+    # )
+    # print(spikes)
+    weights, (loss, (t_output, spikes)) = jax.lax.scan(update, weights, trainset)
 
     fix, (ax1, ax2) = plt.subplots(2, 4, figsize=(18, 6))
     ax1[0].plot(np.arange(len(loss)), loss, label="Loss")
@@ -184,36 +171,22 @@ def train(batch):
     plt.show()
 
 
-if __name__ == "__main__":
-    input_spikes = np.array([0.01, 0.04, 1.0, 1.0]) * t_max  # type: ignore
-    target = np.array([0.12, 0.03]) * t_max  # type: ignore
+def constant_dataset(n_epochs):
+    input_spikes = Spike(
+        np.array([0.1, 0.2, 1]) * t_max,  # type: ignore
+        np.array([0, 1, 0]),
+    )
+    target = np.array([0.2, 0.4]) * t_max  # type: ignore
     batch = (input_spikes, target)
-    train(batch)
+    tiling = (n_epochs, 1)
+    dataset = (
+        Spike(np.tile(batch[0].time, tiling), np.tile(batch[0].idx, tiling)),
+        np.tile(batch[1], tiling),
+    )
+    return dataset
 
-    from jax.config import config
 
-    # # TODO How to do nan debugging properly
-    # config.update("jax_debug_nans", False)
-    # # assert_vals_equal([forward1, forward2, forward3, forward4], input_spikes)
-    # # train(input_spikes)
-    # input_weights = np.array(
-    #     [
-    #         [-4.3501244, 0.57454103, -2.3635213, 2.8807988],
-    #         [-2.5026827, 1.1196982, 1.3948648, -0.49777567],
-    #     ]
-    # )
-    # recurrent_weights = np.array(
-    #     [
-    #         [0.0, 0.93933487, -2.9768891, -2.311438],
-    #         [-2.5148706, -0.0, -2.6628385, 1.2941467],
-    #         [-1.1024845, -0.6427008, 0.0, -0.8432432],
-    #         [0.6479611, 2.7001774, -0.45818463, 0.0],
-    #     ]
-    # )
-    # weights = [input_weights, recurrent_weights]
-    # # forward5(weights, batch)
-    # (loss, (output, spikes)), grads = jax.value_and_grad(forward5, has_aux=True)(
-    #     weights, batch
-    # )
-    # print(f"Output times: {output}")
-    # print(grads[0])
+if __name__ == "__main__":
+    n_epochs = 1000
+    trainset = constant_dataset(1000)
+    train(trainset)

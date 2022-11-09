@@ -1,24 +1,10 @@
+from functools import partial
 from typing import Callable, Tuple
 
 import jax
 import jax.numpy as np
-from jax.tree_util import tree_flatten, tree_map, tree_unflatten
 
-from jaxsnn.types import Array
-
-
-def scan(f, init, xs, length=None):
-    xs_flat, xs_tree = tree_flatten(xs)
-    carry = init
-    ys = []
-    length = len(xs_flat[0])
-    for i in range(length):
-        xs_slice = [x[i] for x in xs_flat]
-        carry, y = f(carry, tree_unflatten(xs_tree, xs_slice))
-        ys.append(y)
-    stack = lambda *ys: jax.numpy.stack(ys)
-    stacked_y = tree_map(stack, *ys)
-    return carry, stacked_y
+from jaxsnn.types import Array, Spike, StepState
 
 
 def f(A, x0, t):
@@ -29,95 +15,131 @@ def jump_condition(dynamics, v_th, x0, t):
     return dynamics(x0, t)[0] - v_th  # this implements the P y(t) - b above
 
 
+def recurrent_transition(
+    state: StepState, weights: Tuple[Array, Array], input_spikes: Spike, spike_idx: int
+):
+    _, recurrent_weights = weights
+    y_minus, t, n_input_received = state
+    tr_row = recurrent_weights[spike_idx]
+
+    y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
+    y_minus = y_minus.at[spike_idx, 0].set(0.0)
+    return StepState(y_minus, t, n_input_received)
+
+
+def input_transition(
+    state: StepState, weights: Tuple[Array, Array], input_spikes: Spike, spike_idx: int
+):
+    input_weights, _ = weights
+    y_minus, t, n_input_received = state
+    tr_row = input_weights[input_spikes.idx[n_input_received]]
+    y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
+    return StepState(y_minus, t, n_input_received + 1)
+
+
+def transition(
+    state: StepState,
+    weights: Tuple[Array, Array],
+    input_spikes: Spike,
+    spike_idx: int,
+    recurrent_spike: bool,
+) -> StepState:
+    return jax.lax.cond(
+        recurrent_spike,
+        recurrent_transition,
+        input_transition,
+        state,
+        weights,
+        input_spikes,
+        spike_idx,
+    )
+
+
+def transition_without_recurrence(
+    state: StepState,
+    weights: Array,
+    input_spikes: Spike,
+    spike_idx: int,
+    recurrent_spike: bool,
+) -> StepState:
+    def input_transition(
+        state: StepState, weights: Array, input_spikes: Spike, spike_idx: int
+    ):
+        y_minus, t, n_input_received = state
+        tr_row = weights[input_spikes.idx[n_input_received]]
+        y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
+        return StepState(y_minus, t, n_input_received + 1)
+
+    def no_transition(state: StepState, *args):
+        y_minus, t, n_input_received = state
+        y_minus = y_minus.at[spike_idx, 0].set(0.0)
+        return StepState(y_minus, t, n_input_received)
+
+    return jax.lax.cond(
+        recurrent_spike,
+        no_transition,
+        input_transition,
+        state,
+        weights,
+        input_spikes,
+        spike_idx,
+    )
+
+
 def step(
     dynamics: Callable,
     solver: Callable,
+    tr_dynamics: Callable,
+    t_max: float,
     weights: Tuple[Array, Array],
-    input_spikes: Array,
-    y: Array,
-    dt: float,
-) -> Tuple[Array, float, int]:
-    """Determine the next spike (input or internal), and integrate the neurons to that point.
+    input_spikes: Spike,
+    state: StepState,
+    *args: int,
+) -> Tuple[StepState, Spike]:
+    """Determine the next spike (external or internal), and integrate the neurons to that point.
 
     Args:
         dynamics (Callable): Function describing neuron dynamics
         solver (Callable): Parallel root solver
-        weights (Tuple[Array, Array]): Input and recurrent weights
-        input_spikes (Array): Input spike times per neuron, inf if no spike for a neuron
-        y (Array): Current state (voltage, current) of the neurons with shape (n_neurons, 2)
-        dt (float): Maximum time step if no spike
+        tr_dynamics (Callable): function describing the tra
+        t_max (float): Max time until which to run
+        weights (Tuple[Array, Array]): input and recurrent weights
+        input_spikes (Spike): input spikes (time and index)
+        state (StepState): (Neuron state, current_time, n_input_received)
 
     Returns:
-       Tuple: (State after transition, time of transition, index of spike or -1 if external / no spike)
+        Tuple[StepState, Spike]: New state after transition and spike for storing
     """
-    input_weights, recurrent_weights = weights
-    t_spike = solver(y, dt)
+    y, t, n_input_received = state
+    pred_spikes = solver(y, t_max - t) + t
+    spike_idx = np.argmin(pred_spikes)
 
-    # t_spike = np.where(np.isnan(t_spike), dt, t_spike)
-    spike_idx = np.argmin(t_spike)
-    spike_time = t_spike[spike_idx]
-
-    # only regard future input spikes
-    # TODO replace where by single next input
-    input_spikes = np.where(input_spikes > 0.0, input_spikes, dt)
-    input_spike_idx = np.argmin(input_spikes)
-    input_spike_time = input_spikes[input_spike_idx]
-
-    # determine if we have a recurrent spike
-    recurrent_spike = spike_time < input_spike_time
-
-    # integrate
-    t_dyn = np.minimum(np.minimum(spike_time, input_spike_time), dt)
-    y_minus = dynamics(y, t_dyn)
-
-    # reset
-    y_minus = jax.lax.cond(
-        recurrent_spike, lambda: y_minus.at[spike_idx, 0].set(0.0), lambda: y_minus
+    # integrate state
+    t_dyn = np.min(
+        np.array([pred_spikes[spike_idx], input_spikes.time[n_input_received], t_max])
     )
+    state = StepState(dynamics(y, t_dyn - t), t_dyn, n_input_received)
 
-    # transistion
-    tr_row = jax.lax.cond(
-        recurrent_spike,
-        lambda: recurrent_weights[spike_idx],
-        lambda: input_weights[input_spike_idx],
-    )
-    y_plus = jax.lax.cond(
-        t_dyn == dt,
-        lambda: y_minus,
-        lambda: y_minus.at[:, 1].set(y_minus[:, 1] + tr_row),
-    )
+    # determine spike nature
+    no_spike = t_dyn == t_max
+    recurrent_spike = pred_spikes[spike_idx] < input_spikes.time[n_input_received]
 
     stored_idx = jax.lax.cond(recurrent_spike, lambda: spike_idx, lambda: -1)
-    return y_plus, t_dyn, stored_idx
+    transitioned_state = jax.lax.cond(
+        no_spike,
+        lambda *args: state,
+        tr_dynamics,
+        state,
+        weights,
+        input_spikes,
+        spike_idx,
+        recurrent_spike,
+    )
+    return transitioned_state, Spike(t_dyn, stored_idx)
 
 
-def forward_integration(
-    step_fn: Callable,
-    n_spikes: int,
-    weights: Tuple[Array, Array],
-    input_spikes: Array,
-    t_max,
-):
-    """Move neurons forward for n spikes
-
-    Args:
-        step_fn (Callable): Single step function
-        n_spikes (int): Number of spikes
-         weights (Tuple[Array, Array]): Input and recurrent weights
-        input_spikes (Array): Input spike times per neuron, inf if no spike for a neuron
-        t_max (float): Maximum time until which the net is moved forward
-    """
-
-    def body(state, it):
-        t, y = state  # t is current lower bound
-
-        dt = t_max - t
-        y_plus, dt_dyn, spike_idx = step_fn(weights, input_spikes - t, y, dt)
-
-        t = t + dt_dyn
-        state = (t, y_plus)
-        return state, (t, spike_idx)
-
-    t = 0
-    initial_state = np.zeros((weights[1].shape[0], 2))
-    return jax.lax.scan(body, (t, initial_state), np.arange(n_spikes))
+def forward_integration(step_fn, n_spikes, weights, input_spikes) -> Spike:
+    n_hidden = weights[1].shape[0]
+    state = StepState(np.zeros((n_hidden, 2)), 0, 0)
+    _, spikes = jax.lax.scan(partial(step_fn, weights, input_spikes), state, np.arange(n_spikes))  # type: ignore
+    return spikes

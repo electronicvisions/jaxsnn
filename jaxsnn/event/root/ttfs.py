@@ -1,8 +1,10 @@
 import jax
 import jax.numpy as np
 
+from jaxsnn.types import Array
 
-def ttfs_solver(tau_mem, v_th, state, dt):
+
+def ttfs_solver(tau_mem: float, v_th: float, state: Array, dt: float):
     """Find the next spike time for special case $\tau_mem = 2 * \tau_syn$
 
     Args:
@@ -27,10 +29,8 @@ def ttfs_solver(tau_mem, v_th, state, dt):
             lambda: dt,
         )
 
-    false_fun = lambda: dt
-
     # TODO return a mask if there was an actual spike
-    return jax.lax.cond(has_spike, true_fun, false_fun)
+    return jax.lax.cond(has_spike, true_fun, lambda: dt)
 
 
 def batched_ttfs_solver(tau_mem, v_th, state, initial_guess):
