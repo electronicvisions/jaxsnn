@@ -1,5 +1,8 @@
-# Copyright 2022, Christian Pehle
+# Copyright (c) 2022 Heidelberg University. All rights reserved.
 #
+# Released under Apache 2.0 license as described in the file LICENSE.
+# Authors: Christian Pehle
+
 # This is a port of the "Traub.mod" found in https://github.com/ModelDBRepository/254217/_mod/Traub.mod by Albert Gidon & Leora Menhaim (2004).
 #
 # Some original comments are reproduced below with the prefix ":".

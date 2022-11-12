@@ -1,5 +1,8 @@
-# Copyright 2022, Christian Pehle
+# Copyright (c) 2022 Heidelberg University. All rights reserved.
 #
+# Released under Apache 2.0 license as described in the file LICENSE.
+# Authors: Christian Pehle
+
 # LVA ca channel. Note: mtau is an approximation from the plots
 # Reference: Avery and Johnston 1996, tau from Randall 1997
 # shifted by -10 mv to correct for junction potential

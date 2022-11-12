@@ -1,4 +1,3 @@
-from re import A
 import jax.numpy as np
 import jax.lax as lax
 from functools import partial

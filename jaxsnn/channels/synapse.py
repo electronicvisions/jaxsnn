@@ -1,5 +1,9 @@
-# Copyright 2022, Christian Pehle
+# Copyright (c) 2022 Heidelberg University. All rights reserved.
 #
+# Released under Apache 2.0 license as described in the file LICENSE.
+# Authors: Christian Pehle
+
+
 # This is in part a port of "ISyn.inc" found in https://github.com/ModelDBRepository/254217/_mod/ISyn.inc
 # and also incorporates the parameters found in https://github.com/ModelDBRepository/254217/Fig3andS9/syns.hoc
 # Some of the original comments are preserved with prefix ":"

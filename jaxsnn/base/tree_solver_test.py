@@ -1,4 +1,9 @@
-from jaxsnn.tree_solver import hines_solver, tree_to_matrix
+# Copyright (c) 2022 Heidelberg University. All rights reserved.
+#
+# Released under Apache 2.0 license as described in the file LICENSE.
+# Authors: Christian Pehle
+
+from jaxsnn.base.tree_solver import hines_solver, tree_to_matrix
 
 import jax.numpy as jnp
 import numpy as onp

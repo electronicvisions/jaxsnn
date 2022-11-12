@@ -1,4 +1,4 @@
-from jaxsnn.linear_solver import hines_solver
+from jaxsnn.solver.linear_solver import hines_solver
 
 import jax.numpy as np
 import numpy as onp
