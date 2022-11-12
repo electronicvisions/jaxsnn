@@ -340,7 +340,7 @@ def crank_nicolson_rk4(
 ) -> TimeStepFn:
     """Time stepping via Crank-Nicolson and RK4 ("Carpenter-Kennedy")."""
     # pylint: disable=line-too-long
-    return low_storage_runge_kutta_crank_nicolson_cde(
+    return low_storage_runge_kutta_crank_nicolson(
         alphas=[
             0,
             0.1496590219993,
