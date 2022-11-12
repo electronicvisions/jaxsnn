@@ -1,14 +1,14 @@
-# Copyright 2022 Christian Pehle
+# Copyright 2022, Christian Pehle
 #
 # This is a port of the "Traub.mod" found in https://github.com/ModelDBRepository/254217/_mod/Traub.mod by Albert Gidon & Leora Menhaim (2004).
 #
-# Some original comments are reproduced below with the prefix ":". 
+# Some original comments are reproduced below with the prefix ":".
 # Please refer to the original file for additional attributions.
 #
 # References:
 #
 # Gidon A, Zolnik TA, Fidzinski P, Bolduan F, Papoutsi A, Poirazi P, Holtkamp M, Vida I, Larkum ME (2020).
-#   Dendritic action potentials and computation in human layer 2/3 cortical neurons 
+#   Dendritic action potentials and computation in human layer 2/3 cortical neurons
 #   Science 367:83-87
 #
 # Traub, R. D., Wong, R. K., Miles, R., and Michelson, H. (1991).
@@ -41,9 +41,10 @@ class TraubParameters:
     e_K: ArrayLike = -80  # (mV)    :Siu Kang - by email.
     e_Na: ArrayLike = 90  # (mV)    :Leora
 
-# e_L = -74.0 		
-# e_K = -80			
-# e_Na = 90 	
+
+# e_L = -74.0
+# e_K = -80
+# e_Na = 90
 
 # magic constants
 _v_shift = 49.2  # shift to apply to all curves
@@ -80,6 +81,7 @@ def alpha_m(v):
     return jnp.where(
         v == 13.1, 0.32 * 4, 0.32 * (13.1 - v) / (jnp.exp((13.1 - v) / 4) - 1)
     )
+
 
 def beta_m(v):
     return jnp.where(
@@ -121,7 +123,7 @@ def I_K(v: ArrayLike, s: TraubState, p: TraubParameters):
     return g_K(s, p) * (v - p.e_K)
 
 
-def I_L(v: ArrayLike, s: TraubState, p: TraubParameters):
+def I_L(v: ArrayLike, _: TraubState, p: TraubParameters):
     return p.g_L * (v - p.e_L)
 
 

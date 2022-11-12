@@ -1,4 +1,4 @@
-# Port of the Ca_LVA.mod file
+# Copyright 2022, Christian Pehle
 #
 # LVA ca channel. Note: mtau is an approximation from the plots
 # Reference: Avery and Johnston 1996, tau from Randall 1997
