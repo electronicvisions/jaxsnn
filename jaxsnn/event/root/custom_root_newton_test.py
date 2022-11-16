@@ -5,6 +5,7 @@ import numpy as onp
 import jax
 from functools import partial
 
+
 def test_cr_newton_solver():
     tau_mem = 1e-3
     tau_syn = 5e-4
@@ -23,13 +24,5 @@ def test_cr_newton_solver():
     solver = partial(cr_newton_solver, jc)
 
     time, grad = jax.value_and_grad(solver)(x0, 1e-4)
-    onp.testing.assert_allclose(
-        time,
-        np.array(0.00020306),
-        atol=1e-6    
-    )
-    onp.testing.assert_allclose(
-        grad,
-        np.array([-0.00079057, -0.00014528]),
-        atol=1e-6
-    )
+    onp.testing.assert_allclose(time, np.array(0.00020306), atol=1e-6)
+    onp.testing.assert_allclose(grad, np.array([-0.00079057, -0.00014528]), atol=1e-6)

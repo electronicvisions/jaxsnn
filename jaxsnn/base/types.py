@@ -12,12 +12,15 @@ import tree_math
 PyTreeState = TypeVar("PyTreeState")
 ArrayLike = Union[jnp.ndarray, np.ndarray, float]
 
+
 @tree_math.struct
 class Spike:
     time: ArrayLike
     idx: ArrayLike
 
-State = TypeVar('State')
+
+State = TypeVar("State")
+
 
 @tree_math.struct
 class StepState(Generic[State]):
