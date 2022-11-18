@@ -11,6 +11,7 @@ JAXSNN reference documentation
    :maxdepth: 1
    :caption: Tutorials
 
+   notebooks/point_neuron_models.ipynb
    notebooks/hodgekin_huxley.ipynb
    notebooks/passive_cable.ipynb
    notebooks/synapse_dynamics.ipynb
