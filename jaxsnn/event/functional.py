@@ -7,6 +7,13 @@ import jax.numpy as np
 from jaxsnn.types import Array, Spike, StepState
 
 
+def exponential_flow(A):
+    def flow(x0, t):
+        return np.dot(jax.scipy.linalg.expm(A * t), x0)  # type: ignore
+
+    return flow
+
+
 def f(A, x0, t):
     return np.dot(jax.scipy.linalg.expm(A * t), x0)  # type: ignore
 

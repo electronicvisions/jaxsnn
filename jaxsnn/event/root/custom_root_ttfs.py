@@ -21,7 +21,3 @@ def cr_ttfs_solver(tau_mem, v_th, y0, initial_guess):
     solve = partial(custom_ttfs, tau_mem, v_th, y0)
     f = lambda *args: 0.0
     return jax.lax.custom_root(f, initial_guess, solve, tangent_solve)
-
-
-if __name__ == "__main__":
-    cr_ttfs_solver(1e-3, 0.3, np.array([0.0, 2.0]), 1e-4)

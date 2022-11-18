@@ -1,5 +1,9 @@
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters
-from jaxsnn.event.functional import ttfs_solver, forward_integration, step
+from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters, LIFState
+from jaxsnn.event.functional import (
+    forward_integration,
+    step,
+    exponential_flow,
+)
 from jaxsnn.types import Array, Spike, Weight, StepState
 
 import jax
@@ -11,11 +15,7 @@ from typing import Tuple
 
 def lif_exponential_flow(p: LIFParameters):
     A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
-
-    def flow(x0, t):
-        return np.dot(jax.scipy.linalg.expm(A * t), x0)  # type: ignore
-
-    return flow
+    return exponential_flow(A)
 
 
 def jump_condition(dynamics, v_th, x0, t):
@@ -91,12 +91,12 @@ def transition_without_recurrence(
     )
 
 
-def RecursiveLIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters):
+def RecursiveLIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, solver):
 
     single_flow = lif_exponential_flow(p)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
-    solver = partial(ttfs_solver, 1 / p.tau_mem_inv, p.v_th)
+    # solver = partial(solver, 1 / p.tau_mem_inv, p.v_th)
     batched_solver = jax.vmap(solver, in_axes=(0, None))
 
     step_fn = partial(step, dynamics, batched_solver, transition, t_max)
@@ -116,11 +116,11 @@ def RecursiveLIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters):
     return init_fn, forward
 
 
-def LIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters):
+def LIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, solver):
     # TODO: In common with RecurrentLIF, have to abstract over "ttf-solver" aswell
     single_flow = lif_exponential_flow(p)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    solver = partial(ttfs_solver, 1 / p.tau_mem_inv, p.v_th)
+    # solver = partial(ttfs_solver, 1 / p.tau_mem_inv, p.v_th)
     batched_solver = jax.vmap(solver, in_axes=(0, None))
 
     non_recursive_step_fn = partial(
