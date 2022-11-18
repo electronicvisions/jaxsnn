@@ -12,9 +12,6 @@ from jaxsnn.event.root import ttfs_solver
 from jaxsnn.types import Array, Spike, Weight
 
 
-# A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
-
-
 @jax.jit
 def loss_fn_vec(t1, t2, target_1, target_2, tau_mem):
     loss_value = -(
@@ -24,10 +21,9 @@ def loss_fn_vec(t1, t2, target_1, target_2, tau_mem):
     return loss_value
 
 
-# loss over time
 def plot_loss(ax, loss_value: Array):
     ax.plot(np.arange(len(loss_value)), loss_value, label="Loss")
-    ax.title.set_text(f"Loss")
+    ax.title.set_text("Loss")
 
 
 def plot_2dloss(
@@ -49,7 +45,7 @@ def plot_output(ax, t_output: Array, t_max: float, target: Array):
     ax.plot(np.arange(len(t_output)), t_output[:, 1] / t_max, label="t_spike 2")
     ax.axhline(target[0] / t_max, color="red")
     ax.axhline(target[1] / t_max, color="red")
-    ax.title.set_text(f"Output Spike Times")
+    ax.title.set_text("Output Spike Times")
     ax.legend()
 
 

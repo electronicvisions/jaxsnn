@@ -1,5 +1,4 @@
 import dataclasses
-from typing import Callable, Optional
 import jaxsnn.base.implicit as time_stepping
 import jax.numpy as np
 import tree_math

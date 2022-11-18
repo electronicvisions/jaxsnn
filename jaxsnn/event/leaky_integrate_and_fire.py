@@ -1,4 +1,4 @@
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters, LIFState
+from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters
 from jaxsnn.event.functional import (
     forward_integration,
     step,
@@ -95,8 +95,6 @@ def RecursiveLIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, s
 
     single_flow = lif_exponential_flow(p)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-
-    # solver = partial(solver, 1 / p.tau_mem_inv, p.v_th)
     batched_solver = jax.vmap(solver, in_axes=(0, None))
 
     step_fn = partial(step, dynamics, batched_solver, transition, t_max)
@@ -120,7 +118,6 @@ def LIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, solver):
     # TODO: In common with RecurrentLIF, have to abstract over "ttf-solver" aswell
     single_flow = lif_exponential_flow(p)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    # solver = partial(ttfs_solver, 1 / p.tau_mem_inv, p.v_th)
     batched_solver = jax.vmap(solver, in_axes=(0, None))
 
     non_recursive_step_fn = partial(

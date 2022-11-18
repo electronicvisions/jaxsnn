@@ -28,7 +28,6 @@ def test_enqueue_has_grad():
         return state.queue[0][0]
 
     grad = jax.grad(f, allow_int=True)(state, np.random.randn(2))
-
     print(grad)
 
 

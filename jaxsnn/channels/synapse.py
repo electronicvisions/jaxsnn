@@ -71,7 +71,7 @@ nmda_parameters = SynapseParameters(
     tau_d=35,
     mg=1,
     e=0,
-    gamma=0.077 / 0.082,  # rhodes et al., 2006
+    gamma=0.077 / 0.082,  # : rhodes et al., 2006
 )
 
 # : GABA

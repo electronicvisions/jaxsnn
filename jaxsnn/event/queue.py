@@ -5,7 +5,7 @@
 
 import tree_math
 from jaxsnn.base.types import ArrayLike
-from typing import Tuple, Any
+from typing import Tuple
 import jax.numpy as jnp
 import jax
 

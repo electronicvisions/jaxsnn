@@ -1,9 +1,5 @@
-import jax
 import jax.api as api
 import jax.numpy as np
-from functools import partial
-
-from jax import jit, grad, random, vmap
 from jax.lax import scan
 
 from jaxsnn.tree_solver import ArrayLike

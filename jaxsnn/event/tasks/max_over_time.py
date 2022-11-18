@@ -22,14 +22,6 @@ A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
 last_layer = partial(leaky_integrator, A)
 
 
-@jax.jit
-def nll_loss(x: Array, targets: Array):
-    x = np.maximum(x, 0)
-    preds = jax.nn.log_softmax(x)
-    loss = -np.sum(targets * preds)
-    return loss
-
-
 def last_voltage(weights: Array, spikes: Array, targets: Array):
     # T = 100
     # ts = np.linspace(0, t_max, T)

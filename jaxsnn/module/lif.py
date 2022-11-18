@@ -1,10 +1,9 @@
 from functools import partial
 
-import diffrax
 import jax.numpy as np
 from jax import jit, random
 from jax.lax import scan
-from jaxsnn.functional.lif import LIFParameters, LIFState, lif_step, liv_derivative
+from jaxsnn.functional.lif import LIFState, lif_step
 
 
 def LIF(out_dim, scale_in=0.7, scale_rec=0.2):

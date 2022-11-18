@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import numpy as onp
 
 from absl.testing import absltest
-from absl.testing import parameterized
 
 
 def test_hines_solver():

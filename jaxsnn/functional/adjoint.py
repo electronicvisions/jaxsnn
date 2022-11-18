@@ -1,9 +1,8 @@
 from typing import Tuple
 
-import jax.numpy as np
 from jax import custom_vjp
 
-from jaxsnn.functional.lif import LIFParameters, LIFState, lif_step
+from jaxsnn.functional.lif import LIFParameters, lif_step
 
 
 @custom_vjp
@@ -17,8 +16,8 @@ def lif_adjoint_step_fwd(
     p: LIFParameters = LIFParameters(),
     dt: float = 0.001,
 ) -> Tuple:
-    state, weights = init
-    return (lif_adjoint_step(init, spikes, p, dt),)
+    # state, weights = init
+    # return (lif_adjoint_step(init, spikes, p, dt),)
 
     z_new, s_new = lif_step(init, spikes, params=p, dt=dt)
     s_old, weights = init
@@ -28,8 +27,8 @@ def lif_adjoint_step_fwd(
     # dv after spiking
     dv_p = p.tau_mem_inv * ((p.v_leak - s_new.v) + s_old.i)
 
-    ctx = input_tensor, z_new, dv_m, dv_p, input_weights, recurrent_weights
-    return z_new, s_new.v, s_new.i
+    ctx = z_new, dv_m, dv_p, weights[0], weights[1]
+    return (z_new, s_new.v, s_new.i), ctx
 
 
 def lif_adjoint_step_bwd(ctx, doutput, lambda_v, lambda_i):

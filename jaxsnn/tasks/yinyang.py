@@ -11,7 +11,7 @@ import jaxsnn
 from jaxsnn.dataset.yinyang import DataLoader, YinYangDataset
 from jaxsnn.functional.lif import LIFParameters
 from jaxsnn.functional.loss import acc_and_loss, nll_loss
-from jaxsnn.module.threshhold import HeaviErfc, Heaviside, Logistic, SuperSpike
+from jaxsnn.module.threshhold import Heaviside
 
 
 def train_step(state, batch, loss_fn):

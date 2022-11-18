@@ -3,7 +3,6 @@ from absl.testing import parameterized
 
 from .threshold import heaviside, superspike, triangular
 
-import jax.numpy as jnp
 import numpy as np
 
 HEAVI_TEST_PROBLEMS = [
