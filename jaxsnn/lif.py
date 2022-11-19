@@ -1,12 +1,13 @@
-import jax.api as api
+import jax
 import jax.numpy as np
 from jax.lax import scan
 
-from jaxsnn.tree_solver import ArrayLike
+from jaxsnn.base.types import ArrayLike
 import tree_math
+import dataclasses
 
 
-@api.custom_vjp
+@jax.custom_vjp
 def heaviside(x):
     return 0.5 + 0.5 * np.sign(x)
 
@@ -24,12 +25,14 @@ def heaviside_bwd(res, g):
 heaviside.defvjp(heaviside_fwd, heaviside_bwd)
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class LIFState:
     v: ArrayLike
     I: ArrayLike
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class LIFParameters:
     tau_syn_inv: ArrayLike

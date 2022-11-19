@@ -124,7 +124,7 @@ def step(
     # integrate state
     t_dyn = np.min(
         np.array([pred_spikes[spike_idx], input_spikes.time[n_input_received], t_max])
-    )
+    ).float()
     state = StepState(dynamics(y, t_dyn - t), t_dyn, n_input_received)
 
     # determine spike nature

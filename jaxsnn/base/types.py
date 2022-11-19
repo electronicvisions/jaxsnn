@@ -6,22 +6,27 @@
 import jax.numpy as jnp
 import numpy as np
 
-from typing import TypeVar, Union, Tuple, Generic
+from typing import TypeVar, Union, Tuple, Generic, Type
 import tree_math
+import dataclasses
 
 PyTreeState = TypeVar("PyTreeState")
 ArrayLike = Union[jnp.ndarray, np.ndarray, float]
+Array = Union[jnp.ndarray, np.ndarray]
+JaxArray = Type[jnp.ndarray]
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class Spike:
-    time: ArrayLike
-    idx: ArrayLike
+    time: Array
+    idx: Array
 
 
 State = TypeVar("State")
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class StepState(Generic[State]):
     state: State

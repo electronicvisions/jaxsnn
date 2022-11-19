@@ -32,8 +32,8 @@ class LinearDataset:
         generated randomly using rejection sampling. Therefore giving the same key value will result in having the
         same samples in the different datasets!
         """
-        self.vals = []
-        self.classes = []
+        self.vals = np.array([])
+        self.classes = np.array([])
         self.class_names = ["inside", "outside"]
         key, subkey = random.split(key)
 

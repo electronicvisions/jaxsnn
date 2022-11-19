@@ -2,7 +2,7 @@ from typing import Tuple
 
 from jax import custom_vjp
 
-from jaxsnn.functional.lif import LIFParameters, lif_step
+from jaxsnn.functional.lif import lif_step
 
 
 @custom_vjp
@@ -10,12 +10,7 @@ def lif_adjoint_step(init, spikes, p, dt):
     return lif_step(init, spikes, p, dt)
 
 
-def lif_adjoint_step_fwd(
-    init,
-    spikes,
-    p: LIFParameters = LIFParameters(),
-    dt: float = 0.001,
-) -> Tuple:
+def lif_adjoint_step_fwd(init, spikes, p, dt) -> Tuple:
     # state, weights = init
     # return (lif_adjoint_step(init, spikes, p, dt),)
 
@@ -68,4 +63,4 @@ def lif_adjoint_step_bwd(ctx, doutput, lambda_v, lambda_i):
     return (dinput, drecurrent, lambda_v, lambda_i, dw_input, dw_rec, None, None)
 
 
-lif_adjoint_step.defvjp(lif_adjoint_step_fwd, lif_adjoint_step_bwd)
+# lif_adjoint_step.defvjp(lif_adjoint_step_fwd, lif_adjoint_step_bwd)

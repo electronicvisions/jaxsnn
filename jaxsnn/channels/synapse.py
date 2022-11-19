@@ -12,14 +12,17 @@ import jax.numpy as jnp
 import tree_math
 
 from jaxsnn.base.types import ArrayLike
+import dataclasses
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class SynapseState:
     a: ArrayLike
     b: ArrayLike
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class SynapseParameters:
     tau_r: ArrayLike
@@ -57,7 +60,7 @@ def mg_dependence(v: ArrayLike, p: SynapseParameters):
 
 
 def I_syn(v: ArrayLike, s: SynapseState, p: SynapseParameters):
-    return g_syn(s) * mg_dependence(v, p) * (v - p.e)
+    return g_syn(s, p) * mg_dependence(v, p) * (v - p.e)
 
 
 # :  Synaptic parameters as in Eyal et al., (2018)

@@ -16,8 +16,10 @@ import jax.numpy as np
 import tree_math
 
 from jaxsnn.base.types import ArrayLike
+import dataclasses
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class HodgekinHuxleyState:
     v: ArrayLike

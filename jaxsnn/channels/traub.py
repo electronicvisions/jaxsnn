@@ -25,6 +25,7 @@
 # 	cortical neurons. Neural Netw 17, 307-312.
 
 import tree_math
+import dataclasses
 import jax.numpy as jnp
 
 from jaxsnn.channels.common import (
@@ -35,6 +36,7 @@ from jaxsnn.channels.common import (
 from jaxsnn.base.types import ArrayLike
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class TraubParameters:
     g_Na: ArrayLike = 0.03  # (S/cm2)	:Traub et. al. 1991
@@ -59,13 +61,12 @@ _original_temperature = 32
 _q = q_conversion(_target_temperature, _original_temperature, _q_10)
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class TraubState:
     m: ArrayLike
     h: ArrayLike
     n: ArrayLike
-    a: ArrayLike
-    b: ArrayLike
 
 
 def alpha_h(v: ArrayLike):

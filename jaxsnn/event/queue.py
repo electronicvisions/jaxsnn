@@ -4,29 +4,33 @@
 # Authors: Christian Pehle
 
 import tree_math
-from jaxsnn.base.types import ArrayLike
-from typing import Tuple
+from typing import Tuple, Any
 import jax.numpy as jnp
 import jax
 
+import dataclasses
 
+
+@dataclasses.dataclass
 @tree_math.struct
 class State:
-    queue: ArrayLike
+    queue: Any  # TODO: Should be something more specific
     head: int
     used: int
 
 
 class ArrayQueue:
     @jax.custom_vjp
-    def enqueue(state: State, data: ArrayLike) -> State:
+    @staticmethod
+    def enqueue(state: State, data: Any) -> State:
         queue = state.queue.at[(state.head + state.used) % state.queue.shape[0]].set(
             data
         )
         return State(queue=queue, head=state.head, used=state.used + 1)
 
     @jax.custom_vjp
-    def dequeue(state: State) -> Tuple[ArrayLike, State]:
+    @staticmethod
+    def dequeue(state: State) -> Tuple[Any, State]:
         x = state.queue[state.head]
         return (
             x,
@@ -37,13 +41,15 @@ class ArrayQueue:
             ),
         )
 
-    def enqueue_fwd(state: State, data: ArrayLike):
+    @staticmethod
+    def enqueue_fwd(state: State, data: Any):
         return ArrayQueue.enqueue(state, data), None
 
-    def enqueue_bwd(_, state):
+    def enqueue_bwd(_, state: State):
         grad, state = ArrayQueue.dequeue(state)
         return state, grad
 
+    @staticmethod
     def dequeue_fwd(state: State):
         return ArrayQueue.dequeue(state), None
 

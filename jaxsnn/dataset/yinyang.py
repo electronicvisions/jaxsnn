@@ -3,17 +3,19 @@ from typing import Optional
 import jax.numpy as np
 from jax import random, vmap
 
+from jaxsnn.base.types import Array
+
 
 def outside_circle(x: float, y: float, r_big) -> bool:
     return np.sqrt((x - r_big) ** 2 + (y - r_big) ** 2) >= r_big
 
 
 def dist_to_right_dot(x: int, y: int, r_big) -> float:
-    return np.sqrt((x - 1.5 * r_big) ** 2 + (y - r_big) ** 2)
+    return np.sqrt((x - 1.5 * r_big) ** 2 + (y - r_big) ** 2).float()
 
 
 def dist_to_left_dot(x: int, y: int, r_big) -> float:
-    return np.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2)
+    return np.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2).float()
 
 
 def get_class(coords, r_big: float, r_small: float):
@@ -62,8 +64,8 @@ class YinYangDataset:
         """
         self.r_small = r_small
         self.r_big = r_big
-        self.vals = []
-        self.classes = []
+        self.vals: Array = np.array([])
+        self.classes: Array = np.array([])
         self.class_names = ["yin", "yang", "dot"]
         key, subkey = random.split(key)
 

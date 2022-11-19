@@ -3,17 +3,22 @@
 # Released under Apache 2.0 license as described in the file LICENSE.
 # Authors: Christian Pehle
 
-# LVA ca channel. Note: mtau is an approximation from the plots
-# Reference: Avery and Johnston 1996, tau from Randall 1997
-# shifted by -10 mv to correct for junction potential
-# corrected rates using q10 = 2.3, target temperature 34, orginal 21
+# This is a port of the the LVA ca channel found in https://github.com/ModelDBRepository/254217/ by Albert Gidon & Leora Menhaim (2004).
+# Some of the original comments are retained and prefixed with ":"
+#
+# : LVA ca channel. Note: mtau is an approximation from the plots
+# : Reference: Avery and Johnston 1996, tau from Randall 1997
+# : shifted by -10 mv to correct for junction potential
+# : corrected rates using q10 = 2.3, target temperature 34, orginal 21
 
 import jax.numpy as jnp
 import tree_math
+import dataclasses
 
 from jaxsnn.base.types import ArrayLike
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class CaLVAState:
     m: ArrayLike

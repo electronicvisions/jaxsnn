@@ -128,7 +128,7 @@ def constrained_rk(
 
 def constrained_cde_rk(
     tableau: ButcherTableau,
-    equation: ExplicitConstrainedODE,
+    equation: ExplicitConstrainedCDE,
     time_step: float,
 ) -> TimeStepFn:
     """Create a forward Runge-Kutta time-stepper for incompressible Navier-Stokes.

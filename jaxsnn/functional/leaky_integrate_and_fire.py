@@ -3,8 +3,10 @@ from jaxsnn.base import explicit
 
 import jax.numpy as jnp
 import tree_math
+import dataclasses
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class LIFState:
     """State of a LIF neuron
@@ -20,6 +22,7 @@ class LIFState:
     w_rec: ArrayLike
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class LIFInput:
     """Input to a LIF neuron
@@ -33,6 +36,7 @@ class LIFInput:
     z: ArrayLike
 
 
+@dataclasses.dataclass
 @tree_math.struct
 class LIFParameters:
     """Parametrization of a LIF neuron
@@ -55,7 +59,7 @@ class LIFParameters:
 
 
 def lif_dynamics(p: LIFParameters):
-    def dynamics(s: LIFState, u: ArrayLike):
+    def dynamics(s: LIFState, u: LIFInput):
         v_dot = p.tau_mem_inv * ((p.v_leak - s.v) + s.I + u.I)
         I_dot = -p.tau_syn_inv * s.I
         return LIFState(v=v_dot, I=I_dot, w_rec=0.0)

@@ -4,6 +4,8 @@ import jax.numpy as np
 import matplotlib.pyplot as plt
 from jax import random, vmap
 
+from jaxsnn.types import Array
+
 
 def get_class(coords, radius: float, center: Tuple[float, float]):
     return np.where(
@@ -38,7 +40,7 @@ class CircleDataset:
         """
         self.radius = radius
         self.center = center
-        self.vals = []
+        self.vals: Array = []
         self.classes = []
         self.class_names = ["inside", "outside"]
         key, subkey = random.split(key)

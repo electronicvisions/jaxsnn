@@ -3,7 +3,8 @@ import jaxsnn.base.implicit as time_stepping
 import jax.numpy as np
 import tree_math
 
-from jaxsnn.tree_solver import ArrayLike, tree_solve, tree_matmul
+from jaxsnn.base.types import ArrayLike
+from jaxsnn.base.tree_solver import tree_solve, tree_matmul
 
 
 @tree_math.struct
