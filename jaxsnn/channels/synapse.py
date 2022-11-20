@@ -44,6 +44,18 @@ def dynamics(s: SynapseState, p: SynapseParameters):
     return SynapseState(a=-1 / p.tau_r * s.a, b=-1 / p.tau_d * s.b)
 
 
+def voltage_gated_dynamics(gating_function):
+    def dyn(s: SynapseState, v: ArrayLike, v_dot: ArrayLike, p: SynapseParameters):
+        return SynapseState(
+            a=-1 / p.tau_r * s.a
+            + gating_function(v) * weight_factor(p.tau_r, p.tau_d) * v_dot,
+            b=-1 / p.tau_d * s.b
+            + gating_function(v) * weight_factor(p.tau_r, p.tau_d) * v_dot,
+        )
+
+    return dyn
+
+
 def transition(w: ArrayLike, s: SynapseState, p: SynapseParameters):
     return SynapseState(
         a=s.a + w * weight_factor(p.tau_r, p.tau_d),

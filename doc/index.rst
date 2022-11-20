@@ -15,6 +15,8 @@ JAXSNN reference documentation
    notebooks/hodgekin_huxley.ipynb
    notebooks/passive_cable.ipynb
    notebooks/synapse_dynamics.ipynb
+   notebooks/synaptic_transmission_models.ipynb
+
 
 .. toctree::
    :maxdepth: 1
