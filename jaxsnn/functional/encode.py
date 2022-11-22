@@ -1,16 +1,48 @@
 from functools import partial
+from typing import Tuple
 
 import jax.numpy as np
 from jax import jit
 from jax.lax import scan
 
-from .lif import lif_current_encoder
+from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters
+from jaxsnn.functional.threshold import superspike
+from jaxsnn.base.types import Array
 
 
 @partial(jit, static_argnames=["k"])
 def one_hot(x, k, dtype=np.float32):
     """Create a one-hot encoding of x of size k."""
     return np.array(x[:, None] == np.arange(k), dtype)
+
+
+def lif_current_encoder(
+    voltage,
+    input_current: Array,
+    p: LIFParameters = LIFParameters(),
+    dt: float = 0.001,
+) -> Tuple[Array, Array]:
+    r"""Computes a single euler-integration step of a leaky integrator. More
+    specifically it implements one integration step of the following ODE
+
+    .. math::
+        \begin{align*}
+            \dot{v} &= 1/\tau_{\text{mem}} (v_{\text{leak}} - v + i) \\
+            \dot{i} &= -1/\tau_{\text{syn}} i
+        \end{align*}
+
+    Parameters:
+        input (Array): the input current at the current time step
+        voltage (Array): current state of the LIF neuron
+        p (LIFParameters): parameters of a leaky integrate and fire neuron
+        dt (float): Integration timestep to use
+    """
+    dv = dt * p.tau_mem_inv * ((p.v_leak - voltage) + input_current)
+    voltage = voltage + dv
+    z = superspike(voltage - p.v_th)
+
+    voltage = voltage - z * (voltage - p.v_reset)
+    return voltage, z
 
 
 def constant_current_lif_encode(
@@ -80,6 +112,16 @@ def spatio_temporal_encode(
     idx = np.clip(idx, 0, seq_length)
     encoded = np.eye(seq_length)[:, idx]
     return encoded
+
+
+def SpatioTemporalEncode(T, t_late, DT):
+    def init_fn(rng, input_shape):
+        return (input_shape, None, rng)
+
+    def apply_fn(params, inputs, **kwargs):
+        return spatio_temporal_encode(inputs, T, t_late, DT), None
+
+    return init_fn, apply_fn
 
 
 if __name__ == "__main__":

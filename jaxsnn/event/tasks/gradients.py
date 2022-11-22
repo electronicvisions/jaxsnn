@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from jaxsnn.event.functional import f, forward_integration, step, transition
 from jaxsnn.event.root import ttfs_solver
-from jaxsnn.types import Spike
+from jaxsnn.base.types import Spike
 
 tau_mem = 1e-2
 tau_syn = 5e-3

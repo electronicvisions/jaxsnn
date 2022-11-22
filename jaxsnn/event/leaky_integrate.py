@@ -3,9 +3,7 @@ from functools import partial
 import jax
 import jax.numpy as np
 
-
-def heaviside(x):
-    return 0.5 + 0.5 * np.sign(x)
+from jaxsnn.functional.threshold import heaviside
 
 
 def kernel(A, t, t0):

@@ -4,7 +4,7 @@ from typing import Callable, Tuple
 import jax
 import jax.numpy as np
 
-from jaxsnn.types import Array, Spike, StepState
+from jaxsnn.base.types import Array, Spike, StepState
 
 from typing import Any
 
@@ -35,7 +35,7 @@ def step(
         t_max (float): Max time until which to run
         weights (Tuple[Array, Array]): input and recurrent weights
         input_spikes (Spike): input spikes (time and index)
-        state (StepState): (Neuron state, current_time, n_input_received)
+        state (StepState): (Neuron state, current_time, running_idx)
 
     Returns:
         Tuple[StepState, Spike]: New state after transition and spike for storing

@@ -11,11 +11,11 @@ def outside_circle(x: float, y: float, r_big) -> bool:
 
 
 def dist_to_right_dot(x: int, y: int, r_big) -> float:
-    return np.sqrt((x - 1.5 * r_big) ** 2 + (y - r_big) ** 2).float()
+    return np.sqrt((x - 1.5 * r_big) ** 2 + (y - r_big) ** 2)
 
 
 def dist_to_left_dot(x: int, y: int, r_big) -> float:
-    return np.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2).float()
+    return np.sqrt((x - 0.5 * r_big) ** 2 + (y - r_big) ** 2)
 
 
 def get_class(coords, r_big: float, r_small: float):

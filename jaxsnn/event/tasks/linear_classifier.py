@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 from jax import random
 
 from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF, RecursiveLIF
-from jaxsnn.event.serial import serial
+from jaxsnn.event.compose import serial
 from jaxsnn.event.root import ttfs_solver
-from jaxsnn.types import Array, Spike, Weight
+from jaxsnn.base.types import Array, Spike, Weight
 
 
 @jax.jit
@@ -126,8 +126,6 @@ def train(trainset: Tuple[Spike, Array]):
     # init weights
     rng = random.PRNGKey(42)
     weights = init_fn(rng, input_shape)
-
-    apply_fn(weights, Spike(trainset[0].time[0], trainset[0].idx[0]))
 
     # declare update function
     update_fn = partial(update, partial(loss, apply_fn, tau_mem))

@@ -3,7 +3,7 @@ from typing import Tuple
 import jax.numpy as np
 
 from jaxsnn.functional.encode import one_hot
-from jaxsnn.types import Array
+from jaxsnn.base.types import Array
 
 
 def nll_loss(

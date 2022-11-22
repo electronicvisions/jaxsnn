@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from jaxsnn.event.functional import f, forward_integration, step
 from jaxsnn.event.leaky_integrate import leaky_integrator, nll_loss
 from jaxsnn.event.root import ttfs_solver
-from jaxsnn.types import Array
+from jaxsnn.base.types import Array
 
 tau_mem = 1e-2
 tau_syn = 5e-3

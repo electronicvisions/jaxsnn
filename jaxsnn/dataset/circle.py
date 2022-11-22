@@ -4,7 +4,7 @@ import jax.numpy as np
 import matplotlib.pyplot as plt
 from jax import random, vmap
 
-from jaxsnn.types import Array
+from jaxsnn.base.types import Array
 
 
 def get_class(coords, radius: float, center: Tuple[float, float]):

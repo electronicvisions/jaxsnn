@@ -4,13 +4,13 @@ from jaxsnn.event.functional import (
     step,
     exponential_flow,
 )
-from jaxsnn.types import Array, Spike, Weight, StepState
+from jaxsnn.base.types import Weight
 
 import jax
 import jax.numpy as np
 
 from functools import partial
-from typing import Tuple
+from jaxsnn.event.functional import transition, transition_without_recurrence
 
 
 def lif_exponential_flow(p: LIFParameters):

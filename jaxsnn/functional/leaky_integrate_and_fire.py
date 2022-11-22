@@ -13,7 +13,7 @@ class LIFState:
 
     Parameters:
         v (ArrayLike): membrane potential
-        i (ArrayLike): synaptic input current
+        I (ArrayLike): synaptic input current
         w_rec (ArrayLike): recurrent weights
     """
 

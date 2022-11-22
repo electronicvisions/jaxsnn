@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as np
 
-from jaxsnn.types import Array
+from jaxsnn.base.types import Array
 
 
 def ttfs_solver(tau_mem: float, v_th: float, state: Array, dt: float):
