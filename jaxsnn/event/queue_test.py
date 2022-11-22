@@ -32,6 +32,16 @@ def test_enqueue_has_grad():
     print(grad)
 
 
+def test_peek_queue():
+    state = State(queue=jnp.zeros((100, 2)), head=0, used=0)
+
+    for i in range(5):
+        state = queue.enqueue(state, jnp.full(2, i))
+
+    val = queue.peek(state)
+    assert val[0] == 0
+
+
 def test_dequeue_has_grad():
     state = State(queue=jnp.zeros((100, 2)), head=0, used=0)
     state = queue.enqueue(state, jnp.full(2, 1.0))

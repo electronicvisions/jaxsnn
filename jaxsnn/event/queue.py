@@ -38,6 +38,10 @@ def dequeue(state: State) -> Tuple[Any, State]:
     )
 
 
+def peek(state: State) -> Any:
+    return state.queue[state.head]
+
+
 def enqueue_fwd(state: State, data: Any):
     return enqueue(state, data), None
 
