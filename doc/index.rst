@@ -23,6 +23,7 @@ JAXSNN reference documentation
    :caption: Developer documentation
 
    dev/commit_convention.md
+   dev/documentation.md
 
 .. toctree::
    :maxdepth: 1
