@@ -26,22 +26,33 @@ def recurrent_transition(
     state: StepState, weights: Tuple[Array, Array], _: Spike, spike_idx: int
 ):
     _, recurrent_weights = weights
-    y_minus, t, n_input_received = state
+    y_minus = state.neuron_state
     tr_row = recurrent_weights[spike_idx]
 
     y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
     y_minus = y_minus.at[spike_idx, 0].set(0.0)
-    return StepState(y_minus, t, n_input_received)
+    return StepState(
+        neuron_state=y_minus,
+        time=state.time,
+        running_idx=state.running_idx,
+        input_spikes=state.input_spikes,
+    )
 
 
 def input_transition(
     state: StepState, weights: Tuple[Array, Array], input_spikes: Spike, _: int
 ):
     input_weights, _ = weights
-    y_minus, t, n_input_received = state
+    y_minus = state.neuron_state
+    n_input_received = state.running_idx
     tr_row = input_weights[input_spikes.idx[n_input_received]]
     y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
-    return StepState(y_minus, t, n_input_received + 1)
+    return StepState(
+        neuron_state=y_minus,
+        time=state.time,
+        running_idx=n_input_received + 1,
+        input_spikes=state.input_spikes,
+    )
 
 
 def transition(
@@ -70,15 +81,28 @@ def transition_without_recurrence(
     recurrent_spike: bool,
 ) -> StepState:
     def input_transition(state: StepState, weights: Array, input_spikes: Spike, _: int):
-        y_minus, t, n_input_received = state
+        y_minus = state.neuron_state
+        n_input_received = state.running_idx
         tr_row = weights[input_spikes.idx[n_input_received]]
         y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
-        return StepState(y_minus, t, n_input_received + 1)
+        return StepState(
+            neuron_state=y_minus,
+            time=state.time,
+            running_idx=n_input_received + 1,
+            input_spikes=state.input_spikes,
+        )
 
     def no_transition(state: StepState, *args):
-        y_minus, t, n_input_received = state
+        # TODO: Would this not trigger a jit compilation
+        #       for each different spike_idx?
+        y_minus = state.neuron_state
         y_minus = y_minus.at[spike_idx, 0].set(0.0)
-        return StepState(y_minus, t, n_input_received)
+        return StepState(
+            neuron_state=y_minus,
+            time=state.time,
+            running_idx=state.running_idx,
+            input_spikes=state.input_spikes,
+        )
 
     return jax.lax.cond(
         recurrent_spike,

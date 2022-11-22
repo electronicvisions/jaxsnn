@@ -13,6 +13,7 @@ class StepState(NamedTuple):
     neuron_state: Array
     time: float
     running_idx: int
+    input_spikes: Spike
 
 
 Weight = Union[Tuple[Array, Array], Array]
