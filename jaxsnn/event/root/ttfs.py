@@ -1,10 +1,10 @@
 import jax
 import jax.numpy as np
 
-from jaxsnn.base.types import Array
+from jaxsnn.functional.leaky_integrate_and_fire import LIFState
 
 
-def ttfs_solver(tau_mem: float, v_th: float, state: Array, dt: float):
+def ttfs_solver(tau_mem: float, v_th: float, state: LIFState, dt: float):
     """Find the next spike time for special case $\tau_mem = 2 * \tau_syn$
 
     Args:
@@ -15,7 +15,7 @@ def ttfs_solver(tau_mem: float, v_th: float, state: Array, dt: float):
     Returns:
         float: Time of next threshhold crossing or dt if no crossing
     """
-    v_0, i_0 = state
+    v_0, i_0 = state.V, state.I
     a_1 = i_0
     a_2 = v_0 + i_0
     second_term = a_2**2 - 4 * a_1 * v_th

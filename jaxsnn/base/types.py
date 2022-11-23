@@ -29,8 +29,9 @@ State = TypeVar("State")
 @dataclasses.dataclass
 @tree_math.struct
 class StepState(Generic[State]):
-    state: State
+    neuron_state: State
     time: float
+    input_spikes: Spike
     running_idx: int
 
 

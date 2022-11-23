@@ -5,7 +5,8 @@ import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
 
-from jaxsnn.event.functional import f, forward_integration, step, transition
+from jaxsnn.event.functional import f, trajectory, step
+from jaxsnn.event.leaky_integrate_and_fire import transition
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.base.types import Spike
 
@@ -45,7 +46,7 @@ dynamics = jax.vmap(single_dynamics, in_axes=(0, None))
 solver = partial(ttfs_solver, tau_mem, v_th)
 batched_solver = jax.vmap(solver, in_axes=(0, None))
 step_fn = partial(step, dynamics, batched_solver, transition, t_max)
-forward = partial(forward_integration, step_fn, 10)
+forward = trajectory(step_fn, 10)
 
 # minimal forward example
 def forward1(weights, input_spikes):

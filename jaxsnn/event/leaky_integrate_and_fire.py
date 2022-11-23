@@ -1,16 +1,12 @@
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters
-from jaxsnn.event.functional import (
-    forward_integration,
-    step,
-    exponential_flow,
-)
-from jaxsnn.base.types import Weight
+from functools import partial
+from typing import Tuple
 
 import jax
 import jax.numpy as np
 
-from functools import partial
-from jaxsnn.event.functional import transition, transition_without_recurrence
+from jaxsnn.base.types import Array, StepState, Weight
+from jaxsnn.event.functional import exponential_flow, step, trajectory
+from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters, LIFState
 
 
 def lif_exponential_flow(p: LIFParameters):
@@ -23,42 +19,27 @@ def jump_condition(dynamics, v_th, x0, t):
 
 
 def recurrent_transition(
-    state: StepState, weights: Tuple[Array, Array], _: Spike, spike_idx: int
+    state: StepState, weights: Tuple[Array, Array], spike_idx: int
 ):
     _, recurrent_weights = weights
-    y_minus = state.neuron_state
     tr_row = recurrent_weights[spike_idx]
 
-    y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
-    y_minus = y_minus.at[spike_idx, 0].set(0.0)
-    return StepState(
-        neuron_state=y_minus,
-        time=state.time,
-        running_idx=state.running_idx,
-        input_spikes=state.input_spikes,
-    )
+    state.neuron_state.I = state.neuron_state.I + tr_row
+    state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(0.0)
+    return state
 
 
-def input_transition(
-    state: StepState, weights: Tuple[Array, Array], input_spikes: Spike, _: int
-):
+def input_transition(state: StepState, weights: Tuple[Array, Array], spike_idx: int):
     input_weights, _ = weights
-    y_minus = state.neuron_state
-    n_input_received = state.running_idx
-    tr_row = input_weights[input_spikes.idx[n_input_received]]
-    y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
-    return StepState(
-        neuron_state=y_minus,
-        time=state.time,
-        running_idx=n_input_received + 1,
-        input_spikes=state.input_spikes,
-    )
+    tr_row = input_weights[state.input_spikes.idx[state.running_idx]]
+    state.neuron_state.I = state.neuron_state.I + tr_row
+    state.running_idx += 1
+    return state
 
 
 def transition(
     state: StepState,
     weights: Tuple[Array, Array],
-    input_spikes: Spike,
     spike_idx: int,
     recurrent_spike: bool,
 ) -> StepState:
@@ -68,7 +49,6 @@ def transition(
         input_transition,
         state,
         weights,
-        input_spikes,
         spike_idx,
     )
 
@@ -76,33 +56,18 @@ def transition(
 def transition_without_recurrence(
     state: StepState,
     weights: Array,
-    input_spikes: Spike,
     spike_idx: int,
     recurrent_spike: bool,
 ) -> StepState:
-    def input_transition(state: StepState, weights: Array, input_spikes: Spike, _: int):
-        y_minus = state.neuron_state
-        n_input_received = state.running_idx
-        tr_row = weights[input_spikes.idx[n_input_received]]
-        y_minus = y_minus.at[:, 1].set(y_minus[:, 1] + tr_row)
-        return StepState(
-            neuron_state=y_minus,
-            time=state.time,
-            running_idx=n_input_received + 1,
-            input_spikes=state.input_spikes,
-        )
+    def input_transition(state: StepState, weights: Array, spike_idx: int):
+        tr_row = weights[state.input_spikes.idx[state.running_idx]]
+        state.neuron_state.I = state.neuron_state.I + tr_row
+        state.running_idx += 1
+        return state
 
     def no_transition(state: StepState, *args):
-        # TODO: Would this not trigger a jit compilation
-        #       for each different spike_idx?
-        y_minus = state.neuron_state
-        y_minus = y_minus.at[spike_idx, 0].set(0.0)
-        return StepState(
-            neuron_state=y_minus,
-            time=state.time,
-            running_idx=state.running_idx,
-            input_spikes=state.input_spikes,
-        )
+        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(0, 0)
+        return state
 
     return jax.lax.cond(
         recurrent_spike,
@@ -110,7 +75,6 @@ def transition_without_recurrence(
         input_transition,
         state,
         weights,
-        input_spikes,
         spike_idx,
     )
 
@@ -122,7 +86,8 @@ def RecursiveLIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, s
     batched_solver = jax.vmap(solver, in_axes=(0, None))
 
     step_fn = partial(step, dynamics, batched_solver, transition, t_max)
-    forward = partial(forward_integration, step_fn, n_spikes)
+    forward = trajectory(step_fn, n_spikes)
+    initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> Weight:
         scale_factor = 2.0
@@ -135,7 +100,7 @@ def RecursiveLIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, s
         )
         return n_hidden, (input_weights, rec_weights)
 
-    return init_fn, forward
+    return init_fn, partial(forward, initial_state)
 
 
 def LIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, solver):
@@ -144,13 +109,14 @@ def LIF(n_hidden: int, n_spikes: int, t_max: float, p: LIFParameters, solver):
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
     batched_solver = jax.vmap(solver, in_axes=(0, None))
 
-    non_recursive_step_fn = partial(
+    step_fn = partial(
         step, dynamics, batched_solver, transition_without_recurrence, t_max
     )
-    forward = partial(forward_integration, non_recursive_step_fn, n_spikes)
+    forward = trajectory(step_fn, n_spikes)
+    initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int):
         scale_factor = 2.0
         return n_hidden, jax.random.uniform(rng, (input_shape, n_hidden)) * scale_factor
 
-    return init_fn, forward
+    return init_fn, partial(forward, initial_state)

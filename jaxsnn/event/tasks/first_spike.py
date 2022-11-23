@@ -6,7 +6,7 @@ import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
 
-from jaxsnn.event.functional import f, forward_integration, step
+from jaxsnn.event.functional import f, step, trajectory
 from jaxsnn.event.leaky_integrate import leaky_integrator, nll_loss
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.base.types import Array
@@ -117,7 +117,7 @@ def train():
 
     # define forward function
     step_fn = partial(step, dynamics, solver)
-    forward = jax.jit(partial(forward_integration, step_fn, n_spikes))
+    forward = trajectory(step_fn, n_spikes)
     loss_fn = partial(ttfs_loss, forward)
     update_fn = partial(update, loss_fn)
 

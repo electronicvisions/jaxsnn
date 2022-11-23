@@ -12,7 +12,7 @@ from absl.testing import absltest
 class ForwardTests(absltest.TestCase):
     def test_leak_over_threshold(self):
         p = lif.LIFParameters(v_leak=0.6, v_th=0.5)
-        initial_state = lif.LIFState(v=p.v_reset, I=0.0, w_rec=0.0)
+        initial_state = lif.LIFState(V=p.v_reset, I=0.0)  # , w_rec=0.0)
 
         T = 1000
         dt = 0.0001

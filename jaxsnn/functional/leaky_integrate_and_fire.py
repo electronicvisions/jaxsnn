@@ -1,9 +1,10 @@
-from jaxsnn.base.types import ArrayLike
-from jaxsnn.base import explicit
+import dataclasses
 
 import jax.numpy as jnp
 import tree_math
-import dataclasses
+
+from jaxsnn.base import explicit
+from jaxsnn.base.types import ArrayLike
 
 
 @dataclasses.dataclass
@@ -12,14 +13,12 @@ class LIFState:
     """State of a LIF neuron
 
     Parameters:
-        v (ArrayLike): membrane potential
+        V (ArrayLike): membrane potential
         I (ArrayLike): synaptic input current
-        w_rec (ArrayLike): recurrent weights
     """
 
-    v: ArrayLike
+    V: ArrayLike
     I: ArrayLike
-    w_rec: ArrayLike
 
 
 @dataclasses.dataclass
@@ -60,9 +59,9 @@ class LIFParameters:
 
 def lif_dynamics(p: LIFParameters):
     def dynamics(s: LIFState, u: LIFInput):
-        v_dot = p.tau_mem_inv * ((p.v_leak - s.v) + s.I + u.I)
+        v_dot = p.tau_mem_inv * ((p.v_leak - s.V) + s.I + u.I)
         I_dot = -p.tau_syn_inv * s.I
-        return LIFState(v=v_dot, I=I_dot, w_rec=0.0)
+        return LIFState(V=v_dot, I=I_dot)  # , w_rec=0.0)
 
     return dynamics
 
@@ -71,9 +70,9 @@ def lif_projection(p: LIFParameters, func):  # , rec_fun):
     def projection(state: LIFState, u: LIFInput):
         # TODO: z = func((state.v - p.v_th) / (p.v_th - p.v_leak))
         return LIFState(
-            v=jnp.where(state.v > p.v_th, p.v_reset, state.v),
+            V=jnp.where(state.V > p.v_th, p.v_reset, state.V),
             I=state.I + u.z,  # TODO: + rec_fun(state.w_rec, z)
-            w_rec=state.w_rec,
+            # w_rec=state.w_rec,
         )
 
     return projection
@@ -81,7 +80,7 @@ def lif_projection(p: LIFParameters, func):  # , rec_fun):
 
 def lif_output(p: LIFParameters, func):
     def output(state: LIFState, _):
-        return func((state.v - p.v_th) / (p.v_th - p.v_leak)), state
+        return func((state.V - p.v_th) / (p.v_th - p.v_leak)), state
 
     return output
 

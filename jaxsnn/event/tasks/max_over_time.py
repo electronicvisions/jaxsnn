@@ -5,7 +5,7 @@ import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
 
-from jaxsnn.event.functional import f, forward_integration, step
+from jaxsnn.event.functional import f, trajectory, step
 from jaxsnn.event.leaky_integrate import leaky_integrator, nll_loss
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.base.types import Array
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     # define forward function
     step_fn = partial(step, dynamics, solver)
-    forward = jax.jit(partial(forward_integration, step_fn, n_spikes))
+    forward = trajectory(step_fn, n_spikes)
     loss_fn = partial(max_over_time_loss, forward)
     update_fn = partial(update, loss_fn)
 
