@@ -10,6 +10,8 @@ from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF, RecursiveL
 from jaxsnn.event.compose import serial
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.base.types import Array, Spike, Weight
+from jaxsnn.event.dataset import constant_dataset
+from jaxsnn.event.loss import spike_time_loss
 
 
 @jax.jit
@@ -63,37 +65,6 @@ def plot_spikes(
             axs[i].scatter(x=target[1] / t_max, y=2, s=s, marker="|", c="red")
 
 
-@jax.jit
-def log_loss(first_spikes: Array, target: Array, tau_mem: float):
-    loss_value = -np.sum(np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem)))
-    return loss_value
-
-
-def first_spike(spikes: Spike, size: int) -> Array:
-    return np.array(
-        [
-            np.nanmin(np.where(spikes.idx == idx, spikes.time, np.nan))
-            for idx in range(size)
-        ]
-    )
-
-
-def loss(
-    apply_fn: Callable,
-    tau_mem: float,
-    weights: List[Weight],
-    batch: Tuple[Spike, Array],
-) -> Tuple[float, Tuple[float, List[Spike]]]:
-
-    input_spikes, target = batch
-    recording = apply_fn(weights, input_spikes)
-    output = recording[-1]
-    size = weights[-1].shape[1]  # type: ignore
-    t_first_spike = first_spike(output, size)
-
-    return (log_loss(t_first_spike, target, tau_mem), (t_first_spike, recording))
-
-
 def update(
     loss_fn: Callable,
     weights: List[Weight],
@@ -128,7 +99,7 @@ def train(trainset: Tuple[Spike, Array]):
     weights = init_fn(rng, input_shape)
 
     # declare update function
-    update_fn = partial(update, partial(loss, apply_fn, tau_mem))
+    update_fn = partial(update, partial(spike_time_loss, apply_fn, tau_mem))
 
     # train the net
     weights, (loss_value, (output, recording)) = jax.lax.scan(
@@ -147,21 +118,6 @@ def train(trainset: Tuple[Spike, Array]):
     plt.show()
 
 
-def constant_dataset(n_epochs, t_max):
-    input_spikes = Spike(
-        np.array([0.1, 0.2, 1]) * t_max,  # type: ignore
-        np.array([0, 1, 0]),
-    )
-    target = np.array([0.2, 0.3]) * t_max  # type: ignore
-    batch = (input_spikes, target)
-    tiling = (n_epochs, 1)
-    dataset = (
-        Spike(np.tile(batch[0].time, tiling), np.tile(batch[0].idx, tiling)),
-        np.tile(batch[1], tiling),
-    )
-    return dataset
-
-
 if __name__ == "__main__":
     tau_mem = 1e-2
     tau_syn = 5e-3
@@ -169,5 +125,5 @@ if __name__ == "__main__":
     t_max = 2 * t_late
 
     n_epochs = 2000
-    trainset = constant_dataset(n_epochs, t_max)
+    trainset = constant_dataset(t_max, [n_epochs])
     train(trainset)
