@@ -1,212 +1,177 @@
+import json
 from functools import partial
-from typing import Callable, List, Optional, Tuple
-
+from typing import Callable, List, Tuple
+import datetime as dt
 import jax
 import jax.numpy as np
 import matplotlib.pyplot as plt
 from jax import random
+import optax
 
 from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import linear_dataset
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters, RecursiveLIF
+from jaxsnn.event.functional import batch_wrapper
 from jaxsnn.event.loss import spike_time_loss
+from jaxsnn.event.plot import (
+    plt_accuracy,
+    plt_dataset,
+    plt_loss,
+    plt_no_spike_prob,
+    plt_prediction,
+    plt_2dloss,
+    plt_t_spike_neuron,
+)
 from jaxsnn.event.root import ttfs_solver
-
-
-@jax.jit
-def loss_fn_vec(t1, t2, target_1, target_2, tau_mem):
-    loss_value = -(
-        np.log(1 + np.exp(-np.abs(t1 - target_1) / tau_mem))
-        + np.log(1 + np.exp(-np.abs(t2 - target_2) / tau_mem))
-    )
-    return loss_value
-
-
-def plot_loss(ax, loss_value: Array):
-    ax.plot(np.arange(len(loss_value)), loss_value, label="Loss")
-    ax.title.set_text("Loss")
-
-
-def plot_2dloss(
-    ax, trajectory: Array, dt: float, target: Array, n: int, tau_mem: float
-):
-    t1 = np.linspace(0, 0.5, n)
-    t2 = np.linspace(0, 0.5, n)
-    xx, yy = np.meshgrid(t1, t2)
-    zz = loss_fn_vec(xx, yy, target[0] / dt, target[1] / dt, tau_mem)
-
-    ax.contourf(t1, t2, zz)
-    ax.scatter(trajectory[:, 0] / dt, trajectory[:, 1] / dt, s=0.1, color="red")
-    ax.axis("scaled")
-    # ax.colorbar()
-
-
-def plot_output(ax, t_output: Array, t_max: float, target: Array):
-    ax.plot(np.arange(len(t_output)), t_output[:, 0] / t_max, label="t_spike 1")
-    ax.plot(np.arange(len(t_output)), t_output[:, 1] / t_max, label="t_spike 2")
-    ax.axhline(target[0] / t_max, color="red")
-    ax.axhline(target[1] / t_max, color="red")
-    ax.title.set_text("Spike Times Correct class")
-    ax.legend()
-
-
-def plot_spikes(
-    axs, spikes: Spike, t_max: float, observe: Array, target: Optional[Array] = None
-):
-    for i, it in enumerate(observe):
-        spike_times = spikes.time[it] / t_max
-        s = 3 * (120.0 / len(spikes.time[it])) ** 2.0
-        axs[i].scatter(x=spike_times, y=spikes.idx[it] + 1, s=s, marker="|", c="black")
-        axs[i].set_ylabel("neuron id")
-        axs[i].set_xlabel(r"$t$ [us]")
-        if target is not None:
-            axs[i].scatter(x=target[0] / t_max, y=1, s=s, marker="|", c="red")
-            axs[i].scatter(x=target[1] / t_max, y=2, s=s, marker="|", c="red")
-
-
-def update(
-    loss_fn: Callable,
-    learning_rate: float,
-    weights: List[Weight],
-    batch: Tuple[Spike, Array],
-):
-    value, grad = jax.value_and_grad(loss_fn, has_aux=True)(weights, batch)
-    weights = jax.tree_map(lambda f, df: f - learning_rate * df, weights, grad)
-    return weights, value
 
 
 def loss_and_acc(
     loss_fn: Callable,
-    weights: List[Weight],
+    params: List[Weight],
     dataset: Tuple[Spike, Array],
 ):
     batched_loss = jax.vmap(loss_fn, in_axes=(None, 0))
-    loss, (t_first_spike, _) = batched_loss(weights, dataset)
-    accuracy = np.argmin(dataset[1], axis=1) == np.argmin(t_first_spike, axis=1)
-
-    t_first_spike = np.where(t_first_spike == np.inf, np.nan, t_first_spike)
-    first_target = t_first_spike[
-        np.arange(len(dataset[1])), np.argmin(dataset[1], axis=1)
-    ]
-    second_target = t_first_spike[
-        np.arange(len(dataset[1])), np.argmax(dataset[1], axis=1)
-    ]
+    loss, (t_first_spike, _) = batched_loss(params, dataset)
+    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(t_first_spike, axis=-1)
     return (
         np.mean(loss),
         np.mean(accuracy),
-        np.nanmean(first_target),
-        np.nanmean(second_target),
+        t_first_spike,
     )
 
 
-def train(trainset: Tuple[Spike, Array], epochs):
-    input_shape = 4
-
-    learning_rate = 1e-2
+def train():
+    # neuron params
     tau_mem = 1e-2
     tau_syn = 5e-3
-    t_late = tau_syn + tau_mem
-    t_max = 2 * t_late
-    p = LIFParameters(tau_mem_inv=1 / tau_mem, tau_syn_inv=1 / tau_syn, v_th=0.6)
+    t_max = 6 * tau_syn
+    v_th = 0.6
+    p = LIFParameters(tau_mem_inv=1 / tau_mem, tau_syn_inv=1 / tau_syn, v_th=v_th)
+
+    # training params
+    step_size = 1e-3
+    n_batches = 100
+    batch_size = 32
+    epochs = 50
+
+    # net
+    hidden_size = 4
+    output_size = 2
+    n_spikes_hidden = 20
+    n_spikes_output = 30
+    seed = 42
+    optimizer_fn = optax.adam
+
+    rng = random.PRNGKey(seed)
+    param_rng, train_rng, test_rng = random.split(rng, 3)
+    trainset = linear_dataset(train_rng, tau_syn, [n_batches, batch_size])
+    testset = linear_dataset(test_rng, tau_syn, [n_batches, batch_size])
+    input_size = trainset[0].idx.shape[-1]
     solver = partial(ttfs_solver, tau_mem, p.v_th)
 
     # declare net
     init_fn, apply_fn = serial(
         t_max,
-        RecursiveLIF(4, n_spikes=10, t_max=t_max, p=p, solver=solver),
-        LIF(2, n_spikes=20, t_max=t_max, p=p, solver=solver),
+        RecursiveLIF(
+            hidden_size, n_spikes=n_spikes_hidden, t_max=t_max, p=p, solver=solver
+        ),
+        LIF(output_size, n_spikes=n_spikes_output, t_max=t_max, p=p, solver=solver),
     )
 
-    # init weights
-    rng = random.PRNGKey(42)
-    weights = init_fn(rng, input_shape)
+    # init params and optimizer
+    params = init_fn(param_rng, input_size)
+
+    optimizer = optimizer_fn(step_size)
+    opt_state = optimizer.init(params)
 
     # declare update function
-    loss_fn = partial(spike_time_loss, apply_fn, tau_mem)
-    update_fn = partial(update, loss_fn, learning_rate)
+    loss_fn = batch_wrapper(partial(spike_time_loss, apply_fn, tau_mem))
 
-    def epoch(weights, _):
-        weights, _ = jax.lax.scan(update_fn, weights, trainset)
-        return weights, (loss_and_acc(loss_fn, weights, trainset), weights)
+    # define update function
+    def update(
+        input: Tuple[optax.OptState, List[Weight]],
+        batch: Tuple[Spike, Array],
+    ):
+        opt_state, params = input
+        value, grad = jax.value_and_grad(loss_fn, has_aux=True)(params, batch)
+        updates, opt_state = optimizer.update(grad, opt_state)
+        params = optax.apply_updates(params, updates)
+        return (opt_state, params), value
+
+    def epoch(state, _):
+        state, _ = jax.lax.scan(update, state, trainset)
+        params = state[1]
+        test_result = loss_and_acc(loss_fn, params, testset)
+        return state, (test_result, params)
 
     # train the net
-    weights, (res, weights_over_time) = jax.lax.scan(epoch, weights, np.arange(epochs))
-    loss, acc, first_target, second_target = res
+    (opt_state, params), (res, params_over_time) = jax.lax.scan(
+        epoch, (opt_state, params), np.arange(epochs)
+    )
+    loss, acc, t_spike = res
 
-    fix, (ax1, ax2, ax3) = plt.subplots(3, 3, figsize=(8, 5))
+    class_0 = np.argmin(testset[1], axis=-1) == 0
+    t_spike_correct = np.where(class_0, t_spike[..., 0], t_spike[..., 1])
+    t_spike_false = np.where(class_0, t_spike[..., 1], t_spike[..., 0])
 
-    # Loss
-    ax1[0].plot(np.arange(epochs), loss, label="Loss")
-    ax1[0].set_xlabel("Epoch")
-    ax1[0].title.set_text("Loss")
+    # plotting
+    dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    folder = f"jaxsnn/plots/event/linear/{dt_string}"
+    observe = ((0, 0, "^"), (0, 1, "s"), (0, 2, "D"))
 
-    # Accuracy
-    ax1[1].plot(np.arange(epochs), acc, label="Accuracy")
-    ax1[1].set_xlabel("Epoch")
-    ax1[1].title.set_text("Accuracy")
+    # loss and accuracy
+    fig, ax1 = plt.subplots(3, 1, figsize=(6, 10), sharex=True)
+    plt_loss(ax1[0], loss)
+    plt_accuracy(ax1[1], acc)
+    plt_no_spike_prob(ax1[2], t_spike_correct, t_spike_false)
+    fig.tight_layout()
+    plt.xlabel("Epoch")
+    fig.subplots_adjust(bottom=0.15)
+    fig.savefig(f"{folder}_loss.png", dpi=300)
 
-    # Avg spike time correct neuron
-    ax1[2].plot(np.arange(epochs), first_target / t_max, label="t_spike correct neuron")
-    ax1[2].axhline(np.min(trainset[1]) / t_max, color="red")
+    # 2d spike times
+    fig, ax1 = plt.subplots(1, 2, figsize=(10, 4))
+    plt_t_spike_neuron(fig, ax1, testset, t_spike, LIFParameters.tau_syn_inv)
+    fig.savefig(f"{folder}_spike_times.png", dpi=150)
 
-    # plot spike time non-correct neuron
-    ax1[2].plot(np.arange(epochs), second_target / t_max, label="t_spike false neuron")
-    ax1[2].axhline(np.max(trainset[1]) / t_max, color="red")
+    # trajectory
+    fig, axs = plt.subplots(2, 3, figsize=(10, 7))
+    plt_2dloss(axs, t_spike, testset, observe, tau_mem, tau_syn)
+    fig.tight_layout()
+    fig.savefig(f"{folder}_trajectory.png", dpi=150)
 
-    ax1[2].set_xlabel("Epoch")
-    ax1[2].title.set_text("Output spike times")
-    ax1[2].legend()
+    # classification
+    fig, ax1 = plt.subplots(1, 2, figsize=(7, 4))
+    plt_dataset(ax1[0], testset, observe, LIFParameters.tau_syn_inv)
+    plt_prediction(ax1[1], testset, t_spike, LIFParameters.tau_syn_inv)
+    fig.tight_layout()
+    fig.savefig(f"{folder}_classification.png", dpi=150)
 
-    # run again
-    batched_loss = jax.vmap(loss_fn, in_axes=(None, 0))
-    _, (t_first_spike, _) = batched_loss(weights, trainset)
+    # spikes hidden layer
 
-    predicted_class = np.argmin(t_first_spike, axis=1)
-    x = trainset[0].time[:, 0]
-    y = trainset[0].time[:, 1]
-    ax2[0].scatter(x, y, s=10, c=predicted_class)
-    ax2[0].title.set_text("Predicted class")
-
-    correct_class = np.argmin(trainset[1], axis=1)
-    x = trainset[0].time[:, 0]
-    y = trainset[0].time[:, 1]
-    ax2[1].scatter(x, y, s=10, c=correct_class)
-    ax2[1].title.set_text("Correct class")
-
-    input_weights = weights_over_time[0][0].reshape(100, -1)
-    for i in range(input_weights.shape[1]):
-        ax3[0].plot(np.arange(epochs), input_weights[:, i])
-        ax3[0].title.set_text("Input weights")
-
-    recursive_weights = weights_over_time[0][1].reshape(100, -1)
-    for i in range(recursive_weights.shape[1]):
-        ax3[1].plot(np.arange(epochs), recursive_weights[:, i])
-        ax3[1].title.set_text("Recursive weights")
-
-    output_weights = weights_over_time[1].reshape(100, -1)
-    for i in range(output_weights.shape[1]):
-        ax3[2].plot(np.arange(epochs), output_weights[:, i])
-        ax3[2].title.set_text("Output weights")
-
-    # TODO look at activity, when input, when internal, when output
-    # add batching
-    # look at loss function
-    # look at LI neuron in output layer
-    # observe = [0, 30, 60, 90]
-    # plot_spikes(ax2, recording[0], t_max, observe)
-    # plot_spikes(ax3, recording[1], t_max, observe, target=const_target)
-    plt.show()
+    # save experiment data
+    experiment = {
+        "epochs": epochs,
+        "tau_mem": tau_mem,
+        "tau_syn": tau_syn,
+        "v_th": v_th,
+        "step_size": step_size,
+        "batch_size": batch_size,
+        "n_batches": n_batches,
+        "net": [input_size, hidden_size, output_size],
+        "n_spikes": [input_size, n_spikes_hidden, n_spikes_output],
+        "optimizer": optimizer_fn.__name__,
+        "loss": round(loss[-1].item(), 5),
+        "accuracy": round(acc[-1].item(), 5),
+        "target": [np.min(testset[1]).item(), np.max(testset[1]).item()],
+    }
+    with open(f"{folder}_params.json", "w") as outfile:
+        json.dump(experiment, outfile, indent=4)
 
 
 if __name__ == "__main__":
-    tau_mem = 1e-2
-    tau_syn = 5e-3
-    t_late = tau_syn + tau_mem
-    t_max = 2 * t_late
+    train()
 
-    n_samples = 1000
-    epochs = 100
-    rng = random.PRNGKey(42)
-    trainset = linear_dataset(rng, t_max, [n_samples])
-    train(trainset, epochs)
+    # 2D Loss?
+    # Plot Decision boundary

@@ -1,7 +1,7 @@
 from typing import Callable, List, Tuple
 import jax.numpy as np
 
-from jaxsnn.base.types import Array, Spike, Weight
+from jaxsnn.base.types import Array, Spike, Weight, ArrayLike
 
 
 def spike_time_loss(
@@ -9,7 +9,7 @@ def spike_time_loss(
     tau_mem: float,
     weights: List[Weight],
     batch: Tuple[Spike, Array],
-) -> Tuple[float, Tuple[float, List[Spike]]]:
+) -> Tuple[ArrayLike, Tuple[ArrayLike, List[Spike]]]:
 
     input_spikes, target = batch
     recording = apply_fn(weights, input_spikes)
@@ -17,20 +17,20 @@ def spike_time_loss(
     size = weights[-1].shape[1]  # type: ignore
     t_first_spike = first_spike(output, size)
 
-    return (log_loss(t_first_spike, target, tau_mem), (t_first_spike, recording))
+    return (log_loss_single(t_first_spike, target, tau_mem), (t_first_spike, recording))
 
 
-def log_loss(first_spikes: Array, target: Array, tau_mem: float):
+def log_loss(first_spikes: Array, target: Array, tau_mem: float) -> ArrayLike:
     loss_value = -np.sum(np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem)))
     return loss_value
 
 
-def log_loss_single(first_spikes: Array, target: Array, tau_mem: float):
-    """Only consider spike time of correct class neuron"""
+def log_loss_single(first_spikes: Array, target: Array, tau_mem: float) -> ArrayLike:
     idx = np.argmin(target)
-    first_spikes = first_spikes[idx]
-    target = target[idx]
-    loss_value = -np.sum(np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem)))
+    zaehler = 1 + np.exp(-first_spikes[idx] / tau_mem)
+    nenner = 1 + np.exp(-np.abs(first_spikes) / tau_mem)
+
+    loss_value = -np.sum(np.log(zaehler / nenner))
     return loss_value
 
 

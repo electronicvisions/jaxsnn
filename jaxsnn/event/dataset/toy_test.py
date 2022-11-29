@@ -5,27 +5,42 @@ from jaxsnn.event.dataset import linear_dataset, constant_dataset, circle_datase
 
 def test_linear_dataset():
     rng = random.PRNGKey(42)
-    dataset = linear_dataset(rng, 1e-2, shape=[1000])
+    dataset = linear_dataset(rng, 1e-2, shape=[1000], mirror=False, bias_spike=False)
+    assert dataset[0].idx.shape == (1000, 2)
+    assert dataset[0].time.shape == (1000, 2)
+    assert dataset[1].shape == (1000, 2)
+
+    dataset = linear_dataset(rng, 1e-2, shape=[1000], mirror=True, bias_spike=False)
     assert dataset[0].idx.shape == (1000, 4)
     assert dataset[0].time.shape == (1000, 4)
     assert dataset[1].shape == (1000, 2)
 
-    dataset = linear_dataset(rng, 1e-2, shape=[100, 10])
-    assert dataset[0].idx.shape == (100, 10, 4)
-    assert dataset[0].time.shape == (100, 10, 4)
+    dataset = linear_dataset(rng, 1e-2, shape=[1000], mirror=True, bias_spike=True)
+    assert dataset[0].idx.shape == (1000, 5)
+    assert dataset[0].time.shape == (1000, 5)
+    assert dataset[1].shape == (1000, 2)
+
+    dataset = linear_dataset(rng, 1e-2, shape=[100, 10], mirror=True, bias_spike=True)
+    assert dataset[0].idx.shape == (100, 10, 5)
+    assert dataset[0].time.shape == (100, 10, 5)
     assert dataset[1].shape == (100, 10, 2)
 
 
 def test_circle_dataset():
     rng = random.PRNGKey(42)
-    dataset = circle_dataset(rng, 1e-2, shape=[1000])
-    assert dataset[0].idx.shape == (1000, 4)
-    assert dataset[0].time.shape == (1000, 4)
+    dataset = circle_dataset(rng, 1e-2, shape=[1000], mirror=False, bias_spike=False)
+    assert dataset[0].idx.shape == (1000, 2)
+    assert dataset[0].time.shape == (1000, 2)
     assert dataset[1].shape == (1000, 2)
 
-    dataset = circle_dataset(rng, 1e-2, shape=[100, 10])
+    dataset = circle_dataset(rng, 1e-2, shape=[100, 10], mirror=True, bias_spike=False)
     assert dataset[0].idx.shape == (100, 10, 4)
     assert dataset[0].time.shape == (100, 10, 4)
+    assert dataset[1].shape == (100, 10, 2)
+
+    dataset = circle_dataset(rng, 1e-2, shape=[100, 10], mirror=True, bias_spike=True)
+    assert dataset[0].idx.shape == (100, 10, 5)
+    assert dataset[0].time.shape == (100, 10, 5)
     assert dataset[1].shape == (100, 10, 2)
 
 

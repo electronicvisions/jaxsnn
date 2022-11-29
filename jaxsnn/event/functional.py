@@ -8,6 +8,14 @@ from tree_math import Vector
 from jaxsnn.base.types import Array, Spike, StepState
 
 
+def batch_wrapper(loss_fn):
+    def wrapped_fn(*args, **kwargs):
+        res = jax.vmap(loss_fn, in_axes=(None, 0))(*args, **kwargs)
+        return np.mean(res[0]), res[1]
+
+    return wrapped_fn
+
+
 def exponential_flow(A: Array):
     def flow(x0: Array, t: float):
         return np.dot(jax.scipy.linalg.expm(A * t), x0)  # type: ignore

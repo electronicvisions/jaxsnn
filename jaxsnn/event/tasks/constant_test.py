@@ -40,4 +40,4 @@ def test_train():
     # train the net
     trainset = constant_dataset(t_max, [n_epochs])
     weights, (loss_value, _) = jax.lax.scan(update_fn, weights, trainset)
-    assert loss_value[-1] <= -1.3
+    assert loss_value[-1] <= -0.4

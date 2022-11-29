@@ -6,7 +6,10 @@ from jax import random
 from jaxsnn.base.types import Array, Spike
 
 
-def constant_dataset(t_max: float, shape: List[int]) -> Tuple[Spike, Array]:
+Dataset = Tuple[Spike, Array]
+
+
+def constant_dataset(t_max: float, shape: List[int]) -> Dataset:
     input = np.array([0.1, 0.2, 1]) * t_max
     target = np.array([0.2, 0.3]) * t_max  # type: ignore
     spike_idx = np.array([0, 1, 0])
@@ -20,19 +23,29 @@ def constant_dataset(t_max: float, shape: List[int]) -> Tuple[Spike, Array]:
 
 
 def linear_dataset(
-    rng: random.KeyArray, t_max: float, shape: List[int]
-) -> Tuple[Spike, Array]:
-    scaling = t_max / 4
+    rng: random.KeyArray,
+    tau_syn: float,
+    shape: List[int],
+    mirror: bool = True,
+    bias_spike: bool = True,
+) -> Dataset:
+    scaling = 1.5 * tau_syn
     size = np.prod(np.array(shape))
     input = random.uniform(rng, (size, 2))
-    encoding = np.array([[0.4, 0.8], [0.8, 0.4]]) * scaling  # type: ignore
+    encoding = np.array([[0.3, 1.4], [1.4, 0.3]]) * scaling  # type: ignore
 
     which_class = (input[:, 0] < input[:, 1]).astype(int)
     target = encoding[which_class]
 
-    spike_idx = np.array([0, 1, 3, 4])
+    spike_idx = np.array([0, 1])
+    if mirror:
+        spike_idx = np.concatenate((spike_idx, np.array([2, 3])))
+        input = np.hstack((input, 1 - input))
 
-    input = np.hstack((input, 1 - input))
+    if bias_spike:
+        spike_idx = np.concatenate((spike_idx, np.array([spike_idx[-1] + 1])))
+        bias_spike = np.full(size, scaling)[:, None]
+        input = np.hstack((input, bias_spike))
     input = input * scaling
     input_spikes = Spike(
         input.reshape(*(shape + [-1])), np.tile(spike_idx, (shape + [1]))
@@ -43,8 +56,12 @@ def linear_dataset(
 
 
 def circle_dataset(
-    rng: random.KeyArray, t_max: float, shape: List[int]
-) -> Tuple[Spike, Array]:
+    rng: random.KeyArray,
+    t_max: float,
+    shape: List[int],
+    mirror: bool = True,
+    bias_spike: bool = True,
+) -> Dataset:
     scaling = t_max / 2
     size = np.prod(np.array(shape))
     input = random.uniform(rng, (size, 2))
@@ -58,9 +75,17 @@ def circle_dataset(
     ).astype(int)
     target = encoding[which_class]
 
-    spike_idx = np.array([0, 1, 2, 3])
+    spike_idx = np.array([0, 1])
+    if mirror:
+        spike_idx = np.concatenate((spike_idx, np.array([2, 3])))
+        input = np.hstack((input, 1 - input))
 
-    input = np.hstack((input, 1 - input)) * scaling
+    if bias_spike:
+        spike_idx = np.concatenate((spike_idx, np.array([spike_idx[-1] + 1])))
+        bias_spike = np.full(size, scaling)[:, None]
+        input = np.hstack((input, bias_spike))
+
+    input = input * scaling
     input_spikes = Spike(
         input.reshape(*(shape + [-1])), np.tile(spike_idx, (shape + [1]))
     )
