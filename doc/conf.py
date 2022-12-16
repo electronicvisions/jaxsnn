@@ -95,6 +95,7 @@ exclude_patterns = [
     "build/jupyter_execute",
     "notebooks/README.md",
     "README.md",
+    "**.ipynb_checkpoints",
 ]
 
 # The name of the Pygments (syntax highlighting) style to use.
