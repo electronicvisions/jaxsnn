@@ -26,10 +26,31 @@ def tree_to_matrix(d, u, p):
 def tree_matmul(d, u, p, b):
     """
     Multiply a 'tree' matrix with a vector.
+
+    The only non-zero entries are of the form
+
+    a[p[i], i], a[i,i], a[i, p[i]]
+
+    however in each row there can be many entries
+
+    m[i] = a[i, p[i]] * b[p[i]]
+    n[p[i]] = a[p[i], i] * b[i]
+    diag = d * b
+
+
+
+
     """
     # TODO: Dummy implementation
-    m = tree_to_matrix(d, u, p)
-    return jnp.dot(m, b)
+
+    N = d.shape[0]
+    res = d * b
+
+    for i in range(1, N):
+        res = res.at[i].add(u[i - 1] * b[p[i]])
+        res = res.at[p[i]].add(u[i - 1] * b[i])
+
+    return res
 
 
 def hines_solver(d, u, p, b):

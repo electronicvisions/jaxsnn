@@ -3,7 +3,7 @@
 # Released under Apache 2.0 license as described in the file LICENSE.
 # Authors: Christian Pehle
 
-from jaxsnn.base.tree_solver import hines_solver, tree_to_matrix
+from jaxsnn.base.tree_solver import hines_solver, tree_to_matrix, tree_matmul
 
 import jax.numpy as jnp
 import numpy as onp
@@ -34,6 +34,20 @@ def test_tree_to_matrix():
 
     expected = [[2, 1, 0], [1, 2, 1], [0, 1, 2]]
     actual = tree_to_matrix(d, u, p)
+    onp.testing.assert_allclose(expected, actual)
+
+
+def test_tree_matmul():
+    N = 3
+    d = 2 * onp.ones(N)
+    u = onp.ones(N - 1)
+    p = onp.arange(-1, N, 1)
+
+    mat = tree_to_matrix(d, u, p)
+    a = jnp.array(onp.random.randn(3))
+    expected = jnp.dot(mat, a)
+    actual = tree_matmul(d, u, p, a)
+
     onp.testing.assert_allclose(expected, actual)
 
 
