@@ -6,6 +6,8 @@
 import jax.numpy as jnp
 import jax.lax as lax
 from functools import partial
+from jaxsnn.base.types import JaxArray
+import tree_math
 
 
 def tree_to_matrix(d, u, p):
@@ -23,6 +25,26 @@ def tree_to_matrix(d, u, p):
     return a
 
 
+@tree_math.struct
+class TreeMatrix:
+    d: JaxArray
+    u: JaxArray
+    p: JaxArray
+
+
+@tree_math.struct
+class TreeProblem:
+    t: TreeMatrix
+    b: JaxArray
+
+
+@tree_math.struct
+class TreeMatmulProblem:
+    t: TreeMatrix
+    b: JaxArray
+    r: JaxArray
+
+
 def tree_matmul(d, u, p, b):
     """
     Multiply a 'tree' matrix with a vector.
@@ -37,37 +59,45 @@ def tree_matmul(d, u, p, b):
     n[p[i]] = a[p[i], i] * b[i]
     diag = d * b
 
-
-
-
     """
     # TODO: Dummy implementation
 
+    def body_fun(i, val):
+        val.r = val.r.at[i].add(val.t.u[i - 1] * val.b[val.t.p[i]])
+        val.r = val.r.at[val.t.p[i]].add(val.t.u[i - 1] * val.b[i])
+        return val
+
     N = d.shape[0]
-    res = d * b
 
-    for i in range(1, N):
-        res = res.at[i].add(u[i - 1] * b[p[i]])
-        res = res.at[p[i]].add(u[i - 1] * b[i])
+    init_val = TreeMatmulProblem(t=TreeMatrix(u=u, d=d, p=p), b=b, res=d * b)
 
-    return res
+    return lax.fori_loop(1, N, body_fun, init_val).res
 
 
 def hines_solver(d, u, p, b):
     """ """
     N = d.shape[0]
 
-    for i in range(N - 1, 0, -1):
-        f = u[p[i]] / d[i]
-        d = d.at[p[i]].set(d[p[i]] - f * u[p[i]])
-        b = b.at[p[i]].set(b[p[i]] - f * b[i])
+    def reverse_body(j, val: TreeProblem):
+        i = N - j - 1
+        f = val.t.u[val.t.p[i]] / val.t.d[i]
+        val.t.d = val.t.d.at[val.t.p[i]].set(
+            val.t.d[val.t.p[i]] - f * val.t.u[val.t.p[i]]
+        )
+        val.b = val.b.at[val.t.p[i]].set(val.b[val.t.p[i]] - f * val.b[i])
 
-    b = b.at[0].set(b[0] / d[0])
+        return val
 
-    for i in range(1, N):
-        b = b.at[i].set((b[i] - u[p[i]] * b[p[i]]) / d[i])
+    def forward_body(i, val: TreeProblem):
+        val.b = val.b.at[i].set(
+            (val.b[i] - val.t.u[val.t.p[i]] * val.b[val.t.p[i]]) / val.t.d[i]
+        )
+        return val
 
-    return b
+    problem = TreeProblem(t=TreeMatrix(d=d, u=u, p=p), b=b)
+    res = lax.fori_loop(0, N - 1, reverse_body, init_val=problem)
+    res.b = res.b.at[0].set(res.b[0] / res.t.d[0])
+    return lax.fori_loop(1, N, forward_body, init_val=res).b
 
 
 def tree_solve(d, u, p, b):
