@@ -45,7 +45,6 @@ def step(
     *args: int,
 ) -> Tuple[Tuple[StepState, Tuple[Array, Array]], Spike]:
     """Determine the next spike (external or internal), and integrate the neurons to that point.
-
     Args:
         dynamics (Callable): Function describing neuron dynamics
         solver (Callable): Parallel root solver
@@ -54,52 +53,45 @@ def step(
         weights (Tuple[Array, Array]): input and recurrent weights
         input_spikes (Spike): input spikes (time and index)
         state (StepState): (Neuron state, current_time, running_idx)
-
     Returns:
         Tuple[StepState, Spike]: New state after transition and spike for storing
     """
-    # TODO should solver only see StepState?
     state, weights = input
-    pred_spikes = solver(state.neuron_state, t_max - state.time) + state.time
+
+    pred_spikes = solver(state.neuron_state, t_max) + state.time
     spike_idx = np.argmin(pred_spikes)
 
-    # integrate state
-    t_dyn = np.min(
-        np.array(
-            [
-                pred_spikes[spike_idx],
-                state.input_spikes.time[state.running_idx],
-                t_max,
-            ]
-        )
+    # determine spike nature and spike time
+    input_time = jax.lax.cond(
+        state.running_idx < len(state.input_spikes.time),
+        lambda: state.input_spikes.time[state.running_idx],
+        lambda: t_max,
     )
+    t_dyn = np.minimum(pred_spikes[spike_idx], input_time)
+
+    # comparing only makes sense if exactly dt is returned from solver
+    spike_in_layer = pred_spikes[spike_idx] < input_time
+    stored_idx = jax.lax.cond(spike_in_layer, lambda: spike_idx, lambda: -1)
     state = StepState(
         neuron_state=dynamics(state.neuron_state, t_dyn - state.time),
         time=t_dyn,
         running_idx=state.running_idx,
         input_spikes=state.input_spikes,
     )
-
-    # determine spike nature
-    no_spike = t_dyn == t_max
-    recurrent_spike = (
-        pred_spikes[spike_idx] < state.input_spikes.time[state.running_idx]
-    )
-
-    stored_idx = jax.lax.cond(recurrent_spike, lambda: spike_idx, lambda: -1)
+    epsilon = 1e-8
     transitioned_state = jax.lax.cond(
-        no_spike,
+        (t_dyn + epsilon >= t_max),
         lambda *args: state,
         tr_dynamics,
         state,
         weights,
         spike_idx,
-        recurrent_spike,
+        spike_in_layer,
     )
     return (transitioned_state, weights), Spike(t_dyn, stored_idx)
 
 
-def trajectory(dynamics, n_spikes) -> Callable[[Any, Any, Any], Spike]:
+def trajectory(dynamics: Callable, n_spikes: int) -> Callable[[Any, Any, Any], Spike]:
     def fun(initial_state, weights, input_spikes) -> Spike:
         s = StepState(
             neuron_state=initial_state,
@@ -107,6 +99,7 @@ def trajectory(dynamics, n_spikes) -> Callable[[Any, Any, Any], Spike]:
             running_idx=0,
             input_spikes=input_spikes,
         )
+
         _, spikes = jax.lax.scan(dynamics, (s, weights), np.arange(n_spikes))  # type: ignore
         return spikes
 

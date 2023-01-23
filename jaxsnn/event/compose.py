@@ -17,11 +17,7 @@ def reorder_spikes(spikes: Spike, t_max: float) -> Spike:
     return spikes
 
 
-def serial(t_max, *layers):
-
-    # TODO: t_max is sort of ugly here, it is required by the spike
-    #       reordering
-
+def serial(*layers):
     init_fns, apply_fns = zip(*layers)
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
@@ -35,7 +31,7 @@ def serial(t_max, *layers):
     def apply_fn(params, spikes):
         recording = []
         for fn, param in zip(apply_fns, params):
-            spikes = fn(param, reorder_spikes(spikes, t_max))
+            spikes = fn(param, spikes)
             recording.append(spikes)
         return recording
 

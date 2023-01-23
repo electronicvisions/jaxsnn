@@ -2,8 +2,9 @@ from functools import partial
 
 import jax
 import jax.numpy as np
-
+from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters, LIFState
 from jaxsnn.functional.threshold import heaviside
+from jaxsnn.base.types import Array, Spike
 
 
 def kernel(A, t, t0):
@@ -14,85 +15,34 @@ def f(A, t0, x0, t):
     return np.einsum("ijk, ik -> j", jax.vmap(partial(kernel, A, t))(t0), x0)
 
 
-def li_cell(A, weights, spikes, ts):
-    spike_times, spike_idx = spikes
+def li_cell(A: Array, ts: Array, weights: Array, spikes: Spike) -> LIFState:
 
-    current = weights[spike_idx] * np.where(spike_idx == -1, 0.0, 1.0)
-    voltage = np.zeros(len(spike_idx))
+    # don't integrate over inf spike times
+    first_inf = np.searchsorted(spikes.time, 1_000_000, side="right")
+    spikes = Spike(spikes.time[:first_inf], spikes.idx[:first_inf])
+
+    current = weights[spikes.idx] * np.where(spikes.idx == -1, 0.0, 1.0)
+    voltage = np.zeros(len(spikes.idx))
     xk = np.stack((voltage, current), axis=1)
-
-    ys = jax.jit(jax.vmap(partial(f, A, spike_times, xk)))(ts)
-    return ys
-
-
-leaky_integrator = jax.vmap(li_cell, in_axes=(None, 1, None, None), out_axes=1)
+    ys = jax.vmap(partial(f, A, spikes.time, xk))(ts)
+    return LIFState(V=ys[:, 0], I=ys[:, 1])
 
 
-def max_over_time(output):
-    return np.max(output[::, 0], axis=0)
+# multiple neurons
+leaky_integrator = jax.vmap(li_cell, in_axes=(None, None, 1, None), out_axes=1)
 
 
-@jax.jit
-def nll_loss(x, targets):
-    x = np.maximum(x, 0)
-    preds = jax.nn.log_softmax(x)
-    loss = -np.sum(targets * preds)
-    return loss
+def LeakyIntegrator(
+    n_hidden: int,
+    t_max: float,
+    p: LIFParameters,
+    mean: float = 0.5,
+    std: float = 2.0,
+    time_steps: int = 20,
+):
+    def init_fn(rng: jax.random.KeyArray, input_shape: int):
+        return n_hidden, jax.random.normal(rng, (input_shape, n_hidden)) * std + mean
 
-
-if __name__ == "__main__":
-    # define dynamics
-    tau_mem = 1e-3
-    tau_syn = 5e-4
-    v_th = 0.3
-    tau_mem_inv = 1 / tau_mem
-    tau_syn_inv = 1 / tau_syn
-    A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
-
-    # input spikes and weights
-    weights = np.array(
-        [
-            [0.5, 0.8],
-            [0.6, 0.9],
-            [0.7, 0.1],
-        ]
-    )
-    spike_idx = np.array([0, 1, 2, 1, -1])
-    spike_times = np.array([1e-4, 1.2e-4, 2e-4, 2.2e-4, 1e-2])
-
-    # time grid to evaluate on
-    ts = np.arange(0, 1e-2, 1e-4)
-
-    inputs = (spike_times, spike_idx)
-    targets = np.array([1.0, 0.0])
-    batch = (inputs, targets)
-
-    def loss_fn(weights, batch):
-        inputs, targets = batch
-        output = leaky_integrator(A, weights, inputs, ts)
-        print(output)
-        max_voltage = max_over_time(output)
-
-        return nll_loss(max_voltage, targets)
-
-    print(loss_fn(weights, batch))
-
-    # try this combi
-    weights = np.array(
-        [
-            [1.6818058, 0.21550512],
-            [0.8131372, 1.9255047],
-            [0.9046461, 0.63647914],
-            [0.8039566, 0.8206086],
-        ]
-    )
-
-    inputs = (
-        np.array([2.6588023e-05, 3.2267941e-04, 1.0000000e-01]),
-        np.array([0, 1, -1]),
-    )
-    ts = np.arange(0, 1e-2, 1e-4)
-
-    output = leaky_integrator(A, weights, inputs, ts)
-
-    nll_loss(np.array([0.0, 0.0]), np.array([1.0, 0.0]))
+    ts = np.linspace(0, t_max, time_steps)
+    A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
+    return init_fn, partial(leaky_integrator, A, ts)

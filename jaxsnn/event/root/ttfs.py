@@ -4,6 +4,30 @@ import jax.numpy as np
 from jaxsnn.functional.leaky_integrate_and_fire import LIFState
 
 
+def ttfs_inner_most(a_1, denominator, tau_mem, dt):
+    inner_log = 2 * a_1 / denominator
+    return jax.lax.cond(
+        inner_log > 1,
+        lambda: tau_mem * np.log(np.maximum(inner_log, 1)),
+        lambda: dt,
+    )
+
+
+def ttfs_inner(a_1, a_2, second_term, tau_mem, dt):
+    epsilon = 1e-7
+    denominator = a_2 + np.sqrt(np.maximum(second_term, epsilon))
+    save_denominator = np.sign(denominator) * np.maximum(np.abs(denominator), epsilon)
+    return jax.lax.cond(
+        np.abs(denominator) > epsilon,
+        ttfs_inner_most,
+        lambda *args: dt,
+        a_1,
+        save_denominator,
+        tau_mem,
+        dt,
+    )
+
+
 def ttfs_solver(tau_mem: float, v_th: float, state: LIFState, dt: float):
     """Find the next spike time for special case $\tau_mem = 2 * \tau_syn$
 
@@ -20,23 +44,6 @@ def ttfs_solver(tau_mem: float, v_th: float, state: LIFState, dt: float):
     a_2 = v_0 + i_0
     second_term = a_2**2 - 4 * a_1 * v_th
     has_spike = second_term > 0
-
-    def true_fun():
-        inner_log = 2 * a_1 / (a_2 + np.sqrt(second_term))
-        return jax.lax.cond(
-            inner_log > 1,
-            lambda: tau_mem * np.log(inner_log),
-            lambda: dt,
-        )
-
-    # TODO return a mask if there was an actual spike
-    return jax.lax.cond(has_spike, true_fun, lambda: dt)
-
-
-def batched_ttfs_solver(tau_mem, v_th, state, initial_guess):
-    """Find the next spike time for special case $\tau_mem = 2 * \tau_syn$"""
-    v_0, i_0 = state[:, 0], state[:, 1]
-    a_1 = i_0
-    a_2 = v_0 + i_0
-    T = tau_mem * np.log(2 * a_1 / (a_2 + np.sqrt(a_2**2 - 4 * a_1 * v_th)))
-    return T
+    return jax.lax.cond(
+        has_spike, ttfs_inner, lambda *args: dt, a_1, a_2, second_term, tau_mem, dt
+    )

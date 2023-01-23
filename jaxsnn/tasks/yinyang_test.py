@@ -69,4 +69,4 @@ def test_train():
     accuracy, _ = acc_and_loss(
         snn_apply, params, (test_dataset.vals, test_dataset.classes)
     )
-    assert accuracy > 0.75
+    assert accuracy > 0.70

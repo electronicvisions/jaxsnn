@@ -15,7 +15,7 @@ ArrayLike = Union[jnp.ndarray, np.ndarray, float]
 Array = Union[jnp.ndarray, np.ndarray]
 JaxArray = Type[jnp.ndarray]
 
-
+# spikes should be ordered in time
 @dataclasses.dataclass
 @tree_math.struct
 class Spike:
@@ -35,4 +35,4 @@ class StepState(Generic[State]):
     running_idx: int
 
 
-Weight = Union[Tuple[ArrayLike, ArrayLike], ArrayLike]
+Weight = Union[Tuple[Array, Array], Array]

@@ -26,7 +26,6 @@ def illinois_method():
 
 
 def newton_1d(f, x0):
-
     initial_state = (0, x0)
 
     def cond(state):

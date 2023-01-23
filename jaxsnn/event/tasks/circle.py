@@ -10,7 +10,7 @@ from jax import random
 
 from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.compose import serial
-from jaxsnn.event.dataset import linear_dataset
+from jaxsnn.event.dataset import circle_dataset
 from jaxsnn.event.functional import batch_wrapper
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters, RecursiveLIF
 from jaxsnn.event.loss import loss_and_acc, target_time_loss
@@ -27,23 +27,24 @@ def train():
     p = LIFParameters(tau_mem_inv=1 / tau_mem, tau_syn_inv=1 / tau_syn, v_th=v_th)
 
     # training params
-    step_size = 1e-3
-    n_batches = 100
-    batch_size = 32
+    step_size = 5e-4
+    samples = 6400
+    batch_size = 16
     epochs = 50
+    n_batches = int(samples / batch_size)
 
     # net
-    hidden_size = 4
+    hidden_size = 60
     output_size = 2
-    n_spikes_hidden = 20
-    n_spikes_output = 30
+    n_spikes_hidden = 60
+    n_spikes_output = n_spikes_hidden + 10
     seed = 42
-    optimizer_fn = optax.adam
+    optimizer_fn = optax.adabelief
 
     rng = random.PRNGKey(seed)
     param_rng, train_rng, test_rng = random.split(rng, 3)
-    trainset = linear_dataset(train_rng, tau_syn, [n_batches, batch_size])
-    testset = linear_dataset(test_rng, tau_syn, [n_batches, batch_size])
+    trainset = circle_dataset(train_rng, tau_syn, [n_batches, batch_size])
+    testset = circle_dataset(test_rng, tau_syn, [n_batches, batch_size])
     input_size = trainset[0].idx.shape[-1]
     solver = partial(ttfs_solver, tau_mem, p.v_th)
 
@@ -75,10 +76,16 @@ def train():
         params = optax.apply_updates(params, updates)
         return (opt_state, params), value
 
-    def epoch(state, _):
-        state, _ = jax.lax.scan(update, state, trainset)
+    def epoch(state, i):
+        state, _ = jax.lax.scan(update, state, trainset[:2])
         params = state[1]
-        test_result = loss_and_acc(loss_fn, params, testset)
+        test_result = loss_and_acc(loss_fn, params, testset[:2])
+        jax.debug.print(
+            "Epoch {i}, loss: {loss}, acc: {acc:}",
+            i=i,
+            loss=round(test_result[0], 3),
+            acc=round(test_result[1], 3),
+        )
         return state, (test_result, params)
 
     # train the net
@@ -88,7 +95,8 @@ def train():
     loss, acc, t_spike, recording = res
 
     dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    folder = f"jaxsnn/plots/event/regularization/{dt_string}"
+    print(f"Saving with datetime: {dt_string}")
+    folder = f"jaxsnn/plots/event/circle/{dt_string}"
 
     # generate plots
     plt_and_save(
@@ -118,6 +126,7 @@ def train():
         "optimizer": optimizer_fn.__name__,
         "loss": round(loss[-1].item(), 5),
         "accuracy": round(acc[-1].item(), 5),
+        "max_accuracy": round(np.max(acc).item(), 5),
         "target": [np.min(testset[1]).item(), np.max(testset[1]).item()],
     }
     with open(f"{folder}_params.json", "w") as outfile:

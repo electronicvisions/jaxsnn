@@ -1,10 +1,11 @@
-from . import cr_newton_solver
-
-import jax.numpy as np
-import jax
 from functools import partial
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIFState
+
+import jax
+import jax.numpy as np
 from numpy.testing import assert_almost_equal
+
+from jaxsnn.event.leaky_integrate import LIFParameters, LIFState
+from jaxsnn.event.root.newton import newton_solver
 
 
 def get_lif_dynamics():
@@ -21,8 +22,8 @@ def get_lif_dynamics():
     return jc
 
 
-def test_cr_newton_solver():
-    solver = partial(cr_newton_solver, get_lif_dynamics(), 0.0)
+def test_newton_solver_spike():
+    solver = partial(newton_solver, get_lif_dynamics(), 0.0)
 
     def loss(weight):
         state = LIFState(V=0.0, I=3.0)
@@ -35,8 +36,8 @@ def test_cr_newton_solver():
     assert_almost_equal(grad, -0.00618034, 8)
 
 
-def test_cr_newton_solver_no_spike():
-    solver = partial(cr_newton_solver, get_lif_dynamics(), 0.0)
+def test_newton_solver_no_spike():
+    solver = partial(newton_solver, get_lif_dynamics(), 0.0)
     dt = 0.2
 
     def loss(weight):
@@ -47,4 +48,4 @@ def test_cr_newton_solver_no_spike():
     weight = np.array(1.0)
     value, grad = jax.value_and_grad(loss)(weight)
     assert value == dt
-    assert grad == 0
+    assert grad == 0.0

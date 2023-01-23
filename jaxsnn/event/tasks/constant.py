@@ -10,8 +10,8 @@ from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF, RecursiveL
 from jaxsnn.event.compose import serial
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.base.types import Array, Spike, Weight
-from jaxsnn.event.dataset import constant_dataset
-from jaxsnn.event.loss import spike_time_loss
+from jaxsnn.event.dataset import constant_dataset, Dataset
+from jaxsnn.event.loss import target_time_loss
 
 
 @jax.jit
@@ -77,7 +77,7 @@ def update(
     return weights, value
 
 
-def train(trainset: Tuple[Spike, Array]):
+def train(trainset: Dataset):
     input_shape = 2
 
     tau_mem = 1e-2
@@ -89,7 +89,6 @@ def train(trainset: Tuple[Spike, Array]):
 
     # declare net
     init_fn, apply_fn = serial(
-        t_max,
         RecursiveLIF(4, n_spikes=10, t_max=t_max, p=p, solver=solver),
         LIF(2, n_spikes=20, t_max=t_max, p=p, solver=solver),
     )
@@ -99,11 +98,11 @@ def train(trainset: Tuple[Spike, Array]):
     weights = init_fn(rng, input_shape)
 
     # declare update function
-    update_fn = partial(update, partial(spike_time_loss, apply_fn, tau_mem))
+    update_fn = partial(update, partial(target_time_loss, apply_fn, tau_mem))
 
     # train the net
     weights, (loss_value, (output, recording)) = jax.lax.scan(
-        update_fn, weights, trainset
+        update_fn, weights, trainset[:2]
     )
 
     # plot the results

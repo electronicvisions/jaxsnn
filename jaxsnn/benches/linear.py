@@ -12,7 +12,7 @@ from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset.toy import linear_dataset
 from jaxsnn.event.functional import batch_wrapper
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters, RecursiveLIF
-from jaxsnn.event.loss import spike_time_loss
+from jaxsnn.event.loss import target_time_loss
 from jaxsnn.event.root import ttfs_solver
 
 
@@ -46,7 +46,6 @@ def bench():
 
     # declare net
     init_fn, apply_fn = serial(
-        t_max,
         RecursiveLIF(
             hidden_size, n_spikes=n_spikes_hidden, t_max=t_max, p=p, solver=solver
         ),
@@ -60,7 +59,7 @@ def bench():
     opt_state = optimizer.init(params)
 
     # declare update function
-    loss_fn = batch_wrapper(partial(spike_time_loss, apply_fn, tau_mem))
+    loss_fn = batch_wrapper(partial(target_time_loss, apply_fn, tau_mem))
 
     # define update function
     def update(

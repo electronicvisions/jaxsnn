@@ -3,24 +3,32 @@ from .illinois_method import illinois_method
 from functools import partial
 import jax.numpy as np
 import jax
+from jaxsnn.event.leaky_integrate import LIFParameters, LIFState
+
+from jax.config import config
+
+config.update("jax_debug_nans", True)
+
+
+def get_lif_dynamics():
+    p = LIFParameters()
+    A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
+
+    def f(state, t):
+        x0 = np.array([state.V, state.I])
+        return np.dot(jax.scipy.linalg.expm(A * t), x0)
+
+    def jc(state, t):
+        return f(state, t)[0] - p.v_th
+
+    return jc
 
 
 def test_find_spike():
-    tau_mem = 1e-3
-    tau_syn = 5e-4
-    tau_mem_inv = 1 / tau_mem
-    tau_syn_inv = 1 / tau_syn
-    v_th = 0.3
-    A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
-    x0 = np.array([0.0, 2.0])
+    state = LIFState(V=0.0, I=2.0)
+    jc = get_lif_dynamics()
 
-    def f(x0, t):
-        return np.dot(jax.scipy.linalg.expm(A * t), x0)
-
-    def jc(x0, t):
-        return f(x0, t)[0] - v_th
-
-    t = partial(illinois_method, partial(jc, x0))(0.0, 100.0, 0.001)
+    t = partial(illinois_method, partial(jc, state))(0.0, 100.0, 0.001)
     print(t)
 
 

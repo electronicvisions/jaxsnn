@@ -53,8 +53,16 @@ class LIFParameters:
     tau_syn_inv: ArrayLike = 1.0 / 5e-3
     tau_mem_inv: ArrayLike = 1.0 / 1e-2
     v_leak: ArrayLike = 0.0
-    v_th: ArrayLike = 0.5
+    v_th: ArrayLike = 0.6
     v_reset: ArrayLike = 0.0
+
+    @property
+    def tau_syn(self):
+        return 1 / self.tau_syn_inv
+
+    @property
+    def tau_mem(self):
+        return 1 / self.tau_mem_inv
 
 
 def lif_dynamics(p: LIFParameters):
