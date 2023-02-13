@@ -418,9 +418,6 @@ def plt_spike_time_bins(
         # axs[i].set_xticks(np.linspace(0.4, 1.6, 4))
         axs[i].title.set_text(title[i])
 
-        # TODO
-        # plt target as vertical line
-
 
 def plt_and_save(
     folder,

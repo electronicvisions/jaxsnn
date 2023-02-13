@@ -6,7 +6,7 @@ from jaxsnn.event.root.ttfs import ttfs_solver
 from jaxsnn.event.leaky_integrate_and_fire import transition_without_recurrence
 from jaxsnn.functional.leaky_integrate_and_fire import LIFState, LIFParameters
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
-from jaxsnn.base.types import StepState, Spike
+from jaxsnn.base.types import StepState, Spike, InputQueue
 
 
 def test_exponential_flow():
@@ -45,8 +45,8 @@ def test_step():
     weights = np.zeros((n_input, n_hidden))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
-    input_spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([0, 1]))
-    state = StepState(neuron_state, start_time, input_spikes, 0)
+    spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([0, 1]))
+    state = StepState(neuron_state, start_time, InputQueue(spikes))
     step_state = (state, weights)
 
     step_state, spike = step_fn(step_state)
@@ -81,23 +81,23 @@ def test_step_no_transition():
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
     # normal input spike, neuron current should increase
-    input_spikes = Spike(time=np.array([1.0]), idx=np.array([0]))
-    state = StepState(neuron_state, start_time, input_spikes, 0)
+    spikes = Spike(time=np.array([1.0]), idx=np.array([0]))
+    state = StepState(neuron_state, start_time, InputQueue(spikes))
     step_state = (state, weights)
 
     (step_state, weights), spike = step_fn(step_state)
     assert spike.time == 1.0
     assert spike.idx == -1
-    assert step_state.running_idx == 1
+    assert step_state.input_queue.head == 1
     assert np.all(step_state.neuron_state.I == np.ones(2))
 
     # input spike of previous layer, neuron cuurent should not increase
-    input_spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([-1, 0]))
-    state = StepState(neuron_state, start_time, input_spikes, 0)
+    spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([-1, 0]))
+    state = StepState(neuron_state, start_time, InputQueue(spikes))
     step_state = (state, weights)
 
     (step_state, weights), spike = step_fn(step_state)
     assert spike.time == 1.0
     assert spike.idx == -1
-    assert step_state.running_idx == 1
+    assert step_state.input_queue.head == 1
     assert np.all(step_state.neuron_state.I == np.zeros(2))

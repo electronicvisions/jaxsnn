@@ -33,14 +33,15 @@ def input_transition(
     state: StepState, weights: Tuple[Array, Array], spike_idx: int, v_reset: float
 ):
     input_weights, _ = weights
-    input_previous_layer = state.input_spikes.idx[state.running_idx] < 0
-    tr_row = input_weights[state.input_spikes.idx[state.running_idx]]
+
+    spike = state.input_queue.pop()
+    input_previous_layer = spike.idx < 0
+    tr_row = input_weights[spike.idx]
     state.neuron_state.I = jax.lax.cond(
         input_previous_layer,
         lambda: state.neuron_state.I,
         lambda: state.neuron_state.I + tr_row,
     )
-    state.running_idx += 1
     return state
 
 
@@ -70,15 +71,14 @@ def transition_without_recurrence(
     recurrent_spike: bool,
 ) -> StepState:
     def input_transition(state: StepState, weights: Array, spike_idx: int):
-        input_previous_layer = state.input_spikes.idx[state.running_idx] < 0
-        tr_row = weights[state.input_spikes.idx[state.running_idx]]
+        spike = state.input_queue.pop()
+        input_previous_layer = spike.idx < 0
+        tr_row = weights[spike.idx]
         state.neuron_state.I = jax.lax.cond(
             input_previous_layer,
             lambda: state.neuron_state.I,
             lambda: state.neuron_state.I + tr_row,
         )
-        # state.neuron_state.I = state.neuron_state.I + tr_row
-        state.running_idx += 1
         return state
 
     def no_transition(state: StepState, *args):

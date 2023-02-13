@@ -64,6 +64,12 @@ class LIFParameters:
     def tau_mem(self):
         return 1 / self.tau_mem_inv
 
+    @property
+    def dynamics(self):
+        return jnp.array(
+            [[-self.tau_mem_inv, self.tau_mem_inv], [0, -self.tau_syn_inv]]
+        )
+
 
 def lif_dynamics(p: LIFParameters):
     def dynamics(s: LIFState, u: LIFInput):

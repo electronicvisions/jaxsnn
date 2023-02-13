@@ -5,7 +5,7 @@ import jax.numpy as np
 from jax.tree_util import tree_flatten, tree_unflatten
 from tree_math import Vector
 
-from jaxsnn.base.types import Array, Spike, StepState
+from jaxsnn.base.types import Array, Spike, StepState, InputQueue
 
 
 def batch_wrapper(loss_fn):
@@ -52,7 +52,7 @@ def step(
         t_max (float): Max time until which to run
         weights (Tuple[Array, Array]): input and recurrent weights
         input_spikes (Spike): input spikes (time and index)
-        state (StepState): (Neuron state, current_time, running_idx)
+        state (StepState): (Neuron state, current_time, input_queue)
     Returns:
         Tuple[StepState, Spike]: New state after transition and spike for storing
     """
@@ -63,9 +63,7 @@ def step(
 
     # determine spike nature and spike time
     input_time = jax.lax.cond(
-        state.running_idx < len(state.input_spikes.time),
-        lambda: state.input_spikes.time[state.running_idx],
-        lambda: t_max,
+        state.input_queue.is_empty, lambda: t_max, lambda: state.input_queue.peek().time
     )
     t_dyn = np.minimum(pred_spikes[spike_idx], input_time)
 
@@ -75,8 +73,7 @@ def step(
     state = StepState(
         neuron_state=dynamics(state.neuron_state, t_dyn - state.time),
         time=t_dyn,
-        running_idx=state.running_idx,
-        input_spikes=state.input_spikes,
+        input_queue=state.input_queue,
     )
     epsilon = 1e-8
     transitioned_state = jax.lax.cond(
@@ -94,10 +91,7 @@ def step(
 def trajectory(dynamics: Callable, n_spikes: int) -> Callable[[Any, Any, Any], Spike]:
     def fun(initial_state, weights, input_spikes) -> Spike:
         s = StepState(
-            neuron_state=initial_state,
-            time=0.0,
-            running_idx=0,
-            input_spikes=input_spikes,
+            neuron_state=initial_state, time=0.0, input_queue=InputQueue(input_spikes)
         )
 
         _, spikes = jax.lax.scan(dynamics, (s, weights), np.arange(n_spikes))  # type: ignore
