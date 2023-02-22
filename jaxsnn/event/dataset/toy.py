@@ -3,10 +3,16 @@ from typing import List, Tuple, Optional
 import jax.numpy as np
 from jax import random
 
-from jaxsnn.base.types import Array, Spike
+from jaxsnn.base.types import Array, EventPropSpike, Spike
 from jaxsnn.dataset.yinyang import get_class_batched
 
-Dataset = Tuple[Spike, Array, str]
+Dataset = Tuple[EventPropSpike, Array, str]
+
+
+def add_current(spike: Spike) -> EventPropSpike:
+    return EventPropSpike(
+        spike.time, spike.idx, np.zeros_like(spike.idx, dtype=spike.time.dtype)
+    )
 
 
 def constant_dataset(t_max: float, shape: List[int]) -> Dataset:
@@ -15,24 +21,37 @@ def constant_dataset(t_max: float, shape: List[int]) -> Dataset:
     spike_idx = np.array([0, 1, 0])
 
     input_spikes = Spike(
-        np.tile(input, (shape + [1])), np.tile(spike_idx, (shape + [1]))
+        np.tile(input, (shape + [1])),
+        np.tile(spike_idx, (shape + [1])),
     )
 
     target = np.tile(target, (shape + [1]))
-    return (input_spikes, target, "constant")
+    return (add_current(input_spikes), target, "constant")
 
 
 def linear_dataset(
     rng: random.KeyArray,
-    tau_syn: float,
+    t_late: float,
     shape: List[int],
     mirror: bool = True,
     bias_spike: Optional[float] = 0.0,
+    correct_target_time: Optional[float] = None,
+    wrong_target_time: Optional[float] = None,
 ) -> Dataset:
-    scaling = 1.5 * tau_syn
+
+    if correct_target_time is None:
+        correct_target_time = 0.5 * t_late
+    if wrong_target_time is None:
+        wrong_target_time = 1.0 * t_late
+
     size = np.prod(np.array(shape))
     input = random.uniform(rng, (size, 2))
-    encoding = np.array([[0.3, 1.4], [1.4, 0.3]]) * scaling  # type: ignore
+    encoding = np.array(
+        [
+            [correct_target_time, wrong_target_time],
+            [wrong_target_time, correct_target_time],
+        ]
+    )
 
     which_class = (input[:, 0] < input[:, 1]).astype(int)
     target = encoding[which_class]
@@ -47,7 +66,7 @@ def linear_dataset(
         column = np.full(size, bias_spike)[:, None]
         input = np.hstack((input, column))
 
-    input = input * scaling
+    input = input * t_late
 
     spike_idx = np.tile(spike_idx, (np.prod(np.array(shape)), 1))
     assert spike_idx.shape == input.shape
@@ -58,11 +77,12 @@ def linear_dataset(
     spike_idx = spike_idx[np.arange(spike_idx.shape[0])[:, None], sort_idx]
 
     input_spikes = Spike(
-        input.reshape(*(shape + [-1])), spike_idx.reshape(*(shape) + [-1])
+        input.reshape(*(shape + [-1])),
+        spike_idx.reshape(*(shape) + [-1]),
     )
 
     target = target.reshape(*(shape + [2]))
-    return (input_spikes, target, "linear")
+    return (add_current(input_spikes), target, "linear")
 
 
 def circle_dataset(
@@ -106,11 +126,12 @@ def circle_dataset(
     spike_idx = spike_idx[np.arange(spike_idx.shape[0])[:, None], sort_idx]
 
     input_spikes = Spike(
-        input.reshape(*(shape + [-1])), spike_idx.reshape(*(shape) + [-1])
+        input.reshape(*(shape + [-1])),
+        spike_idx.reshape(*(shape) + [-1]),
     )
 
     target = target.reshape(*(shape + [2]))
-    return (input_spikes, target, "circle")
+    return (add_current(input_spikes), target, "circle")
 
 
 def yinyang_dataset(
@@ -128,9 +149,9 @@ def yinyang_dataset(
     size = np.prod(np.array(shape))
 
     if correct_target_time is None:
-        correct_target_time = 0.5 * t_late
+        correct_target_time = 0.9 * t_late
     if wrong_target_time is None:
-        wrong_target_time = 1.0 * t_late
+        wrong_target_time = 1.5 * t_late
 
     encoding = np.array(
         [
@@ -176,4 +197,4 @@ def yinyang_dataset(
     )
 
     target = target.reshape(*(shape + [3]))
-    return (input_spikes, target, "yinyang")
+    return (add_current(input_spikes), target, "yinyang")

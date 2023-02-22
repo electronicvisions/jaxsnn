@@ -5,7 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.pyplot import Axes
 
-from jaxsnn.base.types import Array, ArrayLike, Spike
+from jaxsnn.base.types import (
+    Array,
+    ArrayLike,
+    Spike,
+    Weight,
+    WeightRecurrent,
+)
 from jaxsnn.event.dataset import Dataset
 
 blue = np.array([[47, 66, 87, 210]]) / 256
@@ -70,19 +76,19 @@ def plt_circle(ax: Axes, radius: float, offset: float):
     ax.plot(a + offset, b + offset, c="k")
 
 
-def plt_prediction(ax: Axes, dataset: Dataset, t_spike: Array, tau_syn: ArrayLike):
+def plt_prediction(ax: Axes, dataset_in: Dataset, t_spike: Array, tau_syn: ArrayLike):
     t_late = 2.0
 
     # reshape
-    n_classes = dataset[1].shape[-1]
-    input_size = dataset[0].time.shape[-1]
+    n_classes = dataset_in[1].shape[-1]
+    input_size = dataset_in[0].time.shape[-1]
     dataset = (
         Spike(
-            dataset[0].time.reshape(-1, input_size),
-            dataset[0].idx.reshape(-1, input_size),
+            dataset_in[0].time.reshape(-1, input_size),
+            dataset_in[0].idx.reshape(-1, input_size),
         ),
-        dataset[1].reshape(-1, n_classes),
-        dataset[2],
+        dataset_in[1].reshape(-1, n_classes),
+        dataset_in[2],
     )
 
     x_ix = np.argwhere(dataset[0].idx == 0)
@@ -115,7 +121,7 @@ def plt_prediction(ax: Axes, dataset: Dataset, t_spike: Array, tau_syn: ArrayLik
 
 
 def plt_t_spike_neuron(
-    fig, axs: List[Axes], dataset: Dataset, t_spike: Array, tau_syn: ArrayLike
+    fig, axs: List[Axes], dataset_in: Dataset, t_spike: Array, tau_syn: ArrayLike
 ):
     t_late = 2.0
     names = ("First", "Second", "Third")
@@ -123,15 +129,15 @@ def plt_t_spike_neuron(
     t_spike = t_spike[-1].reshape(-1, n_neurons)
 
     # reshape
-    n_classes = dataset[1].shape[-1]
-    input_size = dataset[0].time.shape[-1]
+    n_classes = dataset_in[1].shape[-1]
+    input_size = dataset_in[0].time.shape[-1]
     dataset = (
         Spike(
-            dataset[0].time.reshape(-1, input_size),
-            dataset[0].idx.reshape(-1, input_size),
+            dataset_in[0].time.reshape(-1, input_size),
+            dataset_in[0].idx.reshape(-1, input_size),
         ),
-        dataset[1].reshape(-1, n_classes),
-        dataset[2],
+        dataset_in[1].reshape(-1, n_classes),
+        dataset_in[2],
     )
 
     x_ix = np.argwhere(dataset[0].idx == 0)
@@ -186,20 +192,20 @@ def plt_t_spike_neuron(
 
 def plt_dataset(
     ax: Axes,
-    dataset: Dataset,
+    dataset_in: Dataset,
     tau_syn: ArrayLike,
     observe: Optional[Tuple[Tuple[int, int, str], ...]] = None,
 ):
     t_late = 2.0
-    n_classes = dataset[1].shape[-1]
-    input_size = dataset[0].time.shape[-1]
+    n_classes = dataset_in[1].shape[-1]
+    input_size = dataset_in[0].time.shape[-1]
     dataset = (
         Spike(
-            dataset[0].time.reshape(-1, input_size),
-            dataset[0].idx.reshape(-1, input_size),
+            dataset_in[0].time.reshape(-1, input_size),
+            dataset_in[0].idx.reshape(-1, input_size),
         ),
-        dataset[1].reshape(-1, n_classes),
-        dataset[2],
+        dataset_in[1].reshape(-1, n_classes),
+        dataset_in[2],
     )
     # bias spike is on channel 5
     np.argwhere(dataset[0].idx == 2)
@@ -336,31 +342,27 @@ def plt_spikes_per_neuron(
     fig.tight_layout()
 
 
-def plt_weights(fig, ax, params):
-    if isinstance(params[0], tuple):
-        shape = params[0][0].shape
-        for i in range(shape[1]):
-            for j in range(shape[2]):
-                ax[0].plot(np.arange(shape[0]), params[0][0][:, i, j], color=f"C{j}")
-                ax[0].set_title("Input params")
-
-        shape = params[0][1].shape
-        for i in range(shape[1]):
-            for j in range(shape[2]):
-                ax[1].plot(np.arange(shape[0]), params[0][1][:, i, j], color=f"C{j}")
-                ax[1].set_title("Recursive params")
-    else:
-        shape = params[0].shape
-        for i in range(shape[1]):
-            for j in range(shape[2]):
-                ax[0].plot(np.arange(shape[0]), params[0][:, i, j], color=f"C{j}")
-                ax[0].set_title("Input params")
-
-    shape = params[1].shape
+def plt_weights(fig, ax, params: list[Weight]):
+    shape = params[0].input.shape
     for i in range(shape[1]):
         for j in range(shape[2]):
-            ax[2].plot(np.arange(shape[0]), params[1][:, i, j], color=f"C{j}")
-            ax[2].set_title("Output params")
+            ax[0].plot(np.arange(shape[0]), params[0].input[:, i, j], color=f"C{j}")
+            ax[0].set_title("Input params")
+
+    if isinstance(params[0], WeightRecurrent):
+        shape = params[0].recurrent.shape
+        for i in range(shape[1]):
+            for j in range(shape[2]):
+                ax[1].plot(
+                    np.arange(shape[0]), params[0].recurrent[:, i, j], color=f"C{j}"
+                )
+                ax[1].set_title("Recursive params")
+    if len(params) > 1:
+        shape = params[1].input.shape
+        for i in range(shape[1]):
+            for j in range(shape[2]):
+                ax[2].plot(np.arange(shape[0]), params[1].input[:, i, j], color=f"C{j}")
+                ax[2].set_title("Output params")
 
     for i in range(3):
         ax[i].set_xlabel("Epoch")
@@ -387,7 +389,12 @@ def plt_spike_time_bins(
     )
 
     truth = np.argmin(dataset[1].reshape(-1, n_classes), axis=1)
-    not_truth = np.array([[1, 2], [0, 2], [0, 1]])[truth]
+    if dataset[1].shape[-1] == 2:
+        not_truth = ~truth
+    elif dataset[1].shape[-1] == 3:
+        not_truth = np.array([[1, 2], [0, 2], [0, 1]])[truth]
+    else:
+        raise AssertionError
 
     for i, epoch in enumerate([0, 9, n_epochs - 1]):
         # plot two vertical lines
@@ -401,7 +408,7 @@ def plt_spike_time_bins(
 
         # but only take every second one for counts to match to correct class
         spike_times_wrong_class = spike_times[np.arange(n_samples)[:, None], not_truth][
-            ::2
+            :: (2 if dataset[1].shape[-1] == 3 else 1)
         ].flatten()
 
         combined = [spike_times_correct_class, spike_times_wrong_class]

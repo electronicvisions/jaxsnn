@@ -41,6 +41,8 @@ def loss_wrapper(
     apply_fn: Callable[[List[Weight], Spike], List[Spike]],
     loss_fn: Callable[[Array, Array, float], ArrayLike],
     tau_mem: float,
+    n_neurons: int,
+    n_outputs: int,
     weights: List[Weight],
     batch: Tuple[Spike, Array],
 ) -> Tuple[ArrayLike, Tuple[ArrayLike, List[Spike]]]:
@@ -48,8 +50,7 @@ def loss_wrapper(
     input_spikes, target = batch
     recording = apply_fn(weights, input_spikes)
     output = recording[-1]
-    size = weights[-1].shape[1]  # type: ignore
-    t_first_spike = first_spike(output, size)
+    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)

@@ -6,12 +6,12 @@ import jax.numpy as np
 import matplotlib.pyplot as plt
 from jax import random
 
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF, RecursiveLIF
+from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF
 from jaxsnn.event.compose import serial
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.dataset import constant_dataset, Dataset
-from jaxsnn.event.loss import target_time_loss
+from jaxsnn.event.loss import target_time_loss, loss_wrapper
 
 
 @jax.jit
@@ -71,8 +71,6 @@ def update(
     batch: Tuple[Spike, Array],
 ):
     value, grad = jax.value_and_grad(loss_fn, has_aux=True)(weights, batch)
-    # if any([(np.isnan(g)) for g in grad]):
-    # assert False
     weights = jax.tree_map(lambda f, df: f - 0.1 * df, weights, grad)
     return weights, value
 
@@ -80,16 +78,18 @@ def update(
 def train(trainset: Dataset):
     input_shape = 2
 
-    tau_mem = 1e-2
-    tau_syn = 5e-3
-    t_late = tau_syn + tau_mem
+    p = LIFParameters()
+    t_late = p.tau_syn + p.tau_mem
     t_max = 2 * t_late
-    p = LIFParameters(tau_mem_inv=1 / tau_mem, tau_syn_inv=1 / tau_syn, v_th=0.6)
-    solver = partial(ttfs_solver, tau_mem, p.v_th)
+    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+
+    n_hidden = 4
+    n_output = 2
+    n_neurons = n_hidden + n_output
 
     # declare net
     init_fn, apply_fn = serial(
-        RecursiveLIF(4, n_spikes=10, t_max=t_max, p=p, solver=solver),
+        LIF(4, n_spikes=10, t_max=t_max, p=p, solver=solver),
         LIF(2, n_spikes=20, t_max=t_max, p=p, solver=solver),
     )
 
@@ -98,7 +98,10 @@ def train(trainset: Dataset):
     weights = init_fn(rng, input_shape)
 
     # declare update function
-    update_fn = partial(update, partial(target_time_loss, apply_fn, tau_mem))
+    loss_fn = partial(
+        loss_wrapper, apply_fn, target_time_loss, p.tau_mem, n_neurons, n_output
+    )
+    update_fn = partial(update, loss_fn)
 
     # train the net
     weights, (loss_value, (output, recording)) = jax.lax.scan(
@@ -111,17 +114,15 @@ def train(trainset: Dataset):
     fix, (ax1, ax2, ax3) = plt.subplots(3, 4, figsize=(10, 8))
     plot_loss(ax1[0], loss_value)
     plot_output(ax1[1], output, t_max, const_target)
-    plot_2dloss(ax1[2], output, t_max, const_target, 100, tau_mem)
+    plot_2dloss(ax1[2], output, t_max, const_target, 100, p.tau_mem)
     plot_spikes(ax2, recording[0], t_max, observe)
     plot_spikes(ax3, recording[1], t_max, observe, target=const_target)
     plt.show()
 
 
 if __name__ == "__main__":
-    tau_mem = 1e-2
-    tau_syn = 5e-3
-    t_late = tau_syn + tau_mem
-    t_max = 2 * t_late
+    p = LIFParameters()
+    t_max = 2 * (p.tau_syn + p.tau_mem)
 
     n_epochs = 2000
     trainset = constant_dataset(t_max, [n_epochs])

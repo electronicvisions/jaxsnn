@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Generic, Tuple, Type, TypeVar, Union
-
+from typing import Generic, Type, TypeVar, Union, NamedTuple
+import jax
 import jax.numpy as jnp
 import numpy as np
 import tree_math
@@ -20,8 +20,8 @@ JaxArray = Type[jnp.ndarray]
 @dataclasses.dataclass
 @tree_math.struct
 class Spike:
-    time: Array
-    idx: Array
+    time: JaxArray
+    idx: JaxArray
 
     @property
     def shape(self):
@@ -33,21 +33,39 @@ class Spike:
 
 @dataclasses.dataclass
 @tree_math.struct
+class EventPropSpike:
+    time: JaxArray
+    idx: JaxArray
+    current: JaxArray
+
+    @property
+    def shape(self):
+        return self.time.shape
+
+    def __getitem__(self, key) -> EventPropSpike:
+        return EventPropSpike(self.time[key], self.idx[key], self.current[key])
+
+
+@dataclasses.dataclass
+@tree_math.struct
 class InputQueue:
-    spikes: Spike
+    spikes: EventPropSpike
     head: int = 0
 
     @property
     def is_empty(self) -> bool:
-        return self.head == len(self.spikes.time)
+        return self.head >= self.spikes.time.size
 
-    def peek(self) -> Spike:
+    def peek(self) -> EventPropSpike:
         return self.spikes[self.head]
 
-    def pop(self) -> Spike:
+    def pop(self) -> EventPropSpike:
         spike = self.spikes[self.head]
         self.head += 1
         return spike
+
+    def next_time_or_default(self, default):
+        return jax.lax.cond(self.is_empty, lambda: default, lambda: self.peek().time)
 
 
 State = TypeVar("State")
@@ -61,4 +79,13 @@ class StepState(Generic[State]):
     input_queue: InputQueue
 
 
-Weight = Union[Tuple[Array, Array], Array]
+class WeightInput(NamedTuple):
+    input: JaxArray
+
+
+class WeightRecurrent(NamedTuple):
+    input: JaxArray
+    recurrent: JaxArray
+
+
+Weight = WeightInput | WeightRecurrent

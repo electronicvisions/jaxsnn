@@ -14,7 +14,10 @@ from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset
 from jaxsnn.event.functional import batch_wrapper
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF
+from jaxsnn.event.leaky_integrate_and_fire import (
+    LIFParameters,
+    RecurrentEventPropLIF,
+)
 from jaxsnn.event.loss import (
     loss_and_acc,
     loss_wrapper,
@@ -24,8 +27,9 @@ from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.event.utils import save_params as save_params_fn
 from jaxsnn.event import custom_lax
+from jax.config import config
 
-# config.update("jax_debug_nans", True)
+config.update("jax_debug_nans", True)
 
 
 def train(
@@ -89,28 +93,21 @@ def train(
 
     # declare net
     init_fn, apply_fn = serial(
-        LIF(
-            hidden_size,
-            n_spikes=n_spikes_hidden,
-            t_max=t_max,
-            p=p,
-            solver=solver,
-            mean=weight_mean[0],
-            std=weight_std[0],
-        ),
-        LIF(
-            output_size,
+        RecurrentEventPropLIF(
+            layers=[hidden_size, output_size],
             n_spikes=n_spikes_output,
             t_max=t_max,
             p=p,
             solver=solver,
-            mean=weight_mean[1],
-            std=weight_std[1],
-        ),
+            mean=weight_mean,
+            std=weight_std,
+            wrap_only_step=False,
+        )
     )
 
     # init params and optimizer
     params = init_fn(param_rng, input_size)
+
     n_neurons = params[0].input.shape[0] + hidden_size + output_size
 
     scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
@@ -129,7 +126,9 @@ def train(
         opt_state, params = input
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(params, batch)
 
-        grad = jax.tree_util.tree_map(lambda g: g / p.tau_syn, grad)
+        grad = jax.tree_util.tree_map(
+            lambda par, g: np.where(par == 0.0, 0.0, g / p.tau_syn), params, grad
+        )
 
         updates, opt_state = optimizer.update(grad, opt_state)
         params = optax.apply_updates(params, updates)
@@ -154,7 +153,10 @@ def train(
                 spikes=np.sum(recording[1][1][0].idx >= 0, axis=-1).mean(),
                 grad=grad[0].input.mean(),
                 grad_ratio=np.abs(grad[0].input).mean()
-                / np.maximum(np.abs(grad[1].input), 1e-7).mean(),
+                / (
+                    np.sum(np.abs(grad[0].recurrent))
+                    / np.count_nonzero(grad[0].recurrent)
+                ),
                 t_output=masked.mean() / p.tau_syn,
                 duration=duration,
             )
@@ -164,7 +166,7 @@ def train(
     (opt_state, params), (res, params_over_time, durations) = custom_lax.simple_scan(
         epoch, (opt_state, params), np.arange(epochs)
     )
-    loss, acc, t_spike, recording = res
+    loss, acc, t_spike, recording = res  # type: ignore
 
     time_string = dt.datetime.now().strftime("%H:%M:%S")
     if save_params:
@@ -176,19 +178,19 @@ def train(
         plt_and_save(
             folder,
             testset,
-            recording,
-            t_spike,
+            recording,  # type: ignore
+            t_spike,  # type: ignore
             params_over_time,
-            loss,
-            acc,
-            p.tau_syn,
+            loss,  # type: ignore
+            acc,  # type: ignore
+            p.tau_syn,  # type: ignore
             hidden_size,
             epochs,
         )
 
     # save experiment data
-    max_acc = round(np.max(acc).item(), 3)
-    print(f"Max acc: {max_acc} after {np.argmax(acc)} epochs")
+    max_acc = round(np.max(acc).item(), 3)  # type: ignore
+    print(f"Max acc: {max_acc} after {np.argmax(acc)} epochs")  # type: ignore
     experiment = {
         "max_accuracy": max_acc,
         "seed": seed,
@@ -212,8 +214,8 @@ def train(
             round(float(correct_target_time) / p.tau_syn, 4),
             round(float(wrong_target_time) / p.tau_syn, 4),
         ],
-        "loss": [round(float(l), 5) for l in loss],
-        "accuracy": [round(float(a), 5) for a in acc],
+        "loss": [round(float(l), 5) for l in loss],  # type: ignore
+        "accuracy": [round(float(a), 5) for a in acc],  # type: ignore
         "time per epoch": [round(float(d), 3) for d in durations],
     }
 

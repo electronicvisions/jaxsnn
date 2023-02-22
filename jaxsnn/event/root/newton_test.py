@@ -2,10 +2,13 @@ from functools import partial
 
 import jax
 import jax.numpy as np
+from jax import config
 from numpy.testing import assert_almost_equal
 
 from jaxsnn.event.leaky_integrate import LIFParameters, LIFState
 from jaxsnn.event.root.newton import newton_solver
+
+config.update("jax_debug_nans", True)
 
 
 def get_lif_dynamics():
@@ -40,12 +43,32 @@ def test_newton_solver_no_spike():
     solver = partial(newton_solver, get_lif_dynamics(), 0.0)
     dt = 0.2
 
-    def loss(weight):
-        state = LIFState(V=0.0, I=2.0)
+    def loss(state, weight):
         state.I = state.I * weight
         return solver(state, dt)
 
+    state = LIFState(V=0.0, I=2.0)
     weight = np.array(1.0)
-    value, grad = jax.value_and_grad(loss)(weight)
+    value, grad = jax.value_and_grad(partial(loss, state))(weight)
+    assert value == dt
+    assert grad == 0.0
+
+    state = LIFState(V=0.239, I=1.368)
+    value, grad = jax.value_and_grad(partial(loss, state))(weight)
+    assert value == dt
+    assert grad == 0.0
+
+    state = LIFState(V=0.0, I=0.0)
+    value, grad = jax.value_and_grad(partial(loss, state))(weight)
+    assert value == dt
+    assert grad == 0.0
+
+    state = LIFState(V=0.0, I=-0.72)
+    value, grad = jax.value_and_grad(partial(loss, state))(weight)
+    assert value == dt
+    assert grad == 0.0
+
+    state = LIFState(V=0.0, I=-0.25)
+    value, grad = jax.value_and_grad(partial(loss, state))(weight)
     assert value == dt
     assert grad == 0.0

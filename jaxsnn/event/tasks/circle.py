@@ -12,7 +12,7 @@ from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import circle_dataset
 from jaxsnn.event.functional import batch_wrapper
-from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters, RecursiveLIF
+from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters, RecurrentLIF
 from jaxsnn.event.loss import loss_and_acc, target_time_loss
 from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.root import ttfs_solver
@@ -50,7 +50,7 @@ def train():
 
     # declare net
     init_fn, apply_fn = serial(
-        RecursiveLIF(
+        RecurrentLIF(
             hidden_size, n_spikes=n_spikes_hidden, t_max=t_max, p=p, solver=solver
         ),
         LIF(output_size, n_spikes=n_spikes_output, t_max=t_max, p=p, solver=solver),
