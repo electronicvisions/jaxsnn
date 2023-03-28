@@ -61,7 +61,7 @@ def train(
 
     # training params
     step_size = 5e-3
-    lr_decay = 0.99
+    lr_decay = 0.98
     train_samples = 5_000
     test_samples = 3_000
     batch_size = 32
@@ -79,10 +79,12 @@ def train(
     duplication = 5
     weight_mean = [3.0 / duplication, 0.5]
     weight_std = [1.6 / duplication, 0.8]
-    bias_spike = 0.9 * p.tau_syn
+
+    # in units of t_late
+    bias_spike = 0.0
 
     correct_target_time = 0.9 * p.tau_syn
-    wrong_target_time = 1.5 * p.tau_syn
+    wrong_target_time = 1.1 * p.tau_syn
 
     # net
     input_size = 5
@@ -322,9 +324,7 @@ def train(
         "v_th": p.v_th,
         "v_reset": p.v_reset,
         "t_late": t_late,
-        "bias_spike (tau_syn)": round(bias_spike / p.tau_syn, 4)
-        if bias_spike is not None
-        else None,
+        "bias_spike (t_late)": bias_spike,
         "weight_mean": weight_mean,
         "weight_std": weight_std,
         "step_size": step_size,

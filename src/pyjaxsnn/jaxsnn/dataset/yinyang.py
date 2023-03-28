@@ -47,6 +47,7 @@ class YinYangDataset:
         size: int = 1000,
         r_small: float = 0.1,
         r_big: float = 0.5,
+        bias_spike: Optional[float] = None,
     ):
         """
         Initializing the dataset:
@@ -69,7 +70,7 @@ class YinYangDataset:
         self.class_names = ["yin", "yang", "dot"]
         key, subkey = random.split(key)
 
-        # on average we need arount 7 tries for one sample
+        # on average we need around 7 tries for one sample
         coords = random.uniform(key, (size * 10 + 100, 2)) * 2.0 * self.r_big
 
         classes = get_class_batched(coords, self.r_big, self.r_small)
@@ -81,6 +82,10 @@ class YinYangDataset:
 
         idx = random.permutation(subkey, idx, axis=0)
         self.vals = np.hstack((coords[idx], 1 - coords[idx]))
+        if bias_spike is not None:
+            bias = np.full((len(self.vals), 1), bias_spike)
+            self.vals = np.hstack((self.vals, bias))
+
         self.classes = classes[idx]
 
     def __getitem__(self, index: int):

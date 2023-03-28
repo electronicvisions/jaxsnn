@@ -85,7 +85,7 @@ def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
 
     def init_fn(rng, input_shape):
         rng, i_key, r_key = random.split(rng, 3)
-        input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
+        input_weights = scale_in * random.normal(i_key, (input_shape, out_dim)) + 0.3
         recurrent_weights = scale_rec * random.normal(r_key, (out_dim, out_dim))
         return out_dim, (input_weights, recurrent_weights), rng
 

@@ -1,11 +1,12 @@
+from pathlib import Path
 import time
 from functools import partial
-
+import datetime as dt
 import matplotlib.pyplot as plt
 import optax
 from jax import numpy as np
-from jax import random, value_and_grad
-from jax.lax import scan
+from jax import random
+import jax
 
 import jaxsnn
 from jaxsnn.dataset.yinyang import DataLoader, YinYangDataset
@@ -14,11 +15,11 @@ from jaxsnn.functional.loss import acc_and_loss, nll_loss
 from jaxsnn.functional.threshold import superspike
 
 
-def train_step(state, batch, loss_fn):
+def train_step(optimizer, state, batch, loss_fn):
     opt_state, params, i = state
     input, output = batch
 
-    (loss, recording), grads = value_and_grad(loss_fn, has_aux=True)(
+    (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
         params, (input, output)
     )
     updates, opt_state = optimizer.update(grads, opt_state)
@@ -26,31 +27,35 @@ def train_step(state, batch, loss_fn):
     return (opt_state, params, i + 1), recording
 
 
-if __name__ == "__main__":
+def train(folder, seed, epochs: int = 100, DT = 2e-4):
     n_classes = 3
-    input_shape = 4
-    dataset_size = 4992
+    input_shape = 5
+    dataset_size = 5000
     batch_size = 64
     n_train_batches = dataset_size / batch_size
 
-    epochs = 200
     hidden_features = 120
-    expected_spikes = 0.5
-    step_size = 1e-3
-    DT = 5e-4
-    lr_decay = 0.99
+    expected_spikes = 0.8
+    lr_decay = 0.98
+    bias_spike = 0.0
+
+    # ssems like smaller time bins require a higher learning rate
+    DT = 2e-4
+    step_size = 5e-4
+
+    # 2e-4 and 2e-4 works well
+    # DT = 2e-4, step_size = 5e-4 => 96%
+    # DT = 2e-4, step_size = 3e-4 => 96%
 
     t_late = 1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
-    T = int(2 * t_late / DT) * 5
-    T = 400
-    print(T)
-    print(t_late)
+    T = int(2 * t_late / DT)
+    print(f"DT: {DT}, {T} time steps, t_late: {t_late}")
 
     rng = random.PRNGKey(42)
     rng, train_key, test_key, init_key = random.split(rng, 4)
-    trainset = YinYangDataset(train_key, 4992)
+    trainset = YinYangDataset(train_key, 4992, bias_spike=bias_spike)
 
-    test_dataset = YinYangDataset(test_key, 1000)
+    test_dataset = YinYangDataset(test_key, 1000, bias_spike=bias_spike)
 
     snn_init, snn_apply = jaxsnn.serial(
         jaxsnn.functional.SpatioTemporalEncode(T, t_late, DT),
@@ -60,17 +65,14 @@ if __name__ == "__main__":
         jaxsnn.functional.MaxOverTimeDecode(),
     )
 
-    output_shape, params = snn_init(init_key, input_shape=input_shape)
-
     scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
     optimizer_fn = optax.adam
     optimizer = optimizer_fn(scheduler)
-    opt_state = optimizer.init(params)
 
     # define functions
     snn_apply = partial(snn_apply, recording=True)
-    loss_fn = partial(nll_loss, snn_apply, expected_spikes=expected_spikes)
-    train_step_fn = partial(train_step, loss_fn=loss_fn)
+    loss_fn = partial(nll_loss, snn_apply, expected_spikes=expected_spikes, rho=1e-5)
+    train_step_fn = partial(train_step, optimizer, loss_fn=loss_fn)
 
     def plot_neuron_voltage(recording):
         # recording[layer_idx].observable[step idx, time_idx, batch idx, neuron_idx]
@@ -86,10 +88,17 @@ if __name__ == "__main__":
         plt.savefig("./plots/spikes.png")
 
     overall_time = time.time()
+    init_key = random.PRNGKey(seed)
+    _, params = snn_init(init_key, input_shape=input_shape)
+    opt_state = optimizer.init(params)
+
+
+    accuracies = []
+    loss = []
     for epoch in range(epochs):
         trainloader = DataLoader(trainset, batch_size, rng=None)
         start = time.time()
-        (opt_state, params, i), recording = scan(
+        (opt_state, params, i), recording = jax.lax.scan(
             train_step_fn, (opt_state, params, 0), trainloader
         )
         end = time.time() - start
@@ -98,7 +107,44 @@ if __name__ == "__main__":
         accuracy, test_loss = acc_and_loss(
             snn_apply, params, (test_dataset.vals, test_dataset.classes)
         )
+        accuracies.append(accuracy)
+        loss.append(test_loss)
         print(
             f"Epoch: {epoch}, Loss: {test_loss:3f}, Test accuracy: {accuracy:.3f}, Seconds: {end:.3f}, Spikes: {spikes_per_item:.1f}"
         )
     print(f"Finished {epochs} epochs in {time.time() - overall_time:.3f} seconds")
+    return accuracies, loss
+
+
+if __name__ == "__main__":
+    dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    folder = f"jaxsnn/plots/norse/yinyang/{dt_string}"
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    print(f"Running experiment, results in folder: {folder}")
+
+    # different seeds
+    epochs = 100
+    seeds = 5
+    acc_container = []
+    loss_container = []
+    for i in range(seeds):
+        acc, loss = train(folder, seed=i, DT=5e-4, epochs=epochs)
+        acc_container.append(acc)
+        loss_container.append(loss)
+
+    np.save(f"{folder}/acc_{seeds}seeds_{epochs}epochs.npy", np.array(acc_container), allow_pickle=True)
+    np.save(f"{folder}/loss_{seeds}seeds_{epochs}epochs.npy", np.array(loss_container), allow_pickle=True)
+
+    
+    # different time bins and different seeds
+    # epochs = 300
+    # seeds = 5
+    # acc_container = []
+    # loss_container = []
+    # for DT in np.logspace(-4, -2, 5):
+    #     acc, loss = train(folder, seed=0, epochs=epochs, DT=DT)
+    #     acc_container.append(acc)
+    #     loss_container.append(loss)
+
+    # np.save(f"{folder}/acc_dt_logspace_{epochs}epochs.npy", np.array(acc_container), allow_pickle=True)
+    # np.save(f"{folder}/loss_dt_logspace_{epochs}epochs.npy", np.array(loss_container), allow_pickle=True)

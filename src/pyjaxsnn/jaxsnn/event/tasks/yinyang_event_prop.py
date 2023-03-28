@@ -27,9 +27,11 @@ from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.event.utils import save_params as save_params_fn
 from jaxsnn.event import custom_lax
-from jax.config import config
+import hxtorch
+from jaxsnn.event.hardware.utils import simulate_hw_weights
 
-config.update("jax_debug_nans", True)
+log = hxtorch.logger.get("hxtorch.snn.experiment")
+# config.update("jax_debug_nans", True)
 
 
 def train(
@@ -55,10 +57,12 @@ def train(
     t_max = 4.0 * p.tau_syn
     weight_mean = [3.0, 0.5]
     weight_std = [1.6, 0.8]
-    bias_spike = 0.9 * p.tau_syn
+
+    # in units of t_late
+    bias_spike = 0.0
 
     correct_target_time = 0.9 * p.tau_syn
-    wrong_target_time = 1.5 * p.tau_syn
+    wrong_target_time = 1.1 * p.tau_syn
 
     # net
     input_size = 5
@@ -127,38 +131,40 @@ def train(
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(params, batch)
 
         grad = jax.tree_util.tree_map(
-            lambda par, g: np.where(par == 0.0, 0.0, g / p.tau_syn), params, grad
+            lambda par, g: np.where(par == 0.0, 0.0, g), params, grad
         )
 
         updates, opt_state = optimizer.update(grad, opt_state)
         params = optax.apply_updates(params, updates)
+
         return (opt_state, params), (value, grad)
 
     def epoch(state, i):
         # do testing before training for plot
         params = state[1]
         test_result = loss_and_acc(loss_fn, params, testset[:2])
+        loss, acc, t_first_spike, recording = test_result
 
         start = time.time()
-        state, (recording, grad) = jax.lax.scan(update, state, trainset[:2])
+        state, (_, grad) = jax.lax.scan(update, state, trainset[:2])
         duration = time.time() - start
 
         if print_epoch:
-            masked = onp.ma.masked_where(recording[1][0] == np.inf, recording[1][0])
-            jax.debug.print(
-                "Epoch {i}, loss: {loss:.6f}, acc: {acc:.3f}, spikes: {spikes:.1f}, grad: {grad:.9f}, gradient ratio: {grad_ratio:.4f}, time first output: {t_output:.2f} tau_s, in {duration:.2f} s",
-                i=i,
-                loss=round(test_result[0], 3),
-                acc=round(test_result[1], 3),
-                spikes=np.sum(recording[1][1][0].idx >= 0, axis=-1).mean(),
-                grad=grad[0].input.mean(),
-                grad_ratio=np.abs(grad[0].input).mean()
-                / (
-                    np.sum(np.abs(grad[0].recurrent))
-                    / np.count_nonzero(grad[0].recurrent)
-                ),
-                t_output=masked.mean() / p.tau_syn,
-                duration=duration,
+            masked = onp.ma.masked_where(t_first_spike == np.inf, t_first_spike)
+            number_of_hidden_spikes = np.sum(input_size <= recording[0].idx, axis=-1).mean()
+            input_param = params[0].input[:,:hidden_size]
+            recurrent_param = params[0].recurrent[:hidden_size,hidden_size:]
+            log.INFO(
+                f"Epoch {i}, loss: {loss:.6f}, "
+                f"acc: {acc:.3f}, "
+                f"spikes: {number_of_hidden_spikes:.1f}, "
+                f"output inf: {np.mean((t_first_spike == np.inf), axis=(0, 1))}, "
+                f"grad: {np.mean(np.abs(grad[0].input[:, :,:hidden_size])):.6f}, {np.mean(np.abs(grad[0].recurrent[:, :hidden_size,hidden_size:])):.6f}, ",
+                f"max grad: {np.max(np.abs(grad[0].input[:, :,:hidden_size])):.6f}, {np.max(np.abs(grad[0].recurrent[:, :hidden_size,hidden_size:])):.6f}, ",
+                f"params mean: {input_param.mean():.5f}, {recurrent_param.mean():.5f}, ",
+                f"params std: {input_param.std():.5f}, {recurrent_param.std():.5f}, ",
+                f"time output: {(masked.mean() / p.tau_syn):.2f} tau_s, "
+                f"in {duration:.2f} s, ",
             )
         return state, (test_result, params, duration)
 
@@ -172,6 +178,12 @@ def train(
     if save_params:
         filenames = [f"{folder}/weights_1.npy", f"{folder}/weights_2.npy"]
         save_params_fn(params, filenames)
+
+    last_epoch_first_batch = recording[-1][-1, 0]
+    np.save(f"{folder}/t_spike.npy", t_spike, allow_pickle=False)
+    log.INFO("Saving spike data...")
+    np.save(f"{folder}/recording_last_epoch_first_batch.npy", (last_epoch_first_batch.time, last_epoch_first_batch.idx), allow_pickle=False)
+    log.INFO("Saved spike data")
 
     # generate plots
     if plot:
@@ -200,7 +212,7 @@ def train(
         "v_th": p.v_th,
         "v_reset": p.v_reset,
         "t_late": t_late,
-        "bias_spike (tau_syn)": round(bias_spike / p.tau_syn, 4),
+        "bias_spike (t_late)": bias_spike,
         "weight_mean": weight_mean,
         "weight_std": weight_std,
         "step_size": step_size,
@@ -225,7 +237,7 @@ def train(
 
 if __name__ == "__main__":
     dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    folder = f"jaxsnn/plots/event/yinyang/{dt_string}"
+    folder = f"jaxsnn/plots/event/yinyang_event_prop/{dt_string}"
     Path(folder).mkdir(parents=True, exist_ok=True)
     print(f"Running experiment, results in folder: {folder}")
-    train(0, folder, plot=True, print_epoch=True, save_params=True)
+    train(1, folder, plot=True, print_epoch=True, save_params=True)

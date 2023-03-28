@@ -50,9 +50,12 @@ def checkify_wrapper(f):
     return second
 
 
-def batch_wrapper(func, in_axes: tuple = (None, 0)):
+def batch_wrapper(func, in_axes: tuple = (None, 0), pmap: bool = False):
     def wrapped_fn(*args, **kwargs):
-        res = jax.vmap(func, in_axes=in_axes)(*args, **kwargs)
+        if pmap:
+            res = jax.pmap(func, in_axes=in_axes)(*args, **kwargs)
+        else:
+            res = jax.vmap(func, in_axes=in_axes)(*args, **kwargs)
         return np.mean(res[0]), res[1]
 
     return wrapped_fn

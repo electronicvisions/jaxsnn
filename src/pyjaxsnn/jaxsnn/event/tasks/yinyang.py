@@ -14,11 +14,13 @@ from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset
 from jaxsnn.event.functional import batch_wrapper
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF
+from jaxsnn.event.leaky_integrate_and_fire import LIFParameters, LIF, RecurrentLIF
 from jaxsnn.event.loss import (
     loss_and_acc,
     loss_wrapper,
     mse_loss,
+    adapted_ttfs_loss,
+    adapted_event_prop_loss,
 )
 from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.root import ttfs_solver
@@ -34,6 +36,8 @@ def train(
     plot: bool = True,
     print_epoch: bool = True,
     save_params: bool = False,
+    correct_target_time: float = 0.9,
+    wrong_target_time: float = 1.1,
 ):
     # neuron params, low v_reset only allows one spike per neuron
     p = LIFParameters(v_reset=-1_000.0, v_th=1.0)
@@ -44,23 +48,25 @@ def train(
     train_samples = 5_000
     test_samples = 3_000
     batch_size = 64
-    epochs = 300
+    epochs = 50
     n_train_batches = int(train_samples / batch_size)
     n_test_batches = int(test_samples / batch_size)
     t_late = 2.0 * p.tau_syn
     t_max = 4.0 * p.tau_syn
     weight_mean = [3.0, 0.5]
     weight_std = [1.6, 0.8]
-    bias_spike = 0.9 * p.tau_syn
+    
+    # in units of t_late
+    bias_spike = 0.0
 
-    correct_target_time = 0.9 * p.tau_syn
-    wrong_target_time = 1.5 * p.tau_syn
+    correct_target_time *= p.tau_syn
+    wrong_target_time *= p.tau_syn
 
     # net
     input_size = 5
-    hidden_size = 120
+    hidden_size = 100
     output_size = 3
-    n_spikes_hidden = input_size + hidden_size
+    n_spikes_hidden = 50 # input_size + hidden_size
     n_spikes_output = n_spikes_hidden + 3
     optimizer_fn = optax.adam
 
@@ -86,6 +92,18 @@ def train(
     )
     input_size = trainset[0].idx.shape[-1]
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+
+    # init_fn, apply_fn = serial(
+    #     RecurrentLIF(
+    #         layers=[hidden_size, output_size],
+    #         n_spikes=n_spikes_output,
+    #         t_max=t_max,
+    #         p=p,
+    #         solver=solver,
+    #         mean=weight_mean,
+    #         std=weight_std,
+    #     )
+    # )
 
     # declare net
     init_fn, apply_fn = serial(
@@ -123,10 +141,13 @@ def train(
     )
 
     def update(
-        input: Tuple[optax.OptState, List[Weight]],
+        state: Tuple[optax.OptState, List[Weight]],
         batch: Tuple[Spike, Array],
     ):
-        opt_state, params = input
+        opt_state, params = state
+
+        # value = loss_fn(params, batch)
+        # grad = params
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(params, batch)
 
         grad = jax.tree_util.tree_map(lambda g: g / p.tau_syn, grad)
@@ -153,8 +174,9 @@ def train(
                 acc=round(test_result[1], 3),
                 spikes=np.sum(recording[1][1][0].idx >= 0, axis=-1).mean(),
                 grad=grad[0].input.mean(),
-                grad_ratio=np.abs(grad[0].input).mean()
-                / np.maximum(np.abs(grad[1].input), 1e-7).mean(),
+                grad_ratio=1, #np.abs(grad[0].input).mean() / np.abs(grad[0].input).mean()
+                # / np.maximum(np.abs(grad[1].input), 1e-7).mean(),
+                # / np.maximum(np.abs(grad[0].recurrent), 1e-7).mean(),
                 t_output=masked.mean() / p.tau_syn,
                 duration=duration,
             )
@@ -165,6 +187,10 @@ def train(
         epoch, (opt_state, params), np.arange(epochs)
     )
     loss, acc, t_spike, recording = res
+
+    # last_epoch_first_batch = recording[-1][-1, 0]
+    # np.save(f"{folder}/t_spike.npy", t_spike, allow_pickle=False)
+    # np.save(f"{folder}/recording_last_epoch_first_batch.npy", (last_epoch_first_batch.time, last_epoch_first_batch.idx), allow_pickle=False)
 
     time_string = dt.datetime.now().strftime("%H:%M:%S")
     if save_params:
@@ -184,11 +210,13 @@ def train(
             p.tau_syn,
             hidden_size,
             epochs,
+            mock_hw=True,
         )
 
     # save experiment data
     max_acc = round(np.max(acc).item(), 3)
     print(f"Max acc: {max_acc} after {np.argmax(acc)} epochs")
+    print(f"Last acc: {acc[-1]}")
     experiment = {
         "max_accuracy": max_acc,
         "seed": seed,
@@ -198,7 +226,7 @@ def train(
         "v_th": p.v_th,
         "v_reset": p.v_reset,
         "t_late": t_late,
-        "bias_spike (tau_syn)": round(bias_spike / p.tau_syn, 4),
+        "bias_spike (t_late)": bias_spike,
         "weight_mean": weight_mean,
         "weight_std": weight_std,
         "step_size": step_size,
@@ -220,10 +248,20 @@ def train(
     with open(f"{folder}/params_{max_acc}_{time_string}.json", "w") as outfile:
         json.dump(experiment, outfile, indent=4)
 
+    return acc[-1]
+
 
 if __name__ == "__main__":
     dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     folder = f"jaxsnn/plots/event/yinyang/{dt_string}"
     Path(folder).mkdir(parents=True, exist_ok=True)
     print(f"Running experiment, results in folder: {folder}")
-    train(0, folder, plot=True, print_epoch=True, save_params=True)
+    # for i in range(5):
+    for i in np.arange(0.6, 1.6, 0.1):
+        accs = []
+        for j in np.arange(1.7, 2.6, 0.1):
+            print(f"Target times: {i}, {j}")
+            print()
+            acc = train(0, folder, plot=False, print_epoch=True, save_params=False, correct_target_time=i, wrong_target_time=j)
+            accs.append(acc)
+        print(accs)

@@ -79,6 +79,7 @@ class WeightInput(NamedTuple):
     input: JaxArray
 
 
+
 class WeightRecurrent(NamedTuple):
     input: JaxArray
     recurrent: JaxArray

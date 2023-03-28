@@ -36,6 +36,7 @@ def linear_saturating(
     scale: float,
     min_weight: float = -63.0,
     max_weight: float = 63.0,
+    as_int: bool = True,
 ) -> np.ndarray:
     """
     Scale all weights according to:
@@ -48,10 +49,13 @@ def linear_saturating(
         scaling.
     :param max_weight: The maximum value, bigger values are clipped to after
         scaling.
+    :param as_int: Round to nearest int and return as int type.
 
     :returns: The transformed weight tensor.
     """
-    return np.round(np.clip(scale * weight, min_weight, max_weight)).astype(int)
+    if as_int:
+        return np.round(np.clip(scale * weight, min_weight, max_weight)).astype(int)
+    return np.clip(scale * weight, min_weight, max_weight)
 
 
 def filter_spikes_batch(spikes: Spike, layer_start: int, layer_end: Optional[int] = None):
@@ -106,21 +110,22 @@ def sort_batch(spikes: Spike) -> Spike:
     return Spike(time=time, idx=idx)
 
 
-def add_noise_batch(spikes: Spike, rng: random.PRNGKey, std: float = 5e-7) -> Spike:
-    noise = random.normal(rng, spikes.time.shape) * std
+def add_noise_batch(spikes: Spike, rng: random.PRNGKey, std: float = 1e-7, bias: float = 1e-7) -> Spike:
+    noise = random.normal(rng, spikes.time.shape) * std + bias
     spikes_with_noise = Spike(time=spikes.time + noise, idx=spikes.idx)
+    # return spikes_with_noise
     return sort_batch(spikes_with_noise)
 
 
-def simulate_hw_weights(params: List[Weight], scale: float) -> List[Weight]:
+def simulate_hw_weights(params: List[Weight], scale: float, as_int: bool=False) -> List[Weight]:
     new_params = []
     for param in params:
         if isinstance(param, WeightInput):
-            new_param = WeightInput(linear_saturating(param.input, scale) / scale)
+            new_param = WeightInput(linear_saturating(param.input, scale, as_int=as_int) / scale)
         else:
             new_param = WeightRecurrent(
-                input=linear_saturating(param.input, scale) / scale,
-                recurrent=linear_saturating(param.recurrent, scale) / scale,
+                input=linear_saturating(param.input, scale, as_int=as_int) / scale,
+                recurrent=linear_saturating(param.recurrent, scale, as_int=as_int) / scale,
             )
         new_params.append(new_param)
     return new_params

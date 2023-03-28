@@ -13,7 +13,7 @@ from jaxsnn.base.types import (
     WeightRecurrent,
 )
 from jaxsnn.event.dataset import Dataset
-from jaxsnn.event.hardware.utils import filter_spikes, cut_spikes
+from jaxsnn.event.hardware.utils import filter_spikes
 
 log = hxtorch.logger.get("hxtorch.snn.experiment")
 
@@ -23,28 +23,34 @@ black = np.array([[0, 0, 0, 0.3]])
 green = np.array([[47, 75, 37, 210]]) / 256
 
 
-def plt_spikes(ax: Axes, recording, sizes: Tuple[int], mock: bool):
+def plt_spikes(ax: List[Axes], recording, sizes: Tuple[int], mock: bool, tau_syn: float):
     # plt five different samples
-    for j in range(5):
-        spikes = recording[0][-1, 0, j]
+    for j, plt_idx in enumerate(((0, 0), (0, 1), (1, 0), (1, 1))):
+        spikes = recording[-1][-1, 0, j]
         input_size, hidden_size, _ = sizes
         layers = [
             filter_spikes(spikes, 0, input_size),
-            filter_spikes(spikes, input_size, input_size+hidden_size),
+            filter_spikes(spikes, input_size, hidden_size + input_size),
             filter_spikes(spikes, hidden_size + input_size),
         ]
+
+        unit = tau_syn if mock else 1e-6 
+
         for i in range(3):
-            ax[j].scatter(
-                x=layers[i].time * 1e6,
+            ax[plt_idx].scatter(
+                x=layers[i].time / unit,
                 y=layers[i].idx,
-                s=10,
+                s=(20, 10, 20)[i],
                 c=("green", "black", "orange")[i],
                 label=f"Layer {i}"
             )
-        ax[j].set_ylabel("neuron id")
-        ax[j].set_xlabel(r"$t$ [us]")
-        ax[j].legend()
-        ax[j].set_title(f"Spike times in {'SW' if mock else 'HW'}")
+        ax[plt_idx].set_ylabel("neuron id")
+        if mock:
+            ax[plt_idx].set_xlabel(r"$t [\tau_s]$")
+        else:
+            ax[plt_idx].set_xlabel(r"$t$ [us]")
+        ax[plt_idx].legend()
+        ax[plt_idx].set_title(f"Spike times in {'SW' if mock else 'HW'}")
 
 
 def plt_loss(ax: Axes, loss: Array):
@@ -428,10 +434,19 @@ def plt_weights_bin(fig, axs, params: List[Weight]):
 
     # plot for first and last epoch
     for j, epoch in enumerate((0, -1)):
-        plot_params = [
-            params[0].input[epoch, :, :100].flatten(),
-            params[0].recurrent[epoch, : 100, 100: 103].flatten(),
-        ]
+
+        if isinstance(params[0], WeightRecurrent):
+            hidden_size = params[0].recurrent.shape[-1] - 3
+            plot_params = [
+                params[0].input[epoch, :, :hidden_size].flatten(),
+                params[0].recurrent[epoch, : hidden_size, hidden_size: hidden_size+3].flatten(),
+            ]
+        else:
+            plot_params = [
+                params[0].input[epoch,:,:].flatten(),
+                params[1].input[epoch,:,:].flatten(),
+            ]
+
         # log.INFO(f"Initial params shape: {params[0].input[epoch].shape}, {params[0].recurrent[epoch].shape}")
         # log.INFO(f"Initial params non zero: {np.count_nonzero(params[0].input[epoch])}, {np.count_nonzero(params[0].recurrent[epoch])}")
 
@@ -463,7 +478,7 @@ def plt_spike_time_bins(
     n_epochs = t_spike.shape[0]
     colors = ("orange", "grey")
     title = ("Before training", "After 10 epochs", f"After {n_epochs} epochs")
-    label = ("Correct label neuron", "Wrong label neuron")
+    label = ("Correct Neuron", "Wrong Neuron")
     bins = (
         np.arange(0.4, 0.8, 0.02),
         np.arange(0.4, 1.6, 0.02),
@@ -506,6 +521,7 @@ def plt_spike_time_bins(
         )
         axs[i].set_xlabel(r"t $[\tau_s]$")
         axs[i].set_ylabel("Occurence")
+        axs[i].legend()
         # axs[i].set_xticks(np.linspace(0.4, 1.6, 4))
         axs[i].title.set_text(title[i])
 
@@ -528,9 +544,9 @@ def plt_and_save(
     output_size = testset[1].shape[-1]
 
     # visualize single sample
-    fig, ax = plt.subplots(5, 1, figsize=(6, 15), sharex=True)
+    fig, ax = plt.subplots(2, 2, figsize=(8, 8), sharex=True, sharey=True)
     input_size = testset[0].time.shape[-1] / (1 if duplicate_neurons else duplication)
-    plt_spikes(ax, recording, (input_size, hidden_size, output_size), mock_hw)
+    plt_spikes(ax, recording, (input_size, hidden_size, output_size), mock_hw, tau_syn)
     fig.tight_layout()
     fig.savefig(f"{folder}/test_sample.png", dpi=300)
 
@@ -553,8 +569,9 @@ def plt_and_save(
 
     # 2d spike times
     n_output: int = testset[1].shape[-1]
-    fig, ax1 = plt.subplots(1, n_output, figsize=(5 * n_output, 4))
+    fig, ax1 = plt.subplots(1, n_output, figsize=(4 * (n_output + 0.2), 4))
     plt_t_spike_neuron(fig, ax1, testset, t_spike, tau_syn, duplication, duplicate_neurons)
+    fig.tight_layout()
     fig.savefig(f"{folder}/spike_times.png", dpi=150)
 
     observe = None

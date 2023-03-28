@@ -5,9 +5,12 @@ import jax.numpy as np
 from jaxsnn.event import custom_lax
 from jaxsnn.base.types import Array, ArrayLike, Spike, Weight
 from jaxsnn.functional.leaky_integrate_and_fire import LIFState
-import hxtorch
+# import hxtorch
+import logging
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
+
+# log = hxtorch.logger.get("hxtorch.snn.experiment")
+log = logging.getLogger(__name__)
 
 def max_over_time(output: LIFState) -> Array:
     return np.max(output.V, axis=0)
@@ -106,10 +109,13 @@ def adapted_event_prop_loss(
     first_spikes: Array, target: Array, tau_mem: float
 ) -> ArrayLike:
     idx = np.argmin(target)
-    numerator = 1 + np.exp(-first_spikes[idx] / tau_mem)
-    denominator = 1 + np.exp(-np.abs(first_spikes) / tau_mem)
+    numerator = np.exp(-first_spikes[idx] / tau_mem)
+    denominator = np.exp(-np.abs(first_spikes) / tau_mem)
 
-    loss_value = -np.log(numerator / np.sum(denominator))
+    alpha = 0.1
+    regularization = alpha * np.square(first_spikes[idx] / tau_mem - 0.5)
+
+    loss_value = -np.log(1 + numerator / (1 + np.sum(denominator))) + regularization
     return loss_value
 
 

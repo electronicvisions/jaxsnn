@@ -1,5 +1,6 @@
+from typing import List
+
 import jax.numpy as np
-from typing import List, Tuple
 from jaxsnn.base.types import Spike, WeightInput, WeightRecurrent
 
 

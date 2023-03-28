@@ -1,5 +1,4 @@
 from typing import Callable
-
 import jax.numpy as np
 
 from jaxsnn.base.types import (
@@ -238,4 +237,5 @@ def step_bwd(
             input_queue_head,
         ),
     )
+    # tr_state, new_grads = adjoint_state, grads
     return (tr_state, new_grads, layer_start), 1

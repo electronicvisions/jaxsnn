@@ -139,50 +139,41 @@ class Experiment:
         for pop in self._populations:
             pop.add_to_network_graph(network_builder)
 
-        # for i, weight in enumerate(weights):
-        #     synapse = Synapse(self, weight.input.T)
-        #     synapse.add_to_network_graph(network_builder, self._populations[i].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling)
+        for i, weight in enumerate(weights):
+            synapse = Synapse(self, weight.input.T)
+            synapse.add_to_network_graph(network_builder, self._populations[i].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling)
 
         
         # first weights
-        synapse = Synapse(self, weights[0].input[:, : 100].T)
-        synapse.add_to_network_graph(
-            network_builder, self._populations[0].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling
-        )
+        # synapse = Synapse(self, weights[0].input[:, : 100].T)
+        # synapse.add_to_network_graph(
+        #     network_builder, self._populations[0].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling
+        # )
 
         # second weights
-        synapse = Synapse(self, weights[0].recurrent[: 100, 100: 103].T)
-        synapse.add_to_network_graph(
-            network_builder, self._populations[1].descriptor, self._populations[2].descriptor, self.wafer_config.weight_scaling
-        )
-
+        # synapse = Synapse(self, weights[0].recurrent[: 100, 100: 103].T)
+        # synapse.add_to_network_graph(
+        #     network_builder, self._populations[1].descriptor, self._populations[2].descriptor, self.wafer_config.weight_scaling
+        # )
         network = network_builder.done()
 
         # route network if required
-        routing_result = None
-        if (
-            self.grenade_network is None
-            or grenade.network.placed_logical.requires_routing(
-                network, self.grenade_network
-            )
-        ):
+        if self.grenade_network is None:
             routing_result = self.hw_routing_func(network)
-
-        # Keep graph
-        self.grenade_network = network
-
-        # build or update network graph
-        if routing_result is not None:
             self.grenade_network_graph = (
                 grenade.network.placed_logical.build_network_graph(
-                    self.grenade_network, routing_result
+                    network, routing_result
                 )
             )
         else:
             grenade.network.placed_logical.update_network_graph(
-                self.grenade_network_graph, self.grenade_network
+                self.grenade_network_graph, network
             )
+    
+        # Keep graph
+        self.grenade_network = network
 
+        # build or update network graph
         return self.grenade_network_graph
 
     def _configure_populations(self):
@@ -303,11 +294,13 @@ class Experiment:
             population descriptors and values are tuples of values returned by
             the correpsonding module's `post_process` method.
         """
-        start = time.time()
+        overall_start = time.time()
         self._prepare_static_config()
 
         # Generate network graph
+        start = time.time()
         network = self._generate_network_graphs(weights, build_graph=build_graph)
+        generate_network_time = time.time() - start
 
         # configure populations
         self._configure_populations()
@@ -328,18 +321,13 @@ class Experiment:
             {grenade.signal_flow.ExecutionInstance(): runtime_in_clocks}
         ] * self._batch_size
         log.TRACE(f"Registered runtimes: {inputs.runtime}")
-
+    
         grenade_start = time.time()
         outputs = hxtorch.snn.grenade_run(
             self._chip, network, inputs, self._generate_playback_hooks()
         )
         time_grenade_run = time.time() - grenade_start
-        if time_data is not None:
-            if time_data.get("grenade_run") is None:
-                time_data["grenade_run"] = time_grenade_run
-            else:
-                time_data["grenade_run"] += time_grenade_run
-
+        start_get_observables = time.time()
         hw_data = self._get_population_observables(network, outputs, n_spikes)
 
         # convert from fpga cycles to s
@@ -368,11 +356,30 @@ class Experiment:
             madc_recording = data[:, :, self._populations[1]._record_neuron_id]
             return spike_list, madc_recording
 
+        
+        time_get_observables = time.time() - start_get_observables
         # save times
         if time_data is not None:
-            time_get_hw_results = time.time() - start
+            time_get_hw_results = time.time() - overall_start
             if time_data.get("get_hw_results") is None:
                 time_data["get_hw_results"] = time_get_hw_results
             else:
                 time_data["get_hw_results"] += time_get_hw_results
+
+            if time_data.get("get_observables") is None:
+                time_data["get_observables"] = time_get_observables
+            else:
+                time_data["get_observables"] += time_get_observables
+
+            if time_data.get("generate_network_time") is None:
+                time_data["generate_network_time"] = generate_network_time
+            else:
+                time_data["generate_network_time"] += generate_network_time
+
+            if time_data.get("grenade_run") is None:
+                time_data["grenade_run"] = time_grenade_run
+            else:
+                time_data["grenade_run"] += time_grenade_run
+
+
         return spike_list, time_data
