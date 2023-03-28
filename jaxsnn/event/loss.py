@@ -2,10 +2,12 @@ from typing import Callable, List, Tuple, Union
 
 import jax
 import jax.numpy as np
-
+from jaxsnn.event import custom_lax
 from jaxsnn.base.types import Array, ArrayLike, Spike, Weight
 from jaxsnn.functional.leaky_integrate_and_fire import LIFState
+import hxtorch
 
+log = hxtorch.logger.get("hxtorch.snn.experiment")
 
 def max_over_time(output: LIFState) -> Array:
     return np.max(output.V, axis=0)
@@ -46,11 +48,31 @@ def loss_wrapper(
     weights: List[Weight],
     batch: Tuple[Spike, Array],
 ) -> Tuple[ArrayLike, Tuple[ArrayLike, List[Spike]]]:
-
     input_spikes, target = batch
     recording = apply_fn(weights, input_spikes)
     output = recording[-1]
     t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
+    loss_value = loss_fn(t_first_spike, target, tau_mem)
+
+    return loss_value, (t_first_spike, recording)
+
+
+def loss_wrapper_known_spikes(
+    apply_fn: Callable[[List[Spike], List[Weight], Spike], List[Spike]],
+    loss_fn: Callable[[Array, Array, float], ArrayLike],
+    tau_mem: float,
+    n_neurons: int,
+    n_outputs: int,
+    weights: List[Weight],
+    batch: Tuple[Spike, Array],
+    spikes: List[Spike],
+) -> Tuple[ArrayLike, Tuple[ArrayLike, List[Spike]]]:
+    input_spikes, target = batch
+    recording = apply_fn(spikes, weights, input_spikes)
+    output = recording[-1]
+    # log.INFO(f"N neurons: {n_neurons}, n_output: {n_outputs}")
+    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
+    # log.INFO(f"T first spike mean: {t_first_spike.mean()}")
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)
@@ -121,6 +143,19 @@ def loss_and_acc(
 ):
     batched_loss = jax.vmap(loss_fn, in_axes=(None, 0))
     loss, (t_first_spike, recording) = batched_loss(params, dataset)
+    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(t_first_spike, axis=-1)
+    return (
+        np.mean(loss),
+        np.mean(accuracy),
+        t_first_spike,
+        recording,
+    )
+
+
+def loss_and_acc_scan(loss_fn, params, dataset):
+    params, (loss, (t_first_spike, recording)) = custom_lax.simple_scan(
+        loss_fn, params, dataset
+    )
     accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(t_first_spike, axis=-1)
     return (
         np.mean(loss),

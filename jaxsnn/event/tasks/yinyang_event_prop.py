@@ -62,7 +62,7 @@ def train(
 
     # net
     input_size = 5
-    hidden_size = 120
+    hidden_size = 100
     output_size = 3
     n_spikes_hidden = input_size + hidden_size
     n_spikes_output = n_spikes_hidden + 3

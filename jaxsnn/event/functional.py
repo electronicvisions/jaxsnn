@@ -13,6 +13,7 @@ from jaxsnn.base.types import (
     Weight,
 )
 from jax import lax
+from jaxsnn.neuron import NeuronState
 
 
 def tree_wrap(func):
@@ -49,9 +50,9 @@ def checkify_wrapper(f):
     return second
 
 
-def batch_wrapper(func):
+def batch_wrapper(func, in_axes: tuple = (None, 0)):
     def wrapped_fn(*args, **kwargs):
-        res = jax.vmap(func, in_axes=(None, 0))(*args, **kwargs)
+        res = jax.vmap(func, in_axes=in_axes)(*args, **kwargs)
         return np.mean(res[0]), res[1]
 
     return wrapped_fn
@@ -66,9 +67,9 @@ def exponential_flow(A: Array):
 
 def step(
     dynamics: Callable,
-    solver: Callable,
     tr_dynamics: Callable,
     t_max: float,
+    solver: Callable[[NeuronState, float, float], Spike],
     input: Tuple[StepState, Weight, int],
     *args: int,
 ) -> Tuple[Tuple[StepState, Weight, int], EventPropSpike]:
@@ -87,24 +88,23 @@ def step(
     state, weights, layer_start = input
     prev_layer_start = layer_start - weights.input.shape[0]
 
-    pred_spikes = solver(state.neuron_state, t_max) + state.time
-    spike_idx = np.argmin(pred_spikes)
+    next_internal = solver(state.neuron_state, state.time, t_max)
 
     # determine spike nature and spike time
     input_time = lax.cond(
         state.input_queue.is_empty, lambda: t_max, lambda: state.input_queue.peek().time
     )
-    t_dyn = np.minimum(pred_spikes[spike_idx], input_time)
+    t_dyn = np.minimum(next_internal.time, input_time)
 
     # comparing only makes sense if exactly dt is returned from solver
-    spike_in_layer = pred_spikes[spike_idx] < input_time
+    spike_in_layer = next_internal.time < input_time
     no_event = t_dyn + 1e-6 > t_max
     stored_idx = lax.cond(
         no_event,
         lambda: -1,
         lambda: lax.cond(
             spike_in_layer,
-            lambda: spike_idx + layer_start,
+            lambda: next_internal.idx + layer_start,
             lambda: state.input_queue.peek().idx,
         ),
     )
@@ -115,7 +115,7 @@ def step(
     )
     current = jax.lax.cond(
         spike_in_layer,
-        lambda: state.neuron_state.I[spike_idx],
+        lambda: state.neuron_state.I[next_internal.idx],
         lambda: state.input_queue.peek().current,
     )
     transitioned_state = lax.cond(
@@ -124,7 +124,7 @@ def step(
         tr_dynamics,
         state,
         weights,
-        spike_idx,
+        next_internal.idx,
         spike_in_layer,
         prev_layer_start,
     )

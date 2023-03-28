@@ -42,7 +42,43 @@ def test_step():
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
     batched_solver = jax.vmap(solver, in_axes=(0, None))
     transition = partial(transition_without_recurrence, p)
-    step_fn = partial(step, dynamics, batched_solver, transition, t_max)
+    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
+    weights = WeightInput(np.zeros((n_input, n_hidden)))
+    neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
+
+    spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([0, 1]))
+    state = StepState(neuron_state, start_time, InputQueue(spikes))
+    step_state = (state, weights, layer_start)
+
+    step_state, spike = step_fn(step_state)
+    assert spike.time == 1.0
+    assert spike.idx == 0
+
+    step_state, spike = step_fn(step_state)
+    assert spike.time == 2.0
+    assert spike.idx == 1
+
+    step_state, spike = step_fn(step_state)
+    assert spike.time == t_max
+    assert spike.idx == -1
+
+
+def test_step_same_time():
+    p = LIFParameters()
+    A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
+    flow = exponential_flow(A)
+    dynamics = jax.vmap(flow, in_axes=(0, None))
+
+    t_max = 10.0
+    n_input = 2
+    n_hidden = 2
+    start_time = 0.0
+    layer_start = 2
+
+    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+    batched_solver = jax.vmap(solver, in_axes=(0, None))
+    transition = partial(transition_without_recurrence, p)
+    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
     weights = WeightInput(np.zeros((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
@@ -78,7 +114,7 @@ def test_step_no_transition():
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
     batched_solver = jax.vmap(solver, in_axes=(0, None))
     transition = partial(transition_without_recurrence, p)
-    step_fn = partial(step, dynamics, batched_solver, transition, t_max)
+    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
     weights = WeightInput(np.ones((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 

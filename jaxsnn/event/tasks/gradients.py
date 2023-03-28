@@ -45,7 +45,7 @@ single_dynamics = partial(f, A)
 dynamics = jax.vmap(single_dynamics, in_axes=(0, None))
 solver = partial(ttfs_solver, tau_mem, v_th)
 batched_solver = jax.vmap(solver, in_axes=(0, None))
-step_fn = partial(step, dynamics, batched_solver, transition, t_max)
+step_fn = partial(step, dynamics, transition, t_max, batched_solver)
 forward = trajectory(step_fn, 10)
 
 # minimal forward example

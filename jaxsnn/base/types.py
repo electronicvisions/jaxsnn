@@ -88,4 +88,4 @@ class WeightRecurrent(NamedTuple):
     recurrent: JaxArray
 
 
-Weight = WeightInput | WeightRecurrent
+Weight = Union[WeightInput, WeightRecurrent]
