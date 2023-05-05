@@ -68,33 +68,6 @@ def tree_matmul(d, u, p, b):
 
     return lax.fori_loop(1, N, body_fun, init_val).res
 
-
-def hines_solver(d, u, p, b):
-    """ """
-    N = d.shape[0]
-
-    def reverse_body(j, val: TreeProblem):
-        i = N - j - 1
-        f = val.t.u[val.t.p[i]] / val.t.d[i]
-        val.t.d = val.t.d.at[val.t.p[i]].set(
-            val.t.d[val.t.p[i]] - f * val.t.u[val.t.p[i]]
-        )
-        val.b = val.b.at[val.t.p[i]].set(val.b[val.t.p[i]] - f * val.b[i])
-
-        return val
-
-    def forward_body(i, val: TreeProblem):
-        val.b = val.b.at[i].set(
-            (val.b[i] - val.t.u[val.t.p[i]] * val.b[val.t.p[i]]) / val.t.d[i]
-        )
-        return val
-
-    problem = TreeProblem(t=TreeMatrix(d=d, u=u, p=p), b=b)
-    res = lax.fori_loop(0, N - 1, reverse_body, init_val=problem)
-    res.b = res.b.at[0].set(res.b[0] / res.t.d[0])
-    return lax.fori_loop(1, N, forward_body, init_val=res).b
-
-
 def tree_solve(d, u, p, b):
     """
     A solver for 'tree' matrices, which is compatible with the jax tracer.

@@ -1,1 +1,0 @@
-event/functional_test.py

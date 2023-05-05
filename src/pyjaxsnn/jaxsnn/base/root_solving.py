@@ -10,16 +10,6 @@ def linear_interpolated_root(f_a, f_b, a, b):
     return (a * f_b - b * f_a) / f_b - f_a
 
 
-def illinois_method():
-    """
-    Reference:
-    Kathie L. Hiebert and Lawrence F. Shampine, Implicitly
-    Defined Output Points for Solutions of ODEs, Sandia National
-    Laboratory Report SAND80-0180, February 1980.
-    """
-    pass
-
-
 def newton_1d(f, x0):
     initial_state = (0, x0)
 
