@@ -6,9 +6,11 @@ from waflib.extras.symwaf2ic import get_toplevel_path
 
 def depends(dep):
     dep("code-format")
+    dep("hxtorch")
 
 
 def options(opt):
+    opt.load("compiler_cxx")
     opt.load("test_base")
     opt.load("python")
     opt.load("pytest")
@@ -18,11 +20,14 @@ def options(opt):
 
 
 def configure(cfg):
+    cfg.load("compiler_cxx")
     cfg.load("test_base")
     cfg.load("python")
     cfg.check_python_version()
     cfg.check_python_headers()
     cfg.load("pytest")
+    cfg.load("pylint")
+    cfg.load("pycodestyle")
     cfg.load("doxygen")
 
 
@@ -30,7 +35,7 @@ def build(bld):
     bld(
         target="jaxsnn",
         features="py use",
-        # use=[],
+        use=["hxtorch"],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         install_path="${PREFIX}/lib",
@@ -43,10 +48,10 @@ def build(bld):
         # use=[],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
-        pylint_config=os.path.join(get_toplevel_path(), "code-format", "pylintrc"),
+        pylint_config=os.path.join(
+            get_toplevel_path(), "code-format", "pylintrc"),
         pycodestyle_config=os.path.join(
-            get_toplevel_path(), "code-format", "pycodestyle"
-        ),
+            get_toplevel_path(), "code-format", "pycodestyle"),
     )
 
     bld(
@@ -64,7 +69,7 @@ def build(bld):
             os.path.join(get_toplevel_path(), "code-format", "doxyfile")
         ),
         doxy_inputs="src/pyjaxsnn",
-        install_path="doc/pycwjaxsnnhxtorch",
+        install_path="doc/pyjaxsnn",
         pars={
             "PROJECT_NAME": '"pyjaxsnn"',
             "OUTPUT_DIRECTORY": os.path.join(

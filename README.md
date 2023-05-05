@@ -1,7 +1,6 @@
 # jaxsnn
 
 
-
 This library is split into two parts. A conventional time-stepping approach and an event-based library, found in the `event` folder.
 
 ## Event Library
@@ -30,4 +29,6 @@ python -m jaxsnn.event.tasks.first_spike
 
 ## Acknowledgements
 
-This library incorporates code from the excellent [jax-cfd](https://github.com/google/jax-cfd) library. In particular we make use of their solver code and some utilities. The respective files carry the original copyright notices.
+This library incorporates code from the excellent [jax-cfd](https://github.com/google/jax-cfd) library.
+In particular we make use of their solver code and some utilities.
+The respective files carry the original copyright notices.

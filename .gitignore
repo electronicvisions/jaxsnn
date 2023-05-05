@@ -1,9 +1,0 @@
-.DS_Store
-__pycache__
-.vscode
-.eggs
-.pytest_cache
-*.egg-info
-*.pyc
-build/
-plots/
