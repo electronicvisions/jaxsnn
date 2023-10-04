@@ -2,7 +2,6 @@ import dataclasses
 
 import jax.numpy as jnp
 import tree_math
-from jaxsnn.base import explicit
 from jaxsnn.base.types import Array, ArrayLike
 
 
@@ -77,31 +76,3 @@ def lif_dynamics(p: LIFParameters):
         return LIFState(V=v_dot, I=I_dot)  # , w_rec=0.0)
 
     return dynamics
-
-
-def lif_projection(p: LIFParameters, func):  # , rec_fun):
-    def projection(state: LIFState, u: LIFInput):
-        # TODO: z = func((state.v - p.v_th) / (p.v_th - p.v_leak))
-        return LIFState(
-            V=jnp.where(state.V > p.v_th, p.v_reset, state.V),
-            I=state.I + u.z,  # TODO: + rec_fun(state.w_rec, z)
-            # w_rec=state.w_rec,
-        )
-
-    return projection
-
-
-def lif_output(p: LIFParameters, func):
-    def output(state: LIFState, _):
-        return func((state.V - p.v_th) / (p.v_th - p.v_leak)), state
-
-    return output
-
-
-def lif_equation(p: LIFParameters, func):
-    equation = explicit.ExplicitConstrainedCDE(
-        explicit_terms=lif_dynamics(p),
-        projection=lif_projection(p, func),
-        output=lif_output(p, func),
-    )
-    return equation
