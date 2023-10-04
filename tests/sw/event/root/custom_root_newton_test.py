@@ -1,4 +1,4 @@
-from . import cr_newton_solver
+from jaxsnn.event.root import cr_newton_solver
 
 import jax.numpy as np
 import jax

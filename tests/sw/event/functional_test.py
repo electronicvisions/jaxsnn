@@ -6,7 +6,8 @@ from jaxsnn.event.root.ttfs import ttfs_solver
 from jaxsnn.event.leaky_integrate_and_fire import transition_without_recurrence
 from jaxsnn.functional.leaky_integrate_and_fire import LIFState, LIFParameters
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
-from jaxsnn.base.types import StepState, Spike, InputQueue, WeightInput
+from jaxsnn.base.types import StepState, Spike, InputQueue, WeightInput, EventPropSpike
+from jaxsnn.event.root.next import next_event
 
 
 def test_exponential_flow():
@@ -40,13 +41,16 @@ def test_step():
     layer_start = 2
 
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
-    batched_solver = jax.vmap(solver, in_axes=(0, None))
+    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
+
     transition = partial(transition_without_recurrence, p)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
     weights = WeightInput(np.zeros((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
-    spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([0, 1]))
+    spikes = EventPropSpike(
+        time=np.array([1.0, 2.0]), idx=np.array([0, 1]), current=np.array([0.0, 0.0])
+    )
     state = StepState(neuron_state, start_time, InputQueue(spikes))
     step_state = (state, weights, layer_start)
 
@@ -76,13 +80,16 @@ def test_step_same_time():
     layer_start = 2
 
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
-    batched_solver = jax.vmap(solver, in_axes=(0, None))
+    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
+
     transition = partial(transition_without_recurrence, p)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
     weights = WeightInput(np.zeros((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
-    spikes = Spike(time=np.array([1.0, 2.0]), idx=np.array([0, 1]))
+    spikes = EventPropSpike(
+        time=np.array([1.0, 2.0]), idx=np.array([0, 1]), current=np.array([0.0, 0.0])
+    )
     state = StepState(neuron_state, start_time, InputQueue(spikes))
     step_state = (state, weights, layer_start)
 
@@ -112,14 +119,17 @@ def test_step_no_transition():
     layer_start = 2
 
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
-    batched_solver = jax.vmap(solver, in_axes=(0, None))
+    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
+
     transition = partial(transition_without_recurrence, p)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
     weights = WeightInput(np.ones((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
     # normal input spike, neuron current should increase
-    spikes = Spike(time=np.array([1.0]), idx=np.array([0]))
+    spikes = EventPropSpike(
+        time=np.array([1.0]), idx=np.array([0]), current=np.array([0.0])
+    )
     state = StepState(neuron_state, start_time, InputQueue(spikes))
     step_state = (state, weights, layer_start)
 
@@ -130,7 +140,9 @@ def test_step_no_transition():
     assert np.all(step_state.neuron_state.I == np.ones(2))
 
     # input spike of previous layer, neuron current should not increase
-    spikes = Spike(time=np.array([1.0]), idx=np.array([0]))
+    spikes = EventPropSpike(
+        time=np.array([1.0]), idx=np.array([0]), current=np.array([0.0])
+    )
     state = StepState(neuron_state, start_time, InputQueue(spikes))
     layer_start = 5
     step_state = (state, weights, layer_start)

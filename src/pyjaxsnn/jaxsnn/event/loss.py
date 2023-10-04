@@ -5,11 +5,9 @@ import jax.numpy as np
 from jaxsnn.event import custom_lax
 from jaxsnn.base.types import Array, ArrayLike, Spike, Weight
 from jaxsnn.functional.leaky_integrate_and_fire import LIFState
-# import hxtorch
 import logging
 
 
-# log = hxtorch.logger.get("hxtorch.snn.experiment")
 log = logging.getLogger(__name__)
 
 def max_over_time(output: LIFState) -> Array:
@@ -73,9 +71,7 @@ def loss_wrapper_known_spikes(
     input_spikes, target = batch
     recording = apply_fn(spikes, weights, input_spikes)
     output = recording[-1]
-    # log.INFO(f"N neurons: {n_neurons}, n_output: {n_outputs}")
     t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
-    # log.INFO(f"T first spike mean: {t_first_spike.mean()}")
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)

@@ -13,7 +13,7 @@ from jaxsnn.base.types import (
     WeightRecurrent,
 )
 from jaxsnn.event.dataset import Dataset
-from jaxsnn.event.hardware.utils import filter_spikes
+from jaxsnn.event.hardware.utils import filter_spikes, cut_spikes
 
 log = hxtorch.logger.get("hxtorch.snn.experiment")
 

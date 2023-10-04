@@ -5,9 +5,9 @@ from jax import random
 from typing import List, Optional
 import jax
 from functools import partial
-import hxtorch
+import logging
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
+log = logging.getLogger(__name__)
 
 
 def spike_to_grenade_input(spike: Spike, input_neurons: int):
@@ -58,7 +58,9 @@ def linear_saturating(
     return np.clip(scale * weight, min_weight, max_weight)
 
 
-def filter_spikes_batch(spikes: Spike, layer_start: int, layer_end: Optional[int] = None):
+def filter_spikes_batch(
+    spikes: Spike, layer_start: int, layer_end: Optional[int] = None
+):
     """Only return spikes of neurons after layer start
 
     Other spikes are encoded with time=np.inf and index=-1
@@ -85,7 +87,6 @@ def filter_spikes(spikes: Spike, layer_start: int, layer_end: Optional[int] = No
         filtered_time = np.where(filtered_idx < layer_end, filtered_time, np.inf)
         filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
 
-
     sort_idx = np.argsort(filtered_time, axis=-1)
 
     idx = filtered_idx[sort_idx]
@@ -110,28 +111,37 @@ def sort_batch(spikes: Spike) -> Spike:
     return Spike(time=time, idx=idx)
 
 
-def add_noise_batch(spikes: Spike, rng: random.PRNGKey, std: float = 1e-7, bias: float = 1e-7) -> Spike:
+def add_noise_batch(
+    spikes: Spike, rng: random.PRNGKey, std: float = 1e-7, bias: float = 1e-7
+) -> Spike:
     noise = random.normal(rng, spikes.time.shape) * std + bias
     spikes_with_noise = Spike(time=spikes.time + noise, idx=spikes.idx)
     # return spikes_with_noise
     return sort_batch(spikes_with_noise)
 
 
-def simulate_hw_weights(params: List[Weight], scale: float, as_int: bool=False) -> List[Weight]:
+def simulate_hw_weights(
+    params: List[Weight], scale: float, as_int: bool = False
+) -> List[Weight]:
     new_params = []
     for param in params:
         if isinstance(param, WeightInput):
-            new_param = WeightInput(linear_saturating(param.input, scale, as_int=as_int) / scale)
+            new_param = WeightInput(
+                linear_saturating(param.input, scale, as_int=as_int) / scale
+            )
         else:
             new_param = WeightRecurrent(
                 input=linear_saturating(param.input, scale, as_int=as_int) / scale,
-                recurrent=linear_saturating(param.recurrent, scale, as_int=as_int) / scale,
+                recurrent=linear_saturating(param.recurrent, scale, as_int=as_int)
+                / scale,
             )
         new_params.append(new_param)
     return new_params
 
 
-def simulate_madc(tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight: float, ts: Array):
+def simulate_madc(
+    tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight: float, ts: Array
+):
     A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
     tk = inputs.time
     xk = np.array([[0.0, weight]])
@@ -139,22 +149,20 @@ def simulate_madc(tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight:
     def heaviside(x):
         return 0.5 + 0.5 * np.sign(x)
 
-
     def kernel(t, t0):
         return heaviside(t - t0) * jax.scipy.linalg.expm(A * (t - t0))
 
-
     def f(t0, x0, t):
-        return np.einsum(
-            "ijk, ik -> j", jax.vmap(partial(kernel, t))(t0), x0
-        )
-    
+        return np.einsum("ijk, ik -> j", jax.vmap(partial(kernel, t))(t0), x0)
+
     return jax.vmap(partial(f, tk, xk), in_axes=0)(ts)
 
 
 def add_linear_noise(spike: Spike) -> Spike:
     batch_size, n_spikes = spike.idx.shape
-    time_noise = np.repeat(np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0), batch_size, axis=0)
+    time_noise = np.repeat(
+        np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0), batch_size, axis=0
+    )
     assert time_noise.shape == spike.idx.shape
     return Spike(idx=spike.idx, time=spike.time + time_noise)
 
@@ -180,12 +188,14 @@ def spike_similarity_batch(spike1: Spike, spike2: Spike):
 
         # # now compare the times
         diff = first_spike1 - first_spike2
-        masked = onp.ma.masked_where(diff==np.inf, diff)
+        masked = onp.ma.masked_where(diff == np.inf, diff)
         masked = onp.ma.masked_where(masked == np.nan, masked)
         mean = onp.mean(masked, axis=0)
         std = onp.std(masked, axis=0)
         # log.INFO(f"Neurons {start} to {stop}:")
         # log.INFO(f"Software is on average {mean.mean()} earlier")
         # log.INFO(f"Average std per neuron: {std.mean()}")
-        log.INFO(f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn, HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn")
+        log.INFO(
+            f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn, HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn"
+        )
         log.INFO(f"")

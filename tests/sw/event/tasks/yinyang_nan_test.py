@@ -4,7 +4,7 @@ import jax
 import jax.numpy as np
 from jax import random
 
-from jaxsnn.base.types import Spike
+from jaxsnn.base.types import EventPropSpike
 from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset.toy import yinyang_dataset
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
@@ -48,14 +48,15 @@ def test_nans():
     bad_idx = 79
     i = 1
     batch = (
-        Spike(
+        EventPropSpike(
             trainset[0].time[bad_idx][i],
             trainset[0].idx[bad_idx][i],
+            np.zeros_like(trainset[0].time[bad_idx][i]),
         ),
         trainset[1][bad_idx][i],
     )
 
-    params = load_params(["jaxsnn/event/tasks/weights7.npy"])
+    params = load_params(["src/pyjaxsnn/jaxsnn/event/tasks/weights7.npy"])
 
     # declare net
     _, apply_fn = serial(
@@ -80,4 +81,4 @@ def test_nans():
     (loss, recording), grad = jax.value_and_grad(loss_fn, has_aux=True)(
         params, batch[0]
     )
-    assert not np.isnan(np.mean(grad[0]))
+    assert not np.isnan(np.mean(grad[0].input))

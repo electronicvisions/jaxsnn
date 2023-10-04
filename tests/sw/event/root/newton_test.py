@@ -31,7 +31,7 @@ def test_newton_solver_spike():
     def loss(weight):
         state = LIFState(V=0.0, I=3.0)
         state.I = state.I * weight
-        return solver(state, dt=0.2)
+        return jax.jit(solver)(state, dt=0.2)
 
     weight = np.array(1.0)
     value, grad = jax.value_and_grad(loss)(weight)
@@ -45,7 +45,7 @@ def test_newton_solver_no_spike():
 
     def loss(state, weight):
         state.I = state.I * weight
-        return solver(state, dt)
+        return jax.jit(solver)(state, dt)
 
     state = LIFState(V=0.0, I=2.0)
     weight = np.array(1.0)

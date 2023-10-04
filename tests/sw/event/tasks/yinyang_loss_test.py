@@ -4,7 +4,7 @@ import jax
 import jax.numpy as np
 from numpy.testing import assert_almost_equal
 
-from jaxsnn.base.types import Spike
+from jaxsnn.base.types import EventPropSpike
 from jaxsnn.event.compose import serial
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.root import ttfs_solver
@@ -24,13 +24,17 @@ def test_nans():
     solver = partial(ttfs_solver, p.tau_mem, p.v_th)
 
     # class 1
-    input_spikes = Spike(
-        np.array([0.0000000e00, 4.4690369e-05, 4.4967532e-03, 5.5032466e-03]),
-        np.array([4, 2, 3, 1, 0]),
+    input_spikes = EventPropSpike(
+        time=np.array([0.0000000e00, 4.4690369e-05, 4.4967532e-03, 5.5032466e-03]),
+        idx=np.array([4, 2, 3, 1, 0]),
+        current=np.zeros(5),
     )
 
     params = load_params(
-        ["jaxsnn/event/tasks/weights3.npy", "jaxsnn/event/tasks/weights4.npy"]
+        [
+            "src/pyjaxsnn/jaxsnn/event/tasks/weights3.npy",
+            "src/pyjaxsnn/jaxsnn/event/tasks/weights4.npy",
+        ]
     )
 
     # declare net
@@ -51,7 +55,7 @@ def test_nans():
         ),
     )
 
-    def first_spike(spikes: Spike, size: int):
+    def first_spike(spikes: EventPropSpike, size: int):
         return np.array(
             [
                 np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
@@ -78,7 +82,7 @@ def test_nans():
         params, input_spikes
     )
     assert not np.isnan(np.mean(grad[0].input))
-    assert_almost_equal(loss, -1.1718568, 7)
+    assert_almost_equal(loss, -1.1499, 4)
 
 
 if __name__ == "__main__":

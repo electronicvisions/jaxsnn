@@ -4,7 +4,7 @@ import jax
 from jax import random
 
 from jaxsnn.event.compose import serial
-from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters, RecurrentLIF
+from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.event.tasks.constant import update
 from jaxsnn.event.loss import target_time_loss, loss_wrapper
@@ -25,8 +25,14 @@ def test_train():
 
     # declare net
     init_fn, apply_fn = serial(
-        RecurrentLIF(4, n_spikes=10, t_max=t_max, p=p, solver=solver),
-        LIF(2, n_spikes=20, t_max=t_max, p=p, solver=solver),
+        LIF(n_hidden, n_spikes=input_shape + n_hidden, t_max=t_max, p=p, solver=solver),
+        LIF(
+            n_output,
+            n_spikes=input_shape + n_hidden + n_output,
+            t_max=t_max,
+            p=p,
+            solver=solver,
+        ),
     )
 
     # init weights
@@ -41,4 +47,4 @@ def test_train():
     # train the net
     trainset = constant_dataset(t_max, [n_epochs])
     weights, (loss_value, _) = jax.lax.scan(update_fn, weights, trainset[:2])
-    assert loss_value[-1] <= -0.4
+    assert loss_value[-1] <= -0.4, loss_value
