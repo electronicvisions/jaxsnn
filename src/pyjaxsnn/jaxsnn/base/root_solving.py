@@ -1,5 +1,5 @@
 import jax
-import jax.numpy as jnp
+import jax.numpy as np
 
 
 def linear_interpolation(f_a, f_b, a, b, x):
@@ -32,7 +32,6 @@ def newton_1d(f, x0):
 
 
 def newton_nd(f, x0):
-
     initial_state = (0, x0)
 
     def cond(state):
@@ -68,17 +67,17 @@ def bisection(f, x_min, x_max, tol):
 
     def cond(state):
         it, x_min, x_max = state
-        return jnp.abs(f(x_min)) > tol  # it > 10
+        return np.abs(f(x_min)) > tol  # it > 10
 
     def body(state):
         it, x_min, x_max = state
         x = (x_min + x_max) / 2
 
-        sfxm = jnp.sign(f(x_min))
-        sfx = jnp.sign(f(x))
+        sfxm = np.sign(f(x_min))
+        sfx = np.sign(f(x))
 
-        x_min = jnp.where(sfx == sfxm, x, x_min)
-        x_max = jnp.where(sfx == sfxm, x_max, x)
+        x_min = np.where(sfx == sfxm, x, x_min)
+        x_max = np.where(sfx == sfxm, x_max, x)
 
         new_state = (it + 1, x_min, x_max)
         return new_state

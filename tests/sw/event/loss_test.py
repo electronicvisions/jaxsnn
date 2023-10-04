@@ -1,8 +1,7 @@
 import jax.numpy as np
+from jaxsnn.event.loss import first_spike, nll_loss, target_time_loss
+from jaxsnn.event.types import Spike
 from numpy.testing import assert_almost_equal, assert_array_equal
-
-from jaxsnn.base.types import Spike
-from jaxsnn.event.loss import first_spike, target_time_loss, nll_loss
 
 
 def test_first_spikes():

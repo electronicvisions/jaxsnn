@@ -1,14 +1,11 @@
-from functools import partial
-
 import jax
 import jax.numpy as np
-from numpy.testing import assert_almost_equal
-
-from jaxsnn.base.types import EventPropSpike
+from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.compose import serial
-from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
-from jaxsnn.event.root import ttfs_solver
+from jaxsnn.event.leaky_integrate_and_fire import LIF
+from jaxsnn.event.types import EventPropSpike
 from jaxsnn.event.utils import load_params
+from numpy.testing import assert_almost_equal
 
 
 def test_nans():
@@ -21,8 +18,6 @@ def test_nans():
     n_spikes_hidden = 60
     n_spikes_output = 55
 
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
-
     # class 1
     input_spikes = EventPropSpike(
         time=np.array([0.0000000e00, 4.4690369e-05, 4.4967532e-03, 5.5032466e-03]),
@@ -32,8 +27,8 @@ def test_nans():
 
     params = load_params(
         [
-            "src/pyjaxsnn/jaxsnn/event/tasks/weights3.npy",
-            "src/pyjaxsnn/jaxsnn/event/tasks/weights4.npy",
+            "tests/sw/event/tasks/weights3.npy",
+            "tests/sw/event/tasks/weights4.npy",
         ]
     )
 
@@ -44,14 +39,12 @@ def test_nans():
             n_spikes_hidden,
             t_max,
             p,
-            solver,
         ),
         LIF(
             output_size,
             n_spikes_output,
             t_max,
             p,
-            solver,
         ),
     )
 

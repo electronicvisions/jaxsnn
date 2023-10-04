@@ -1,27 +1,26 @@
 """
 Defining basic types to create hw-executable instances
 """
+import logging
 import time
-from typing import Dict, List, Tuple, Union, Optional
 from pathlib import Path
-from jaxsnn.base.types import Array
-from dlens_vx_v3 import hal, lola
-import pygrenade_vx as grenade
+from typing import Dict, List, Optional, Tuple, Union
+
+import _hxtorch_core
 import hxtorch
-from hxtorch.snn.utils import calib_helper
+import jax.numpy as np
+import pygrenade_vx as grenade
+from dlens_vx_v3 import hal, lola
 from hxtorch.snn.experiment import NeuronPlacement
-from jaxsnn.base.types import WeightRecurrent, Weight
+from hxtorch.snn.utils import calib_helper
+from jaxsnn.base.types import Array
+from jaxsnn.event.hardware.calib import WaferConfig
+from jaxsnn.event.hardware.input_neuron import InputNeuron
 from jaxsnn.event.hardware.neuron import Neuron
 from jaxsnn.event.hardware.synapse import Synapse
-from jaxsnn.base.types import Spike
-from jaxsnn.event.hardware.input_neuron import InputNeuron
-import _hxtorch_core
-import jax.numpy as np
-from jaxsnn.event.hardware.calib import WaferConfig
+from jaxsnn.event.types import Spike, Weight
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
-# grenade_log = hxtorch.logger.get("grenade")
-# hxtorch.logger.set_loglevel(grenade_log, hxtorch.logger.logLevel.TRACE)
+log = logging.getLogger("root")
 
 HardwareSpike = Dict[
     grenade.network.placed_logical.PopulationDescriptor, Tuple[Array, Array]
@@ -95,14 +94,14 @@ class Experiment:
 
         # If chip is still None we load default nightly calib
         if self._chip is None:
-            log.INFO(
+            log.info(
                 "No chip object present. Using chip object with default "
                 + "nightly calib."
             )
             self._chip = self.load_calib(calib_helper.nightly_calib_path())
 
         self._static_config_prepared = True
-        log.TRACE("Preparation of static config done.")
+        log.debug("Preparation of static config done.")
 
     def load_calib(self, calib_path: Optional[Union[Path, str]] = None) -> lola.Chip:
         """
@@ -113,7 +112,7 @@ class Experiment:
         :return: Returns the chip object for the given calibration.
         """
         # If no calib path is given we load spiking nightly calib
-        log.INFO(f"Loading calibration from {calib_path}")
+        log.info(f"Loading calibration from {calib_path}")
         self._chip = calib_helper.chip_from_file(calib_path)
         return self._chip
 
@@ -137,28 +136,35 @@ class Experiment:
 
         # add input population
         for pop in self._populations:
+            # log.info(f"Adding population of size: {pop.size}")
             pop.add_to_network_graph(network_builder)
 
-        for i, weight in enumerate(weights):
-            synapse = Synapse(self, weight.input.T)
-            synapse.add_to_network_graph(
-                network_builder,
-                self._populations[i].descriptor,
-                self._populations[1].descriptor,
-                self.wafer_config.weight_scaling,
-            )
+        # for i, weight in enumerate(weights):
+        #     synapse = Synapse(self, weight.input.T)
+        #     synapse.add_to_network_graph(
+        #         network_builder,
+        #         self._populations[i].descriptor,
+        #         self._populations[1].descriptor,
+        #         self.wafer_config.weight_scaling,
+        #     )
 
         # first weights
-        # synapse = Synapse(self, weights[0].input[:, : 100].T)
-        # synapse.add_to_network_graph(
-        #     network_builder, self._populations[0].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling
-        # )
+        synapse = Synapse(self, weights[0].input[:, :100].T)
+        synapse.add_to_network_graph(
+            network_builder,
+            self._populations[0].descriptor,
+            self._populations[1].descriptor,
+            self.wafer_config.weight_scaling,
+        )
 
         # second weights
-        # synapse = Synapse(self, weights[0].recurrent[: 100, 100: 103].T)
-        # synapse.add_to_network_graph(
-        #     network_builder, self._populations[1].descriptor, self._populations[2].descriptor, self.wafer_config.weight_scaling
-        # )
+        synapse = Synapse(self, weights[0].recurrent[:100, 100:103].T)
+        synapse.add_to_network_graph(
+            network_builder,
+            self._populations[1].descriptor,
+            self._populations[2].descriptor,
+            self.wafer_config.weight_scaling,
+        )
         network = network_builder.done()
 
         # route network if required
@@ -193,13 +199,13 @@ class Experiment:
             if not isinstance(module, Neuron):
                 continue
 
-            log.TRACE(f"Configure population '{module}'.")
+            log.debug(f"Configure population '{module}'.")
             for in_pop_id, unit_id in enumerate(module.unit_ids):
                 coord = self.neuron_placement.id2logicalneuron(unit_id)
                 self._chip.neuron_block = module.configure_hw_entity(
                     in_pop_id, self._chip.neuron_block, coord
                 )
-                log.TRACE(f"Configured neuron at coord {coord}.")
+                log.debug(f"Configured neuron at coord {coord}.")
         self._populations_configured = True
 
     def _generate_inputs(
@@ -324,7 +330,7 @@ class Experiment:
         inputs.runtime = [
             {grenade.signal_flow.ExecutionInstance(): runtime_in_clocks}
         ] * self._batch_size
-        log.TRACE(f"Registered runtimes: {inputs.runtime}")
+        log.debug(f"Registered runtimes: {inputs.runtime}")
 
         grenade_start = time.time()
         outputs = hxtorch.snn.grenade_run(
@@ -349,7 +355,7 @@ class Experiment:
 
         # madc
         if self.has_madc_recording:
-            log.INFO(f"Runtime in clocks: {runtime_in_clocks}")
+            log.info(f"Runtime in clocks: {runtime_in_clocks}")
             hw_madc_samples = hxtorch.snn.extract_madc(
                 outputs, network, runtime_in_clocks
             )

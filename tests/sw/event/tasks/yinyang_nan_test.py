@@ -1,20 +1,12 @@
-from functools import partial
-
 import jax
 import jax.numpy as np
 from jax import random
-
-from jaxsnn.base.types import EventPropSpike
+from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.compose import serial
-from jaxsnn.event.dataset.toy import yinyang_dataset
-from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
-from jaxsnn.event.root import ttfs_solver
+from jaxsnn.event.dataset.yinyang import yinyang_dataset
+from jaxsnn.event.leaky_integrate_and_fire import LIF
+from jaxsnn.event.types import EventPropSpike
 from jaxsnn.event.utils import load_params
-
-from jax.config import config
-
-
-config.update("jax_debug_nans", True)
 
 
 def test_nans():
@@ -33,16 +25,17 @@ def test_nans():
     hidden_size = 60
     n_spikes_hidden = 4
 
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
     seed = 42
 
     rng = random.PRNGKey(seed)
     param_rng, train_rng, test_rng = random.split(rng, 3)
     trainset = yinyang_dataset(
         train_rng,
-        t_late,
         [n_train_batches, batch_size],
+        t_late,
         bias_spike=bias_spike,
+        correct_target_time=0.9 * t_late,
+        wrong_target_time=1.5 * t_late,
     )
 
     bad_idx = 79
@@ -56,24 +49,12 @@ def test_nans():
         trainset[1][bad_idx][i],
     )
 
-    params = load_params(["src/pyjaxsnn/jaxsnn/event/tasks/weights7.npy"])
+    params = load_params(["tests/sw/event/tasks/weights7.npy"])
 
     # declare net
-    _, apply_fn = serial(
-        LIF(
-            hidden_size,
-            n_spikes_hidden,
-            t_max,
-            p,
-            solver,
-        ),
-    )
-    # apply_fn = jax.jit(apply_fn)
+    _, apply_fn = serial(LIF(hidden_size, n_spikes_hidden, t_max, p))
 
-    def loss_fn(
-        weights,
-        input_spikes,
-    ):
+    def loss_fn(weights, input_spikes):
         recording = apply_fn(weights, input_spikes)
         return recording[0].time[3], recording
 

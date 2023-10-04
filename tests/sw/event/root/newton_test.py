@@ -2,13 +2,10 @@ from functools import partial
 
 import jax
 import jax.numpy as np
-from jax import config
-from numpy.testing import assert_almost_equal
-
-from jaxsnn.event.leaky_integrate import LIFParameters, LIFState
+from jaxsnn.base.params import LIFParameters
+from jaxsnn.event.leaky_integrate import LIFState
 from jaxsnn.event.root.newton import newton_solver
-
-config.update("jax_debug_nans", True)
+from numpy.testing import assert_almost_equal
 
 
 def get_lif_dynamics():

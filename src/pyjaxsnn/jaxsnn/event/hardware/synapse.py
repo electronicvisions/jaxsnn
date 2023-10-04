@@ -1,19 +1,19 @@
 """
 Implementing SNN modules
 """
+import logging
 from typing import Tuple
+
+import _hxtorch_core
+import hxtorch
+import jax
 import jax.numpy as np
 import numpy as onp
-from jaxsnn.base.types import Array
-from jaxsnn.event.hardware import utils
-
 import pygrenade_vx.network.placed_logical as grenade
-
+from jaxsnn.event.hardware import utils
 from jaxsnn.event.hardware.module import Module
-import hxtorch
-import _hxtorch_core
 
-log = hxtorch.logger.get("hxtorch.snn.modules")
+log = logging.getLogger("root")
 
 
 class Synapse(Module):
@@ -22,9 +22,9 @@ class Synapse(Module):
     """
 
     __constants__ = ["in_features", "out_features"]
-    weight: Array
+    weight: jax.Array
 
-    def __init__(self, experiment, weight: Array) -> None:
+    def __init__(self, experiment, weight: jax.Array) -> None:
         """
         :param in_features: Size of input dimension.
         :param out_features: Size of output dimension.
@@ -85,6 +85,6 @@ class Synapse(Module):
         exc_descriptor = builder.add(projection_exc)
         inh_descriptor = builder.add(projection_inh)
         self.descriptor = (exc_descriptor, inh_descriptor)
-        log.TRACE(f"Added projection '{self}' to grenade graph.")
+        log.debug(f"Added projection '{self}' to grenade graph.")
 
         return self.descriptor

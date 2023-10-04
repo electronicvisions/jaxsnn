@@ -1,9 +1,6 @@
-from typing import Any, Dict, Tuple, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import pygrenade_vx.network.placed_logical as grenade
-import hxtorch
-
-log = hxtorch.logger.get("hxtorch.snn.modules")
 
 
 class Module:

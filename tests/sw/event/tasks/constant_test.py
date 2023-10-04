@@ -1,14 +1,24 @@
 from functools import partial
+from typing import Callable, List, Tuple
 
 import jax
 from jax import random
-
+from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.compose import serial
-from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
-from jaxsnn.event.root import ttfs_solver
-from jaxsnn.event.tasks.constant import update
-from jaxsnn.event.loss import target_time_loss, loss_wrapper
 from jaxsnn.event.dataset import constant_dataset
+from jaxsnn.event.leaky_integrate_and_fire import LIF
+from jaxsnn.event.loss import loss_wrapper, target_time_loss
+from jaxsnn.event.types import Spike, Weight
+
+
+def update(
+    loss_fn: Callable,
+    weights: List[Weight],
+    batch: Tuple[Spike, jax.Array],
+):
+    value, grad = jax.value_and_grad(loss_fn, has_aux=True)(weights, batch)
+    weights = jax.tree_map(lambda f, df: f - 0.1 * df, weights, grad)
+    return weights, value
 
 
 def test_train():
@@ -21,18 +31,11 @@ def test_train():
     p = LIFParameters()
     t_late = p.tau_syn + p.tau_mem
     t_max = 2 * t_late
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
 
     # declare net
     init_fn, apply_fn = serial(
-        LIF(n_hidden, n_spikes=input_shape + n_hidden, t_max=t_max, p=p, solver=solver),
-        LIF(
-            n_output,
-            n_spikes=input_shape + n_hidden + n_output,
-            t_max=t_max,
-            p=p,
-            solver=solver,
-        ),
+        LIF(n_hidden, n_spikes=input_shape + n_hidden, t_max=t_max, p=p),
+        LIF(n_output, n_spikes=input_shape + n_hidden + n_output, t_max=t_max, p=p),
     )
 
     # init weights

@@ -1,8 +1,8 @@
 import jax.numpy as np
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters
-from jaxsnn.base.types import Spike
+from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.leaky_integrate import LeakyIntegrator, li_cell
-from numpy.testing import assert_array_equal, assert_array_almost_equal
+from jaxsnn.event.types import Spike
+from numpy.testing import assert_array_almost_equal, assert_array_equal
 
 
 def test_li_cell():

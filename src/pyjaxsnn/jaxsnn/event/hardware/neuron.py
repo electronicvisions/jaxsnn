@@ -1,17 +1,18 @@
 """
 Implementing SNN modules
 """
-from typing import Optional, List
-import numpy as np
-from .module import Module
+import logging
+from typing import List, Optional
 
-from dlens_vx_v3 import lola, halco, hal
-import pygrenade_vx.network.placed_logical as grenade
 import hxtorch
+import numpy as np
+import pygrenade_vx.network.placed_logical as grenade
+from dlens_vx_v3 import hal, halco, lola
 from hxtorch.snn.morphology import SingleCompartmentNeuron
+from jaxsnn.event.hardware.module import Module
 from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
 
-log = hxtorch.logger.get("hxtorch.snn.modules")
+log = logging.getLogger("root")
 
 
 class Neuron(Module):
@@ -86,7 +87,7 @@ class Neuron(Module):
                     + "single neuron."
                 )
             self.experiment.has_madc_recording = True
-        log.TRACE(f"Registered hardware  entity '{self}'.")
+        log.debug(f"Registered hardware  entity '{self}'.")
 
     def configure_hw_entity(
         self,
@@ -107,7 +108,7 @@ class Neuron(Module):
         self._neuron_structure.implement_morphology(coord, neuron_block)
         self._neuron_structure.set_spike_recording(True, coord, neuron_block)
         if neuron_id == self._record_neuron_id:
-            log.INFO(f"Configuring madc recording for neuron {neuron_id}")
+            log.info(f"Configuring madc recording for neuron {neuron_id}")
             self._neuron_structure.enable_madc_recording(
                 coord, neuron_block, self._madc_readout_source
             )
@@ -173,5 +174,5 @@ class Neuron(Module):
         madc_recording.compartment_on_neuron = halco.CompartmentOnLogicalNeuron()
         madc_recording.atomic_neuron_on_compartment = 0
         builder.add(madc_recording)
-        log.TRACE(f"Added population '{self}' to grenade graph.")
+        log.debug(f"Added population '{self}' to grenade graph.")
         return self.descriptor

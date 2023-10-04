@@ -1,7 +1,6 @@
-from jax import lax
-
-from jaxsnn.base.types import StepState, Weight, WeightRecurrent, WeightInput
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters
+import jax
+from jaxsnn.base.params import LIFParameters
+from jaxsnn.event.types import StepState, Weight, WeightInput, WeightRecurrent
 
 
 def transition_with_recurrence(
@@ -35,14 +34,14 @@ def transition_with_recurrence(
         spike = state.input_queue.pop()
         index_for_layer = spike.idx - prev_layer_start
         input_previous_layer = index_for_layer >= 0
-        state.neuron_state.I = lax.cond(
+        state.neuron_state.I = jax.lax.cond(
             input_previous_layer,
             lambda: state.neuron_state.I + weights.input[index_for_layer],
             lambda: state.neuron_state.I,
         )
         return state
 
-    return lax.cond(
+    return jax.lax.cond(
         recurrent_spike,
         recurrent_transition,
         input_transition,
@@ -68,7 +67,7 @@ def transition_without_recurrence(
         spike = state.input_queue.pop()
         index_for_layer = spike.idx - prev_layer_start
         input_previous_layer = index_for_layer >= 0
-        state.neuron_state.I = lax.cond(
+        state.neuron_state.I = jax.lax.cond(
             input_previous_layer,
             lambda: state.neuron_state.I + weights.input[index_for_layer],
             lambda: state.neuron_state.I,
@@ -79,7 +78,7 @@ def transition_without_recurrence(
         state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(p.v_reset)
         return state
 
-    return lax.cond(
+    return jax.lax.cond(
         recurrent_spike,
         no_transition,
         input_transition,

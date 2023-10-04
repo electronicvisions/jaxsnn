@@ -1,13 +1,15 @@
-from absl.testing import absltest
-import numpy as np
 import math
 
 import jaxsnn.base.root_solving as root_solving
+import numpy as np
+from absl.testing import absltest
 
 
 def test_bisection():
     expected = math.sqrt(2)
-    f = lambda x: x**2 - 2
+
+    def f(x):
+        return x**2 - 2
 
     tol = 0.1
     actual = root_solving.bisection(f, 0, 2, tol)
@@ -20,7 +22,10 @@ def test_bisection():
 
 def test_newton_1d():
     expected = math.sqrt(2)
-    f = lambda x: x**2 - 2
+
+    def f(x):
+        return x**2 - 2
+
     tol = 0.1
     actual = root_solving.newton_1d(f, 1.0)
     np.testing.assert_allclose(actual, expected, atol=tol)

@@ -1,17 +1,17 @@
 from typing import Callable
-import jax.numpy as np
 
-from jaxsnn.base.types import (
-    Array,
+import jax
+import jax.numpy as np
+from jaxsnn.base.params import LIFParameters
+from jaxsnn.event.flow import exponential_flow
+from jaxsnn.event.types import (
     EventPropSpike,
+    LIFState,
     StepState,
     Weight,
     WeightInput,
     WeightRecurrent,
 )
-from jaxsnn.event.functional import exponential_flow
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters, LIFState
-from jax import lax
 
 
 def adjoint_transition_without_recurrence(
@@ -57,7 +57,7 @@ def adjoint_transition_without_recurrence(
         index_for_layer = spike.idx - prev_layer_start
 
         # do nothing if spike is not from directly previous layer
-        grads, dt = lax.cond(
+        grads, dt = jax.lax.cond(
             index_for_layer >= 0,
             lambda: (
                 WeightInput(
@@ -79,7 +79,7 @@ def adjoint_transition_without_recurrence(
         return adjoint_state, grads
 
     spike_in_layer = spike.idx >= layer_start
-    return lax.cond(
+    return jax.lax.cond(
         spike_in_layer,
         adjoint_transition_in_layer,
         adjoint_input_transition,
@@ -172,7 +172,7 @@ def adjoint_transition_with_recurrence(
         return adjoint_state, grads
 
     spike_in_layer = spike.idx >= layer_start
-    updated_state, grads = lax.cond(
+    updated_state, grads = jax.lax.cond(
         spike_in_layer,
         adjoint_transition_with_recurrence_in_layer,
         adjoint_input_transition,
@@ -196,7 +196,7 @@ def adjoint_lif_exponential_flow(p: LIFParameters):
     return exponential_flow(A)
 
 
-def adjoint_lif_dynamic(p: LIFParameters, lambda_0: Array, t: float):
+def adjoint_lif_dynamic(p: LIFParameters, lambda_0: jax.Array, t: float):
     tau_exp = np.exp(-t / p.tau_mem)
     syn_exp = np.exp(-t / p.tau_syn)
     A = np.array(
@@ -212,7 +212,7 @@ def adjoint_lif_dynamic(p: LIFParameters, lambda_0: Array, t: float):
 def step_bwd(
     adjoint_dynamics: Callable, adjoint_tr_dynamics: Callable, t_max: float, res, g
 ):
-    spike, params, layer_start, input_queue_head = res
+    (_, params, layer_start), spike = res
     (adjoint_state, grads, _), adjoint_spike = g
 
     reversed_time = t_max - spike.time
@@ -223,7 +223,7 @@ def step_bwd(
     adjoint_state.time = reversed_time
 
     no_event = spike.idx == -1
-    tr_state, new_grads = lax.cond(
+    tr_state, new_grads = jax.lax.cond(
         no_event,
         lambda *args: (adjoint_state, grads),
         adjoint_tr_dynamics,
@@ -234,7 +234,7 @@ def step_bwd(
             adjoint_spike,
             grads,
             params,
-            input_queue_head,
+            len(adjoint_state.input_queue.spikes.time) - adjoint_state.input_queue.head,
         ),
     )
     # tr_state, new_grads = adjoint_state, grads

@@ -1,7 +1,8 @@
-from typing import List
+import time
+from typing import Any, Callable, List, Tuple
 
 import jax.numpy as np
-from jaxsnn.base.types import Spike, WeightInput, WeightRecurrent
+from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
 
 
 def bump_weights(
@@ -29,9 +30,9 @@ def clip_gradient(grad: List[WeightInput]) -> List[WeightInput]:
     return grad
 
 
-def save_params(params: List[WeightInput], filenames: List[str]):
-    # TODO this needs to work with pytrees
-    for p, filename in zip(params, filenames):
+def save_params(params: List[Weight], folder: str):
+    for i, p in enumerate(params):
+        filename = f"{folder}/weights_{i}.npy"
         np.save(filename, p.input, allow_pickle=True)
 
 
@@ -57,3 +58,9 @@ def load_params(filenames) -> List[WeightInput]:
 
 def get_index_trainset(trainset, idx):
     return (Spike(trainset[0].time[idx], trainset[0].idx[idx]), trainset[1][idx])
+
+
+def time_it(fn: Callable, *args) -> Tuple[Any, float]:
+    start = time.time()
+    res = fn(*args)
+    return res, time.time() - start

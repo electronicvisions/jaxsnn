@@ -1,11 +1,12 @@
-import numpy as onp
-from jaxsnn.base.types import Spike, WeightInput, Weight, WeightRecurrent, Array
-import jax.numpy as np
-from jax import random
-from typing import List, Optional
-import jax
-from functools import partial
 import logging
+from functools import partial
+from typing import List, Optional
+
+import jax
+import jax.numpy as np
+import numpy as onp
+from jax import random
+from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
 
 log = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ def simulate_hw_weights(
 
 
 def simulate_madc(
-    tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight: float, ts: Array
+    tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight: float, ts: jax.Array
 ):
     A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
     tk = inputs.time
@@ -167,7 +168,7 @@ def add_linear_noise(spike: Spike) -> Spike:
     return Spike(idx=spike.idx, time=spike.time + time_noise)
 
 
-def first_spike(spikes: Spike, start: int, stop: int) -> Array:
+def first_spike(spikes: Spike, start: int, stop: int) -> jax.Array:
     return np.array(
         [
             np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
@@ -195,7 +196,7 @@ def spike_similarity_batch(spike1: Spike, spike2: Spike):
         # log.INFO(f"Neurons {start} to {stop}:")
         # log.INFO(f"Software is on average {mean.mean()} earlier")
         # log.INFO(f"Average std per neuron: {std.mean()}")
-        log.INFO(
+        log.info(
             f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn, HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn"
         )
-        log.INFO(f"")
+        log.info(f"")

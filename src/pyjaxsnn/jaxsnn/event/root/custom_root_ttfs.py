@@ -19,5 +19,8 @@ def tangent_solve(g, y):
 
 def cr_ttfs_solver(tau_mem, v_th, y0, initial_guess):
     solve = partial(custom_ttfs, tau_mem, v_th, y0)
-    f = lambda *args: 0.0
-    return jax.lax.custom_root(f, initial_guess, solve, tangent_solve)
+
+    def fn(*args):
+        return 0.0
+
+    return jax.lax.custom_root(fn, initial_guess, solve, tangent_solve)

@@ -1,9 +1,8 @@
 from functools import partial
 
 import jax.numpy as np
-from jaxsnn.base.types import Spike
-
 from jaxsnn.event.root.next import next_queue
+from jaxsnn.event.types import Spike
 
 
 def test_next_queue():

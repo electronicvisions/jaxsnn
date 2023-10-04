@@ -1,0 +1,11 @@
+{
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.analysis.extraPaths": [
+        "./src/pyjaxsnn"
+    ],
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+      },
+}

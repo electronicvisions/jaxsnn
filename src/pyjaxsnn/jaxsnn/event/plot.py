@@ -1,21 +1,15 @@
+import logging
 from typing import List, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.pyplot import Axes
-import hxtorch
-from jaxsnn.base.types import (
-    Array,
-    ArrayLike,
-    Spike,
-    Weight,
-    WeightRecurrent,
-)
-from jaxsnn.event.dataset import Dataset
-from jaxsnn.event.hardware.utils import filter_spikes, cut_spikes
+from jaxsnn.base.types import Array
+from jaxsnn.event.dataset.utils import Dataset
+from jaxsnn.event.hardware.utils import filter_spikes
+from jaxsnn.event.types import Spike, TestResult, Weight, WeightRecurrent
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
+log = logging.getLogger(__name__)
 
 blue = np.array([[47, 66, 87, 210]]) / 256
 red = np.array([[103, 43, 40, 210]]) / 256
@@ -24,7 +18,7 @@ green = np.array([[47, 75, 37, 210]]) / 256
 
 
 def plt_spikes(
-    ax: List[Axes], recording, sizes: Tuple[int], mock: bool, tau_syn: float
+    ax: List[plt.Axes], recording, sizes: Tuple[int], mock: bool, tau_syn: float
 ):
     # plt five different samples
     for j, plt_idx in enumerate(((0, 0), (0, 1), (1, 0), (1, 1))):
@@ -55,17 +49,17 @@ def plt_spikes(
         ax[plt_idx].set_title(f"Spike times in {'SW' if mock else 'HW'}")
 
 
-def plt_loss(ax: Axes, loss: Array):
+def plt_loss(ax: plt.Axes, loss: Array):
     ax.plot(np.arange(len(loss)), loss)
     ax.set_ylabel("test loss")
 
 
-def plt_accuracy(ax: Axes, accuracy: Array):
+def plt_accuracy(ax: plt.Axes, accuracy: Array):
     ax.plot(np.arange(len(accuracy)), accuracy)
     ax.set_ylabel("test accuracy")
 
 
-def plt_no_spike_prob(ax: List[Axes], t_spike, testset):
+def plt_no_spike_prob(ax: List[plt.Axes], t_spike, testset):
     output_size = testset[1].shape[-1]
     for neuron_idx in range(output_size):
         for which_class in range(output_size):
@@ -85,7 +79,7 @@ def plt_no_spike_prob(ax: List[Axes], t_spike, testset):
 
 
 def plt_average_spike_time(
-    ax: Axes, t_spike_correct: Array, t_spike_false: Array, const_target: Array
+    ax: plt.Axes, t_spike_correct: Array, t_spike_false: Array, const_target: Array
 ):
     t_spike_correct_avg = np.nanmean(t_spike_correct, axis=(1, 2))
     t_spike_false_avg = np.nanmean(t_spike_false, axis=(1, 2))
@@ -104,7 +98,7 @@ def plt_average_spike_time(
     ax.legend()
 
 
-def plt_circle(ax: Axes, radius: float, offset: float):
+def plt_circle(ax: plt.Axes, radius: float, offset: float):
     theta = np.linspace(0, 2 * np.pi, 150)
     a = radius * np.cos(theta)
     b = radius * np.sin(theta)
@@ -112,10 +106,10 @@ def plt_circle(ax: Axes, radius: float, offset: float):
 
 
 def plt_prediction(
-    ax: Axes,
+    ax: plt.Axes,
     dataset_in: Dataset,
     t_spike: Array,
-    tau_syn: ArrayLike,
+    tau_syn: float,
     duplication: int = 1,
     duplicate_neurons: bool = False,
 ):
@@ -168,10 +162,10 @@ def plt_prediction(
 
 def plt_t_spike_neuron(
     fig,
-    axs: List[Axes],
+    axs: List[plt.Axes],
     dataset_in: Dataset,
     t_spike: Array,
-    tau_syn: ArrayLike,
+    tau_syn: float,
     duplication: int = 1,
     duplicate_neurons: bool = False,
 ):
@@ -248,9 +242,9 @@ def plt_t_spike_neuron(
 
 
 def plt_dataset(
-    ax: Axes,
+    ax: plt.Axes,
     dataset_in: Dataset,
-    tau_syn: ArrayLike,
+    tau_syn: float,
     observe: Optional[Tuple[Tuple[int, int, str], ...]] = None,
     duplication: int = 1,
     duplicate_neurons: bool = False,
@@ -306,7 +300,7 @@ def plt_dataset(
 
 
 def plt_2dloss(
-    axs: Axes,
+    axs: plt.Axes,
     t_spike: Array,
     dataset: Array,
     observe: Tuple[Tuple[int, int, str], ...],
@@ -436,13 +430,12 @@ def plt_weights_bin(fig, axs, params: List[Weight]):
 
     # plot for first and last epoch
     for j, epoch in enumerate((0, -1)):
-
         if isinstance(params[0], WeightRecurrent):
             hidden_size = params[0].recurrent.shape[-1] - 3
             plot_params = [
                 params[0].input[epoch, :, :hidden_size].flatten(),
                 params[0]
-                .recurrent[epoch, :hidden_size, hidden_size : hidden_size + 3]
+                .recurrent[epoch, :hidden_size, hidden_size: hidden_size + 3]
                 .flatten(),
             ]
         else:
@@ -472,7 +465,7 @@ def plt_weights_bin(fig, axs, params: List[Weight]):
 
 
 def plt_spike_time_bins(
-    axs: List[Axes], dataset: Dataset, t_spike: Array, tau_syn: ArrayLike
+    axs: List[plt.Axes], dataset: Dataset, t_spike: Array, tau_syn: float
 ):
     t_late = 2.0
     t_spike = np.where(t_spike == np.inf, t_late, t_spike / tau_syn)
@@ -534,11 +527,8 @@ def plt_spike_time_bins(
 def plt_and_save(
     folder,
     testset,
-    recording,
-    t_spike,
+    testresult: TestResult,
     params_over_time,
-    loss,
-    acc,
     tau_syn: float,
     hidden_size: int,
     epochs: int,

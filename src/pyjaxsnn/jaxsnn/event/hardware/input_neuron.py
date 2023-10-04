@@ -1,14 +1,14 @@
-from .module import Module
-import time
-import pygrenade_vx.network.placed_logical as grenade
-from jaxsnn.base.types import Spike
-import hxtorch
-from jaxsnn.event.hardware import utils
-import numpy as onp
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
-import _hxtorch_core
+import logging
 
-log = hxtorch.logger.get("hxtorch.snn.modules")
+import _hxtorch_core
+import hxtorch
+import numpy as onp
+import pygrenade_vx.network.placed_logical as grenade
+from jaxsnn.event.hardware.module import Module
+from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
+from jaxsnn.event.types import Spike
+
+log = logging.getLogger("root")
 
 
 class InputNeuron(Module):
@@ -51,7 +51,7 @@ class InputNeuron(Module):
         population = grenade.ExternalPopulation(self.size)
         # add to builder
         self.descriptor = builder.add(population)
-        log.TRACE(f"Added Input Population: {self}")
+        log.debug(f"Added Input Population: {self}")
 
         return self.descriptor
 

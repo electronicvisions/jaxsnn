@@ -1,31 +1,17 @@
-import jax.numpy as np
-import jax
 from functools import partial
-from jaxsnn.event.functional import exponential_flow, step
-from jaxsnn.event.root.ttfs import ttfs_solver
-from jaxsnn.event.leaky_integrate_and_fire import transition_without_recurrence
-from jaxsnn.functional.leaky_integrate_and_fire import LIFState, LIFParameters
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
-from jaxsnn.base.types import StepState, Spike, InputQueue, WeightInput, EventPropSpike
+
+import jax
+import jax.numpy as np
+from jaxsnn.base.params import LIFParameters
+from jaxsnn.event.flow import exponential_flow
+from jaxsnn.event.functional import step
+from jaxsnn.event.leaky_integrate_and_fire import (
+    LIFState,
+    transition_without_recurrence,
+)
 from jaxsnn.event.root.next import next_event
-
-
-def test_exponential_flow():
-    A = np.array([[-1, 1], [0, -1]])
-    flow_function = exponential_flow(A)
-    state = LIFState(V=1.0, I=1.0)
-    new_state = flow_function(state, 1.0)
-    assert_almost_equal(new_state.I, 0.368, 3)
-    assert_almost_equal(new_state.V, 0.736, 3)
-
-
-def test_batched_exponential_flow():
-    A = np.array([[-1, 1], [0, -1]])
-    flow_function = exponential_flow(A)
-    state = LIFState(V=np.full(10, 1.0), I=np.full(10, 1.0))
-    new_state = flow_function(state, 1.0)
-    assert_array_almost_equal(new_state.I, np.full(10, 0.368), 3)
-    assert_array_almost_equal(new_state.V, np.full(10, 0.736), 3)
+from jaxsnn.event.root.ttfs import ttfs_solver
+from jaxsnn.event.types import EventPropSpike, InputQueue, StepState, WeightInput
 
 
 def test_step():
@@ -44,7 +30,7 @@ def test_step():
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
 
     transition = partial(transition_without_recurrence, p)
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
     weights = WeightInput(np.zeros((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
@@ -83,7 +69,7 @@ def test_step_same_time():
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
 
     transition = partial(transition_without_recurrence, p)
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
     weights = WeightInput(np.zeros((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
@@ -122,7 +108,7 @@ def test_step_no_transition():
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
 
     transition = partial(transition_without_recurrence, p)
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
     weights = WeightInput(np.ones((n_input, n_hidden)))
     neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 

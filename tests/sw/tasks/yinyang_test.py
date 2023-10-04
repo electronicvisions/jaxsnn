@@ -1,21 +1,20 @@
 from functools import partial
 
+import jax
 import optax
-from jax import random, value_and_grad
-from jax.lax import scan
-
-import jaxsnn
-from jaxsnn.dataset.yinyang import DataLoader, YinYangDataset
-from jaxsnn.functional.lif import LIFParameters
-from jaxsnn.functional.loss import nll_loss, acc_and_loss
-from jaxsnn.functional.threshold import superspike
+from jax import random
+from jaxsnn import discrete
+from jaxsnn.base.params import LIFParameters
+from jaxsnn.discrete.dataset.yinyang import DataLoader, YinYangDataset
+from jaxsnn.discrete.loss import acc_and_loss, nll_loss
+from jaxsnn.discrete.threshold import superspike
 
 
 def update(optimizer, state, batch, loss_fn):
     opt_state, params, i = state
     input, output = batch
 
-    (loss, recording), grads = value_and_grad(loss_fn, has_aux=True)(
+    (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
         params, (input, output)
     )
     updates, opt_state = optimizer.update(grads, opt_state)
@@ -42,12 +41,13 @@ def test_train():
     trainset = YinYangDataset(train_key, 6400)
     test_dataset = YinYangDataset(test_key, 1000)
 
-    snn_init, snn_apply = jaxsnn.serial(
-        jaxsnn.functional.SpatioTemporalEncode(T, t_late, DT),
-        jaxsnn.euler_integrate(
-            jaxsnn.LIFStep(hidden_features, superspike), jaxsnn.LIStep(n_classes)
+    snn_init, snn_apply = discrete.serial(
+        discrete.SpatioTemporalEncode(T, t_late, DT),
+        discrete.euler_integrate(
+            discrete.LIFStep(hidden_features, superspike),
+            discrete.LIStep(n_classes),
         ),
-        jaxsnn.functional.MaxOverTimeDecode(),
+        discrete.MaxOverTimeDecode(),
     )
 
     _, params = snn_init(init_key, input_shape=input_shape)
@@ -62,7 +62,7 @@ def test_train():
 
     trainloader = DataLoader(trainset, batch_size, rng=None)
     for _ in range(epochs):
-        (opt_state, params, _), _ = scan(
+        (opt_state, params, _), _ = jax.lax.scan(
             train_step_fn, (opt_state, params, 0), trainloader
         )
 
