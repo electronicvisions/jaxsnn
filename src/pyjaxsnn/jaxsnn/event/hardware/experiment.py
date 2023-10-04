@@ -141,9 +141,13 @@ class Experiment:
 
         for i, weight in enumerate(weights):
             synapse = Synapse(self, weight.input.T)
-            synapse.add_to_network_graph(network_builder, self._populations[i].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling)
+            synapse.add_to_network_graph(
+                network_builder,
+                self._populations[i].descriptor,
+                self._populations[1].descriptor,
+                self.wafer_config.weight_scaling,
+            )
 
-        
         # first weights
         # synapse = Synapse(self, weights[0].input[:, : 100].T)
         # synapse.add_to_network_graph(
@@ -169,7 +173,7 @@ class Experiment:
             grenade.network.placed_logical.update_network_graph(
                 self.grenade_network_graph, network
             )
-    
+
         # Keep graph
         self.grenade_network = network
 
@@ -321,7 +325,7 @@ class Experiment:
             {grenade.signal_flow.ExecutionInstance(): runtime_in_clocks}
         ] * self._batch_size
         log.TRACE(f"Registered runtimes: {inputs.runtime}")
-    
+
         grenade_start = time.time()
         outputs = hxtorch.snn.grenade_run(
             self._chip, network, inputs, self._generate_playback_hooks()
@@ -356,7 +360,6 @@ class Experiment:
             madc_recording = data[:, :, self._populations[1]._record_neuron_id]
             return spike_list, madc_recording
 
-        
         time_get_observables = time.time() - start_get_observables
         # save times
         if time_data is not None:
@@ -380,6 +383,5 @@ class Experiment:
                 time_data["grenade_run"] = time_grenade_run
             else:
                 time_data["grenade_run"] += time_grenade_run
-
 
         return spike_list, time_data

@@ -35,15 +35,19 @@ def save_params(params: List[WeightInput], filenames: List[str]):
         np.save(filename, p.input, allow_pickle=True)
 
 
-def save_params_recurrent(params: WeightRecurrent, folder: str):  
+def save_params_recurrent(params: WeightRecurrent, folder: str):
     np.save(f"{folder}/weights_input.npy", params.input, allow_pickle=True)
     np.save(f"{folder}/weights_recurrent.npy", params.recurrent, allow_pickle=True)
 
 
 def load_params_recurrent(folder: str):
     return WeightRecurrent(
-        input=np.load(f"{folder}/weights_input.npy",),
-        recurrent=np.load(f"{folder}/weights_recurrent.npy",),
+        input=np.load(
+            f"{folder}/weights_input.npy",
+        ),
+        recurrent=np.load(
+            f"{folder}/weights_recurrent.npy",
+        ),
     )
 
 

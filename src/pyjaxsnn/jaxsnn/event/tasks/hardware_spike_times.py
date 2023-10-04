@@ -74,7 +74,9 @@ def main():
         runs.append(hw_spikes)
 
     log.INFO(f"Shape: {np.array(runs).shape}")
-    np.save(f"jaxsnn/plots/hardware/spike_times/spike_times.npy", runs, allow_pickle=True)
+    np.save(
+        f"jaxsnn/plots/hardware/spike_times/spike_times.npy", runs, allow_pickle=True
+    )
 
     first_hw_spike = (
         np.mean(np.array(first_hw_times)),
@@ -148,7 +150,9 @@ def main():
         f"Spike time for {n_input} input spikes at t=0, wafer {wafer_config.name}"
     )
     axs.plot(int_weights, (np.array(sw_spikes) + offset) * 1e6 * 125, label="Software")
-    axs.set_xlabel(f"Input weight on hardware, scaling factor: {wafer_config.weight_scaling}")
+    axs.set_xlabel(
+        f"Input weight on hardware, scaling factor: {wafer_config.weight_scaling}"
+    )
     axs.set_ylabel(r"Spike time in FPGA cycles")  # $[\tau_s]$")
     fig.legend()
 

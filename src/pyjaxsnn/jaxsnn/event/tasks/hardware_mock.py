@@ -21,7 +21,7 @@ from jaxsnn.event.hardware.utils import (
     add_linear_noise,
     cut_spikes_batch,
     add_noise_batch,
-    spike_similarity_batch
+    spike_similarity_batch,
 )
 from jaxsnn.event.leaky_integrate_and_fire import (
     LIFParameters,
@@ -44,6 +44,7 @@ from jaxsnn.event import custom_lax
 from jax.config import config
 import hxtorch
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
+
 log = hxtorch.logger.get("hxtorch.snn.experiment")
 
 config.update("jax_debug_nans", True)
@@ -60,6 +61,7 @@ BIAS = 4e-7
 
 # with LR of 5e-3, these are update steps of 0.5
 MAX_GRAD = [0.01, 0.01]
+
 
 def train(
     seed: int,
@@ -100,7 +102,9 @@ def train(
     correct_target_time = 0.9 * p.tau_syn
     wrong_target_time = 1.1 * p.tau_syn
 
-    log.INFO(f"Mock HW set to {MOCK_HW}, lr: {step_size}, bias spike: {bias_spike}, duplication: {duplication}, sim hw weights: {SIM_HW_WEIGHTS_RANGE}, sim integer: {SIM_HW_WEIGHTS_INT} config: {wafer_config}, noise: {NOISE}, correction: {HW_CYCLE_CORRECTION}, max_grad: {MAX_GRAD}")
+    log.INFO(
+        f"Mock HW set to {MOCK_HW}, lr: {step_size}, bias spike: {bias_spike}, duplication: {duplication}, sim hw weights: {SIM_HW_WEIGHTS_RANGE}, sim integer: {SIM_HW_WEIGHTS_INT} config: {wafer_config}, noise: {NOISE}, correction: {HW_CYCLE_CORRECTION}, max_grad: {MAX_GRAD}"
+    )
 
     input_size = 4 + int(bias_spike is not None)
     if duplicate_neurons:
@@ -168,7 +172,7 @@ def train(
             p=p,
             mean=weight_mean,
             std=weight_std,
-            duplication=duplication if duplicate_neurons else None
+            duplication=duplication if duplicate_neurons else None,
         )
     )
 
@@ -179,24 +183,25 @@ def train(
         log.WARN(f"Loading params from folder: {LOAD_FOLDER}")
         params = [load_params_recurrent(LOAD_FOLDER)]
 
-
     scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
 
     optimizer = optimizer_fn(scheduler)
     opt_state = optimizer.init(params)
 
-    loss_fn = jax.jit(batch_wrapper(
-        partial(
-            loss_wrapper_known_spikes,
-            apply_fn,
-            mse_loss,
-            p.tau_mem,
-            n_neurons,
-            output_size,
-        ),
-        in_axes=(None, 0, 0),
-        pmap=False,
-    ))
+    loss_fn = jax.jit(
+        batch_wrapper(
+            partial(
+                loss_wrapper_known_spikes,
+                apply_fn,
+                mse_loss,
+                p.tau_mem,
+                n_neurons,
+                output_size,
+            ),
+            in_axes=(None, 0, 0),
+            pmap=False,
+        )
+    )
 
     # HW
     if not MOCK_HW:
@@ -205,14 +210,18 @@ def train(
         Neuron(hidden_size, p, experiment)
         Neuron(output_size, p, experiment)
 
-
     def update(input, batch):
         (opt_state, params, time_data), rng = input
         input_spikes, _ = batch
 
         if MOCK_HW:
             if SIM_HW_WEIGHTS_INT:
-                hw_spikes = hw_mock_batched(simulate_hw_weights(params, wafer_config.weight_scaling, as_int=True), input_spikes)
+                hw_spikes = hw_mock_batched(
+                    simulate_hw_weights(
+                        params, wafer_config.weight_scaling, as_int=True
+                    ),
+                    input_spikes,
+                )
             else:
                 hw_spikes = hw_mock_batched(params, input_spikes)
         else:
@@ -222,26 +231,32 @@ def train(
                 t_max_us,
                 n_spikes=[n_spikes_hidden, n_spikes_output],
                 time_data=time_data,
-                hw_cycle_correction=HW_CYCLE_CORRECTION
+                hw_cycle_correction=HW_CYCLE_CORRECTION,
             )
 
             # merge to one layer
             hw_spikes = [
-                sort_batch(Spike(
-                    idx=np.concatenate((hw_spikes[0].idx, hw_spikes[1].idx), axis=-1),
-                    time=np.concatenate((hw_spikes[0].time, hw_spikes[1].time), axis=-1),
-                ))
+                sort_batch(
+                    Spike(
+                        idx=np.concatenate(
+                            (hw_spikes[0].idx, hw_spikes[1].idx), axis=-1
+                        ),
+                        time=np.concatenate(
+                            (hw_spikes[0].time, hw_spikes[1].time), axis=-1
+                        ),
+                    )
+                )
             ]
 
             # add time noise
-            hw_spikes = [add_linear_noise(hw_spikes[0])]    
+            hw_spikes = [add_linear_noise(hw_spikes[0])]
 
         if NOISE is not None:
             rng, noise_rng = jax.random.split(rng, 2)
             hw_spikes = [add_noise_batch(hw_spikes[0], noise_rng, std=NOISE, bias=BIAS)]
         res = update_software((opt_state, params, time_data), batch, hw_spikes)
         return (res[0], rng), res[1]
-    
+
     # define test function
     def test_loss_fn(params, batch):
         params, rng = params
@@ -249,10 +264,20 @@ def train(
 
         if MOCK_HW:
             if SIM_HW_WEIGHTS_INT:
-                hw_spikes = hw_mock_batched(simulate_hw_weights(params, wafer_config.weight_scaling, as_int=True), input_spikes)
+                hw_spikes = hw_mock_batched(
+                    simulate_hw_weights(
+                        params, wafer_config.weight_scaling, as_int=True
+                    ),
+                    input_spikes,
+                )
             else:
                 hw_spikes = hw_mock_batched(params, input_spikes)
-            hw_spikes = [cut_spikes_batch(filter_spikes_batch(hw_spikes[0], input_size), n_spikes_hidden + n_spikes_output)]
+            hw_spikes = [
+                cut_spikes_batch(
+                    filter_spikes_batch(hw_spikes[0], input_size),
+                    n_spikes_hidden + n_spikes_output,
+                )
+            ]
         else:
             hw_spikes, _ = experiment.get_hw_results(
                 input_spikes,
@@ -262,16 +287,21 @@ def train(
                 time_data={},
                 hw_cycle_correction=HW_CYCLE_CORRECTION,
             )
-               
 
             # merge to one layer
             hw_spikes = [
-                sort_batch(Spike(
-                    idx=np.concatenate((hw_spikes[0].idx, hw_spikes[1].idx), axis=-1),
-                    time=np.concatenate((hw_spikes[0].time, hw_spikes[1].time), axis=-1),
-                ))
+                sort_batch(
+                    Spike(
+                        idx=np.concatenate(
+                            (hw_spikes[0].idx, hw_spikes[1].idx), axis=-1
+                        ),
+                        time=np.concatenate(
+                            (hw_spikes[0].time, hw_spikes[1].time), axis=-1
+                        ),
+                    )
+                )
             ]
-    
+
         # add time noise to not have multiple spikes at the same time
         hw_spikes = [add_linear_noise(hw_spikes[0])]
 
@@ -279,9 +309,12 @@ def train(
             rng, noise_rng = jax.random.split(rng, 2)
             hw_spikes = [add_noise_batch(hw_spikes[0], noise_rng, std=NOISE, bias=BIAS)]
 
-        
         if SIM_HW_WEIGHTS_INT:
-            loss_result = loss_fn(simulate_hw_weights(params, wafer_config.weight_scaling, as_int=True), batch, hw_spikes)
+            loss_result = loss_fn(
+                simulate_hw_weights(params, wafer_config.weight_scaling, as_int=True),
+                batch,
+                hw_spikes,
+            )
         else:
             loss_result = loss_fn(params, batch, hw_spikes)
         return (params, rng), loss_result
@@ -290,7 +323,7 @@ def train(
     def update_software(
         input: Tuple[optax.OptState, List[Weight], dict],
         batch: Tuple[Spike, Array],
-        hw_spikes
+        hw_spikes,
     ):
         opt_state, params, hw_time = input
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
@@ -314,7 +347,6 @@ def train(
             params = simulate_hw_weights(params, wafer_config.weight_scaling)
 
         return (opt_state, params, hw_time), (value, grad)
-    
 
     def epoch(state, i):
         # do testing before training for plot
@@ -326,7 +358,9 @@ def train(
         loss, acc, t_first_spike, recording = test_result
 
         start = time.time()
-        (state, rng), (_, grad) = custom_lax.simple_scan(update, (state, train_rng), trainset[:2])
+        (state, rng), (_, grad) = custom_lax.simple_scan(
+            update, (state, train_rng), trainset[:2]
+        )
 
         # # save grad
         # if i == 20:
@@ -337,9 +371,11 @@ def train(
         duration = time.time() - start
         if print_epoch:
             masked = onp.ma.masked_where(t_first_spike == np.inf, t_first_spike)
-            number_of_hidden_spikes = np.sum(input_size <= recording[0].idx, axis=-1).mean()
-            input_param = params[0].input[:,:hidden_size]
-            recurrent_param = params[0].recurrent[:hidden_size,hidden_size:]
+            number_of_hidden_spikes = np.sum(
+                input_size <= recording[0].idx, axis=-1
+            ).mean()
+            input_param = params[0].input[:, :hidden_size]
+            recurrent_param = params[0].recurrent[:hidden_size, hidden_size:]
             log.INFO(
                 f"Epoch {i}, loss: {loss:.6f}, "
                 f"acc: {acc:.3f}, "
@@ -364,9 +400,11 @@ def train(
         return state, (test_result, params, duration)
 
     # train the net
-    (opt_state, params, timing), (res, params_over_time, durations) = custom_lax.simple_scan(
-        epoch, (opt_state, params, {}), np.arange(epochs)
-    )
+    (opt_state, params, timing), (
+        res,
+        params_over_time,
+        durations,
+    ) = custom_lax.simple_scan(epoch, (opt_state, params, {}), np.arange(epochs))
     loss, acc, t_spike, recording = res  # type: ignore
 
     time_string = dt.datetime.now().strftime("%H:%M:%S")

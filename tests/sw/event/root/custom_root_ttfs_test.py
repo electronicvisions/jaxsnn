@@ -1,4 +1,4 @@
-from jaxsnn.event.root  import cr_ttfs_solver
+from jaxsnn.event.root import cr_ttfs_solver
 
 import jax.numpy as np
 import numpy as onp

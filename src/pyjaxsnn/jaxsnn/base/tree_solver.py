@@ -68,6 +68,7 @@ def tree_matmul(d, u, p, b):
 
     return lax.fori_loop(1, N, body_fun, init_val).res
 
+
 def tree_solve(d, u, p, b):
     """
     A solver for 'tree' matrices, which is compatible with the jax tracer.

@@ -27,7 +27,7 @@ def train_step(optimizer, state, batch, loss_fn):
     return (opt_state, params, i + 1), recording
 
 
-def train(folder, seed, epochs: int = 100, DT = 2e-4):
+def train(folder, seed, epochs: int = 100, DT=2e-4):
     n_classes = 3
     input_shape = 5
     dataset_size = 5000
@@ -92,7 +92,6 @@ def train(folder, seed, epochs: int = 100, DT = 2e-4):
     _, params = snn_init(init_key, input_shape=input_shape)
     opt_state = optimizer.init(params)
 
-
     accuracies = []
     loss = []
     for epoch in range(epochs):
@@ -132,10 +131,17 @@ if __name__ == "__main__":
         acc_container.append(acc)
         loss_container.append(loss)
 
-    np.save(f"{folder}/acc_{seeds}seeds_{epochs}epochs.npy", np.array(acc_container), allow_pickle=True)
-    np.save(f"{folder}/loss_{seeds}seeds_{epochs}epochs.npy", np.array(loss_container), allow_pickle=True)
+    np.save(
+        f"{folder}/acc_{seeds}seeds_{epochs}epochs.npy",
+        np.array(acc_container),
+        allow_pickle=True,
+    )
+    np.save(
+        f"{folder}/loss_{seeds}seeds_{epochs}epochs.npy",
+        np.array(loss_container),
+        allow_pickle=True,
+    )
 
-    
     # different time bins and different seeds
     # epochs = 300
     # seeds = 5

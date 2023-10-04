@@ -4,6 +4,7 @@ import jax
 
 from typing import List
 
+
 def serial(*layers):
     init_fns, apply_fns = zip(*layers)
 

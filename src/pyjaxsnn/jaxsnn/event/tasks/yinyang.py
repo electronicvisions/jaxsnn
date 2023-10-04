@@ -55,7 +55,7 @@ def train(
     t_max = 4.0 * p.tau_syn
     weight_mean = [3.0, 0.5]
     weight_std = [1.6, 0.8]
-    
+
     # in units of t_late
     bias_spike = 0.0
 
@@ -66,7 +66,7 @@ def train(
     input_size = 5
     hidden_size = 100
     output_size = 3
-    n_spikes_hidden = 50 # input_size + hidden_size
+    n_spikes_hidden = 50  # input_size + hidden_size
     n_spikes_output = n_spikes_hidden + 3
     optimizer_fn = optax.adam
 
@@ -174,7 +174,7 @@ def train(
                 acc=round(test_result[1], 3),
                 spikes=np.sum(recording[1][1][0].idx >= 0, axis=-1).mean(),
                 grad=grad[0].input.mean(),
-                grad_ratio=1, #np.abs(grad[0].input).mean() / np.abs(grad[0].input).mean()
+                grad_ratio=1,  # np.abs(grad[0].input).mean() / np.abs(grad[0].input).mean()
                 # / np.maximum(np.abs(grad[1].input), 1e-7).mean(),
                 # / np.maximum(np.abs(grad[0].recurrent), 1e-7).mean(),
                 t_output=masked.mean() / p.tau_syn,
@@ -262,6 +262,14 @@ if __name__ == "__main__":
         for j in np.arange(1.7, 2.6, 0.1):
             print(f"Target times: {i}, {j}")
             print()
-            acc = train(0, folder, plot=False, print_epoch=True, save_params=False, correct_target_time=i, wrong_target_time=j)
+            acc = train(
+                0,
+                folder,
+                plot=False,
+                print_epoch=True,
+                save_params=False,
+                correct_target_time=i,
+                wrong_target_time=j,
+            )
             accs.append(acc)
         print(accs)

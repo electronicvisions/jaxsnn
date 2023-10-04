@@ -13,10 +13,7 @@ import jax.numpy as np
 import optax
 from jax import random
 import hxtorch
-from jaxsnn.event.hardware.utils import (
-    simulate_hw_weights,
-    filter_spikes_batch
-)
+from jaxsnn.event.hardware.utils import simulate_hw_weights, filter_spikes_batch
 
 from jaxsnn.base.types import Array, Spike, Weight
 from jaxsnn.event.compose import serial, serial_spikes_known
@@ -136,7 +133,7 @@ def train(
             t_max=t_max,
             p=p,
             solver=solver,
-            duplication=duplication if duplicate_neurons else None
+            duplication=duplication if duplicate_neurons else None,
         ),
         EventPropLIF(
             n_hidden=output_size,
@@ -156,7 +153,7 @@ def train(
             p=p,
             mean=weight_mean[0],
             std=weight_std[0],
-            duplication=duplication if duplicate_neurons else None
+            duplication=duplication if duplicate_neurons else None,
         ),
         HardwareLIF(
             n_hidden=output_size,
@@ -167,7 +164,6 @@ def train(
             std=weight_std[1],
         ),
     )
-
 
     # init params and optimizer
     params = init_fn(param_rng, input_size)

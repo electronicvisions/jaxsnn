@@ -151,9 +151,11 @@ def train(
 
         if print_epoch:
             masked = onp.ma.masked_where(t_first_spike == np.inf, t_first_spike)
-            number_of_hidden_spikes = np.sum(input_size <= recording[0].idx, axis=-1).mean()
-            input_param = params[0].input[:,:hidden_size]
-            recurrent_param = params[0].recurrent[:hidden_size,hidden_size:]
+            number_of_hidden_spikes = np.sum(
+                input_size <= recording[0].idx, axis=-1
+            ).mean()
+            input_param = params[0].input[:, :hidden_size]
+            recurrent_param = params[0].recurrent[:hidden_size, hidden_size:]
             log.INFO(
                 f"Epoch {i}, loss: {loss:.6f}, "
                 f"acc: {acc:.3f}, "
@@ -182,7 +184,11 @@ def train(
     last_epoch_first_batch = recording[-1][-1, 0]
     np.save(f"{folder}/t_spike.npy", t_spike, allow_pickle=False)
     log.INFO("Saving spike data...")
-    np.save(f"{folder}/recording_last_epoch_first_batch.npy", (last_epoch_first_batch.time, last_epoch_first_batch.idx), allow_pickle=False)
+    np.save(
+        f"{folder}/recording_last_epoch_first_batch.npy",
+        (last_epoch_first_batch.time, last_epoch_first_batch.idx),
+        allow_pickle=False,
+    )
     log.INFO("Saved spike data")
 
     # generate plots

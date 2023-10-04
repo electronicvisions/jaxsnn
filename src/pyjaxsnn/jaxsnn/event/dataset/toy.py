@@ -38,7 +38,7 @@ def linear_dataset(
     correct_target_time: Optional[float] = None,
     wrong_target_time: Optional[float] = None,
     duplication: Optional[int] = None,
-    duplicate_neurons: bool = False
+    duplicate_neurons: bool = False,
 ) -> Dataset:
     if correct_target_time is None:
         correct_target_time = 0.5 * t_late
@@ -158,7 +158,7 @@ def yinyang_dataset(
     correct_target_time: Optional[float] = None,
     wrong_target_time: Optional[float] = None,
     duplication: Optional[int] = None,
-    duplicate_neurons: bool = False
+    duplicate_neurons: bool = False,
 ) -> Dataset:
     rng, subkey = random.split(rng)
     r_big = 0.5

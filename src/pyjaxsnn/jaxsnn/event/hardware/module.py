@@ -2,6 +2,7 @@ from typing import Any, Dict, Tuple, Optional, Union
 
 import pygrenade_vx.network.placed_logical as grenade
 import hxtorch
+
 log = hxtorch.logger.get("hxtorch.snn.modules")
 
 
@@ -9,7 +10,6 @@ class Module:
     """
     Module supplying basic functionality for building SNNs on hardware.
     """
-
 
     def __init__(self, experiment) -> None:
         """
@@ -23,7 +23,9 @@ class Module:
         self.size: Optional[int] = None
 
         # Grenade descriptor
-        self.descriptor: Union[grenade.PopulationDescriptor, grenade.ProjectionDescriptor]
+        self.descriptor: Union[
+            grenade.PopulationDescriptor, grenade.ProjectionDescriptor
+        ]
 
     @property
     def changed_since_last_run(self) -> bool:

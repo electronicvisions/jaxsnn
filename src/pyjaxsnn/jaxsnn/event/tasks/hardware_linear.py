@@ -73,7 +73,6 @@ def train(
     duplication = 5
     duplicate_neurons = True
 
-
     # at least 50 us because otherwise we get jitter
     t_max_us = max(t_max / 1e-6, 50)
     log.INFO(f"Runtime in us: {t_max_us}")
@@ -112,7 +111,7 @@ def train(
         "correct_target_time": correct_target_time,
         "wrong_target_time": wrong_target_time,
         "duplication": duplication,
-        "duplicate_neurons": duplicate_neurons
+        "duplicate_neurons": duplicate_neurons,
     }
 
     trainset = linear_dataset(
@@ -137,7 +136,7 @@ def train(
             solver=solver,
             mean=weight_mean,
             std=weight_std,
-            duplication=duplication if duplicate_neurons else None
+            duplication=duplication if duplicate_neurons else None,
         )
     )
 

@@ -66,7 +66,6 @@ class Synapse(Module):
         weight_exc = utils.linear_saturating(weight_exc, scale=scale, min_weight=0.0)
         weight_inh = utils.linear_saturating(weight_inh, scale=scale, max_weight=0.0)
 
-
         connections_exc = _hxtorch_core.weight_to_connection(onp.array(weight_exc))
         connections_inh = _hxtorch_core.weight_to_connection(onp.array(weight_inh))
 

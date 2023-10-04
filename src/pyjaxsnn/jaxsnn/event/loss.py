@@ -10,6 +10,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
 def max_over_time(output: LIFState) -> Array:
     return np.max(output.V, axis=0)
 

@@ -318,16 +318,16 @@ def HardwareRecurrentLIF(
 
         rng, layer_rng = jax.random.split(rng)
         if duplication is not None:
-            input_weights = (
-                jax.random.normal(layer_rng, (int(input_size / duplication), layers[0]))
+            input_weights = jax.random.normal(
+                layer_rng, (int(input_size / duplication), layers[0])
             )
             input_weights = np.repeat(input_weights, duplication, axis=0)
         else:
-            input_weights = (
-                jax.random.normal(layer_rng, (input_size, layers[0]))
-            )
+            input_weights = jax.random.normal(layer_rng, (input_size, layers[0]))
         input_weights = (
-            np.zeros((input_size, hidden_size)).at[:, : layers[0]].set(input_weights * std[0] + mean[0])
+            np.zeros((input_size, hidden_size))
+            .at[:, : layers[0]]
+            .set(input_weights * std[0] + mean[0])
         )
 
         recurrent_weights = np.zeros((hidden_size, hidden_size))
@@ -432,13 +432,13 @@ def HardwareLIF(
 
     initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
-    def init_fn(
-        rng: jax.random.KeyArray, input_size: int
-    ) -> Tuple[int, WeightInput]:
+    def init_fn(rng: jax.random.KeyArray, input_size: int) -> Tuple[int, WeightInput]:
 
         rng, layer_rng = jax.random.split(rng)
         if duplication is not None:
-            weights = jax.random.normal(layer_rng, (int(input_size / duplication), n_hidden))
+            weights = jax.random.normal(
+                layer_rng, (int(input_size / duplication), n_hidden)
+            )
             weights = np.repeat(weights, duplication, axis=0)
         else:
             weights = jax.random.normal(layer_rng, (input_size, n_hidden))

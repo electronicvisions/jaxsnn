@@ -21,6 +21,7 @@ wafer_config = W_69_F0_LONG_REFRAC
 cycles_per_us = int(hal.Timer.Value.fpga_clock_cycles_per_us)
 print(cycles_per_us)
 
+
 def fill_zeros_with_last(arr):
     prev = np.arange(len(arr))
     prev = prev.at[arr == 0].set(0)
@@ -44,7 +45,7 @@ def main():
 
     inputs = Spike(
         time=np.repeat(
-            np.array([200, 500]) /  (1e6 * cycles_per_us),
+            np.array([200, 500]) / (1e6 * cycles_per_us),
             duplication,
             axis=0,
         ),
@@ -109,12 +110,18 @@ def main():
     print(madc_recording.shape)
 
     log.INFO(f"Simulating madc with len {len}")
-    sw_madc = simulate_madc(p.tau_mem_inv, p.tau_syn_inv, inputs, weight, np.arange(len) / (1e6 * cycles_per_us))
-    sw_madc = sw_madc[:,0] * 190 + 315
+    sw_madc = simulate_madc(
+        p.tau_mem_inv,
+        p.tau_syn_inv,
+        inputs,
+        weight,
+        np.arange(len) / (1e6 * cycles_per_us),
+    )
+    sw_madc = sw_madc[:, 0] * 190 + 315
     prettified = fill_zeros_with_last(madc_recording[:, 0])
     # find first non zero
     first_non_zero = np.argmax(prettified != 0)
-    prettified[: first_non_zero] = prettified[first_non_zero]
+    prettified[:first_non_zero] = prettified[first_non_zero]
 
     hw_spike_time = hw_spike.time[0, 0] * 1e6 * cycles_per_us
     sw_spike_time = sw_spike.time[0] * 1e6 * cycles_per_us
@@ -125,16 +132,22 @@ def main():
     # axs.axvline(sw_spike_time, color="orange", label="SW spike")
 
     # first batch
-    axs.set_title(f"MADC recording, wafer {wafer_config.name}, input spike after 200 and 500 cycles, hw cycle correction: {HW_CYCLE_CORRECTION}, weight scaling: {wafer_config.weight_scaling}")
+    axs.set_title(
+        f"MADC recording, wafer {wafer_config.name}, input spike after 200 and 500 cycles, hw cycle correction: {HW_CYCLE_CORRECTION}, weight scaling: {wafer_config.weight_scaling}"
+    )
     axs.plot(np.arange(len) + HW_CYCLE_CORRECTION, prettified)
-    axs.plot(np.arange(int(sw_spike_time)), sw_madc[:int(sw_spike_time)])
+    axs.plot(np.arange(int(sw_spike_time)), sw_madc[: int(sw_spike_time)])
     axs.set_xlabel(f"FPGA Clock cycles")
     axs.set_ylabel("MADC value")
     fig.legend()
 
     dt_string = dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     fig.savefig(f"jaxsnn/plots/hardware/madc/{dt_string}_spike_times.png")
-    np.save(f"jaxsnn/plots/hardware/madc/{dt_string}_trace.npy", madc_recording, allow_pickle=True)
+    np.save(
+        f"jaxsnn/plots/hardware/madc/{dt_string}_trace.npy",
+        madc_recording,
+        allow_pickle=True,
+    )
     log.INFO(f"Count: {len}, Non zero count: {np.count_nonzero(madc_recording[:, 0])}")
 
 
