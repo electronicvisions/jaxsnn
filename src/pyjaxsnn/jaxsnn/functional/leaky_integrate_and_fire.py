@@ -2,9 +2,8 @@ import dataclasses
 
 import jax.numpy as jnp
 import tree_math
-
 from jaxsnn.base import explicit
-from jaxsnn.base.types import ArrayLike
+from jaxsnn.base.types import Array, ArrayLike
 
 
 @dataclasses.dataclass
@@ -50,22 +49,22 @@ class LIFParameters:
         v_reset (ArrayLike): reset potential in mV
     """
 
-    tau_syn_inv: ArrayLike = 1.0 / 5e-3
-    tau_mem_inv: ArrayLike = 1.0 / 1e-2
-    v_leak: ArrayLike = 0.0
-    v_th: ArrayLike = 0.6
-    v_reset: ArrayLike = 0.0
+    tau_syn_inv: float = 1.0 / 5e-3
+    tau_mem_inv: float = 1.0 / 1e-2
+    v_leak: float = 0.0
+    v_th: float = 0.6
+    v_reset: float = 0.0
 
     @property
-    def tau_syn(self):
+    def tau_syn(self) -> float:
         return 1 / self.tau_syn_inv
 
     @property
-    def tau_mem(self):
+    def tau_mem(self) -> float:
         return 1 / self.tau_mem_inv
 
     @property
-    def dynamics(self):
+    def dynamics(self) -> Array:
         return jnp.array(
             [[-self.tau_mem_inv, self.tau_mem_inv], [0, -self.tau_syn_inv]]
         )
