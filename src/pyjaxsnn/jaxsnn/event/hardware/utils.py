@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,logging-not-lazy,logging-fstring-interpolation
 import logging
 from functools import partial
 from typing import List, Optional
@@ -15,7 +16,8 @@ def spike_to_grenade_input(spike: Spike, input_neurons: int):
     """Convert jaxsnn spike representation to grenade spike representation
 
     We represent spikes as tuple of index and time. An instance of
-    grenade.InputGenerator expects a python list with shape [badge, neuron_idx, spike_time]
+    grenade.InputGenerator expects a python list with shape
+    [badge, neuron_idx, spike_time]
 
     TODO move to hxtorch / grenade
     """
@@ -210,12 +212,7 @@ def spike_similarity_batch(spike1: Spike, spike2: Spike):
         diff = first_spike1 - first_spike2
         masked = onp.ma.masked_where(diff == np.inf, diff)
         masked = onp.ma.masked_where(masked == np.nan, masked)
-        mean = onp.mean(masked, axis=0)
-        std = onp.std(masked, axis=0)
-        # log.INFO(f"Neurons {start} to {stop}:")
-        # log.INFO(f"Software is on average {mean.mean()} earlier")
-        # log.INFO(f"Average std per neuron: {std.mean()}")
         log.info(
-            f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn, HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn"
+            f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn,"
+            f"HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn"
         )
-        log.info(f"")

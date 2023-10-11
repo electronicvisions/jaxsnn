@@ -12,10 +12,8 @@ class LIFParameters:
     """Parametrization of a LIF neuron
 
     Parameters:
-        tau_syn_inv (float): inverse synaptic time
-                                    constant (:math:`1/\\tau_\\text{syn}`) in 1/ms
-        tau_mem_inv (float): inverse membrane time
-                                    constant (:math:`1/\\tau_\\text{mem}`) in 1/ms
+        tau_syn_inv (float): inverse synaptic time constant
+        tau_mem_inv (float): inverse membrane time constant
         v_leak (float): leak potential in mV
         v_th (float): threshold potential in mV
         v_reset (float): reset potential in mV

@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 from typing import NamedTuple
 
 

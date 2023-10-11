@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,line-too-long,too-many-arguments,too-many-locals,unsubscriptable-object,unused-argument,undefined-variable
 import logging
 from typing import List, Optional, Tuple
 
@@ -479,7 +480,7 @@ def plt_weights_bin(fig, axs, weights: List[Weight]):
             plot_weights = [
                 weights[0].input[epoch, :, :hidden_size].flatten(),
                 weights[0]
-                .recurrent[epoch, :hidden_size, hidden_size : hidden_size + 3]
+                .recurrent[epoch, :hidden_size, hidden_size: hidden_size + 3]
                 .flatten(),
             ]
         else:
@@ -488,12 +489,6 @@ def plt_weights_bin(fig, axs, weights: List[Weight]):
                 weights[1].input[epoch, :, :].flatten(),
             ]
 
-        # log.INFO(f"Initial weights shape: {weights[0].input[epoch].shape}, {weights[0].recurrent[epoch].shape}")
-        # log.INFO(f"Initial weights non zero: {np.count_nonzero(weights[0].input[epoch])}, {np.count_nonzero(weights[0].recurrent[epoch])}")
-
-        # log.INFO(f"Plot weights shape: {plot_weights[0].shape}, {plot_weights[1].shape}")
-        # log.INFO(f"Plot weights non zero: {np.count_nonzero(plot_weights[0])}, {np.count_nonzero(plot_weights[1])}")
-        # log.INFO(f"Mean: {plot_weights[1].mean()}, std: {plot_weights[1].std()}")
         for i, param in enumerate(plot_weights):
             axs[j, i].hist(
                 param,

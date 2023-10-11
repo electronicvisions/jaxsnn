@@ -9,7 +9,7 @@ from jax import numpy as np
 from jax import random
 from jaxsnn import discrete
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.dataset.yinyang import DataLoader, YinYangDataset
+from jaxsnn.discrete.dataset.yinyang import YinYangDataset, data_loader
 
 log = logging.getLogger(__name__)
 
@@ -25,10 +25,10 @@ def train_step(optimizer, state, batch, loss_fn):
     making it easy to be looped over.
     """
     opt_state, weights, i = state
-    input, output = batch
+    inputs, output = batch
 
     (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        weights, (input, output)
+        weights, (inputs, output)
     )
     updates, opt_state = optimizer.update(grads, opt_state)
     weights = optax.apply_updates(weights, updates)
@@ -62,12 +62,12 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
 
     # define the network
     snn_init, snn_apply = discrete.serial(
-        discrete.SpatioTemporalEncode(time_steps, t_late, DT),
+        discrete.spatio_temporal_encode(time_steps, t_late, DT),
         discrete.euler_integrate(
             discrete.LIFStep(hidden_features, discrete.superspike),
             discrete.LIStep(n_classes),
         ),
-        discrete.MaxOverTimeDecode(),
+        discrete.max_over_time_decode(),
     )
 
     # define optimizer
@@ -90,7 +90,7 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     accuracies = []
     loss = []
     for epoch in range(epochs):
-        trainloader = DataLoader(trainset, batch_size, rng=None)
+        trainloader = data_loader(trainset, batch_size, rng=None)
         start = time.time()
         (opt_state, weights, i), recording = jax.lax.scan(
             train_step_fn, (opt_state, weights, 0), trainloader

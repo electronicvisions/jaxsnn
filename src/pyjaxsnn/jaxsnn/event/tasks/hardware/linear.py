@@ -258,7 +258,7 @@ def train(
         weights_over_time,
         durations,
     ) = custom_lax.scan(epoch, (opt_state, weights), np.arange(epochs))
-    loss, acc, t_spike, recording = res  # type: ignore
+    loss, acc, t_spike, recording = res
 
     time_string = dt.datetime.now().strftime("%H:%M:%S")
     if save_weights:
@@ -270,12 +270,12 @@ def train(
         plt_and_save(
             folder,
             testset,
-            recording,  # type: ignore
-            t_spike,  # type: ignore
+            recording,
+            t_spike,
             weights_over_time,
-            loss,  # type: ignore
-            acc,  # type: ignore
-            params.tau_syn,  # type: ignore
+            loss,
+            acc,
+            params.tau_syn,
             hidden_size,
             epochs,
             duplication,
@@ -283,8 +283,8 @@ def train(
         )
 
     # save experiment data
-    max_acc = round(np.max(acc).item(), 3)  # type: ignore
-    log.info(f"Max acc: {max_acc} after {np.argmax(acc)} epochs")  # type: ignore
+    max_acc = round(np.max(acc).item(), 3)
+    log.info(f"Max acc: {max_acc} after {np.argmax(acc)} epochs")
     experiment = {
         "mock_hw": MOCK_HW,
         "max_accuracy": max_acc,
@@ -311,8 +311,8 @@ def train(
             round(float(correct_target_time) / params.tau_syn, 4),
             round(float(wrong_target_time) / params.tau_syn, 4),
         ],
-        "loss": [round(float(l), 5) for l in loss],  # type: ignore
-        "accuracy": [round(float(a), 5) for a in acc],  # type: ignore
+        "loss": [round(float(l), 5) for l in loss],
+        "accuracy": [round(float(a), 5) for a in acc],
         "time per epoch": [round(float(d), 3) for d in durations],
     }
 

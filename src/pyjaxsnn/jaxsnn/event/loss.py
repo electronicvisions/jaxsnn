@@ -22,12 +22,12 @@ def max_over_time(output: LIFState) -> jax.Array:
     return np.max(output.V, axis=0)
 
 
-def nll_loss(x: jax.Array, targets: jax.Array) -> float:
+def nll_loss(output: jax.Array, targets: jax.Array) -> float:
     n_classes = targets.shape[0]
     idx = np.argmin(targets)
     targets = np.array(idx == np.arange(n_classes))
-    x = np.maximum(x, 0)
-    preds = jax.nn.log_softmax(x)
+    output = np.maximum(output, 0)
+    preds = jax.nn.log_softmax(output)
     loss = -np.sum(targets * preds)
     return loss
 
@@ -48,7 +48,7 @@ def max_over_time_loss(
     return loss_value, (-max_voltage, recording)
 
 
-def loss_wrapper(
+def loss_wrapper(  # pylint: disable=too-many-arguments
     apply_fn: Apply,
     loss_fn: Callable[[jax.Array, jax.Array, float], float],
     tau_mem: float,
@@ -60,13 +60,13 @@ def loss_wrapper(
     input_spikes, target = batch
     recording = apply_fn(weights, input_spikes)
     output = recording[-1]
-    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
+    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)
 
 
-def loss_wrapper_known_spikes(
+def loss_wrapper_known_spikes(  # pylint: disable=too-many-arguments
     apply_fn: ApplyHW,
     loss_fn: Callable[[jax.Array, jax.Array, float], float],
     tau_mem: float,
@@ -79,7 +79,7 @@ def loss_wrapper_known_spikes(
     input_spikes, target = batch
     recording = apply_fn(spikes, weights, input_spikes)
     output = recording[-1]
-    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
+    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)

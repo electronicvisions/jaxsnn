@@ -2,7 +2,6 @@ from typing import Optional, Tuple
 
 import jax
 import jax.numpy as np
-import matplotlib.pyplot as plt
 from jax import random
 
 
@@ -21,7 +20,7 @@ get_class_batched = jax.vmap(get_class, in_axes=(0, None, None))
 class CircleDataset:
     def __init__(
         self,
-        key: random.KeyArray,
+        rng: random.KeyArray,
         size: int = 1000,
         radius: float = 0.25,
         center: Tuple[float, float] = (0.5, 0.5),
@@ -32,22 +31,23 @@ class CircleDataset:
         .. code: python
             from jaxsnn.discrete.dataset.yinyang import CircleDataset
 
-            dataset_train = CircleDataset(size=5000, key=42)
-            dataset_validation = CircleDataset(size=1000, key=41)
-            dataset_test = CircleDataset(size=1000, key=40)
+            dataset_train = CircleDataset(size=5000, rng=42)
+            dataset_validation = CircleDataset(size=1000, rng=41)
+            dataset_test = CircleDataset(size=1000, rng=40)
 
-        **Note** It is very important to give different seeds for trainings-, validation- and test set, as the data is
-        generated randomly using rejection sampling. Therefore giving the same key value will result in having the
-        same samples in the different datasets!
+        It is very important to give different seeds for trainings-,
+        validation- and test set, as the data is generated randomly
+        using rejection sampling. Therefore giving the same rng value will
+        result in having the same samples in the different datasets.
         """
         self.radius = radius
         self.center = center
         self.vals: jax.Array = []
         self.classes = []
         self.class_names = ["inside", "outside"]
-        key, subkey = random.split(key)
+        rng, subkey = random.split(rng)
 
-        coords = random.uniform(key, (size * 3, 2)) * self.radius * 4
+        coords = random.uniform(rng, (size * 3, 2)) * self.radius * 4
 
         classes = get_class_batched(coords, self.radius, self.center)
 
@@ -67,7 +67,7 @@ class CircleDataset:
         return len(self.classes)
 
 
-def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
+def data_loader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
     permutation = (
         random.permutation(rng, len(dataset))
         if rng is not None
@@ -78,25 +78,3 @@ def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
     )
     classes = dataset.classes[permutation].reshape(-1, batch_size)
     return vals, classes
-
-
-if __name__ == "__main__":
-    rng = random.PRNGKey(42)
-    dataset = CircleDataset(rng, size=1000)
-
-    (input, target) = dataset.vals, dataset.classes
-    fig, ax = plt.subplots(figsize=(6, 6))
-    for color, data in zip(
-        ("green", "orange"), (input[target == 0], input[target == 1])
-    ):
-        ax.scatter(
-            data[:, 0],
-            data[:, 1],
-            c=color,
-            s=plt.rcParams["lines.markersize"] ** 2.0 * 2,
-            linewidths=1.0,
-            edgecolors="black",
-            alpha=0.6,
-        )
-
-    plt.show()

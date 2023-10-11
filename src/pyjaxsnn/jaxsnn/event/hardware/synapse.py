@@ -1,3 +1,4 @@
+# pylint: disable=logging-not-lazy,logging-fstring-interpolation
 """
 Implementing SNN modules
 """
@@ -5,7 +6,6 @@ import logging
 from typing import Tuple
 
 import _hxtorch_core
-import hxtorch
 import jax
 import jax.numpy as np
 import numpy as onp

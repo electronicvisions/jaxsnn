@@ -9,30 +9,29 @@ log = logging.getLogger("root")
 
 
 def scan(
-    f: Callable,
+    inner_fn: Callable,
     init,
-    xs,
+    inputs,
     length: Optional[int] = None,
     reverse: bool = False,
-    print_bool: bool = False,
 ):
-    xs_flat, xs_tree = tree_flatten(xs)
+    xs_flat, xs_tree = tree_flatten(inputs)
     carry = init
-    ys = []
+    outputs = []
     length = len(xs_flat[0])
     for i in range(length):
-        if print_bool:
-            log.info(f"Sample {i}")
         if reverse:
             i = length - i - 1
         xs_slice = [x[i] for x in xs_flat]
-        carry, y = f(carry, tree_unflatten(xs_tree, xs_slice))
-        ys.append(y)
+        carry, output = inner_fn(carry, tree_unflatten(xs_tree, xs_slice))
+        outputs.append(output)
 
-    def stack(*ys):
-        return jax.numpy.stack(ys)
+    def stack(*args):
+        return jax.numpy.stack(args)
 
-    stacked_y = tree_map(stack, *ys)
+    stacked_y = tree_map(  # pylint: disable=no-value-for-parameter
+        stack, *outputs
+    )
     return carry, stacked_y
 
 
@@ -41,5 +40,7 @@ def cond(pred: bool, true_fun: Callable, false_fun: Callable, *operands):
     true_result = true_fun(*operands)
     false_result = false_fun(*operands)
     return jax.tree_map(
-        lambda t, f: jax.lax.select(pred, t, f), true_result, false_result
+        lambda t_item, f_item: jax.lax.select(pred, t_item, f_item),
+        true_result,
+        false_result,
     )

@@ -1,3 +1,4 @@
+# pylint: disable=logging-not-lazy,logging-fstring-interpolation
 import datetime as dt
 import json
 import logging
@@ -21,7 +22,7 @@ from jaxsnn.event.utils import time_it
 log = logging.getLogger("root")
 
 
-def train(seed: int, folder: str):
+def train(seed: int, folder: str):  # pylint: disable=too-many-locals
     params = LIFParameters()
     t_late = 2.0 * params.tau_syn
     t_max = 4.0 * params.tau_syn
@@ -53,7 +54,7 @@ def train(seed: int, folder: str):
     )
 
     # init weights and optimizer
-    input_size = trainset[0].idx.shape[-1]
+    input_size = trainset[0].idx.shape[-1]  # pylint: disable=no-member
     weights = init_fn(param_rng, input_size)
     n_neurons = hidden_size + output_size
 
@@ -81,18 +82,19 @@ def train(seed: int, folder: str):
         )
         opt_state, (recording, grad) = res
         test_result = loss_and_acc(loss_fn, opt_state.weights, testset[:2])
+        spikes = np.sum(recording[1][1][0].idx >= 0, axis=-1).mean()
         log.info(
             f"Epoch {i}, "
             f"loss: {test_result[0]:.4f}, "
             f"acc: {test_result[1]:.3f}, "
-            f"spikes: {np.sum(recording[1][1][0].idx >= 0, axis=-1).mean():.1f}, "
+            f"spikes: {spikes:.1f}, "
             f"grad: {grad[0].input.mean():.5f}, "
             f"in {duration:.2f} s"
         )
         return opt_state, (test_result, opt_state.weights)
 
     # iterate over epochs
-    (opt_state, weights), (test_result, weights_over_time) = custom_lax.scan(
+    (opt_state, weights), (test_result, _) = custom_lax.scan(
         epoch, OptState(opt_state, weights), np.arange(epochs)
     )
 
@@ -115,13 +117,15 @@ def train(seed: int, folder: str):
         "accuracy": round(test_result.accuracy[-1].item(), 5),
         "target": [np.min(testset[1]).item(), np.max(testset[1]).item()],
     }
-    with open(f"{folder}/params_{max_acc}.json", "w") as outfile:
+
+    filename = f"{folder}/params_{max_acc}.json"
+    with open(filename, "w", encoding="utf8") as outfile:
         json.dump(experiment, outfile, indent=4)
 
 
 if __name__ == "__main__":
     dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    folder = f"data/event/linear/{dt_string}"
-    Path(folder).mkdir(parents=True, exist_ok=True)
-    log.info(f"Running experiment, results in folder: {folder}")
-    train(1, folder)
+    data_folder = f"data/event/linear/{dt_string}"
+    Path(data_folder).mkdir(parents=True, exist_ok=True)
+    log.info(f"Running experiment, results in folder: {data_folder}")
+    train(1, data_folder)

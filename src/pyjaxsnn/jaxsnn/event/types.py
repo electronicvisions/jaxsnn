@@ -1,3 +1,4 @@
+# pylint: disable=disallowed-name,invalid-name,unsubscriptable-object,
 from __future__ import annotations
 
 import dataclasses
@@ -30,10 +31,13 @@ class Spike:
 
     @property
     def shape(self):
-        return self.time.shape
+        return self.time.shape  # pylint: disable=no-member
 
     def __getitem__(self, key) -> Spike:
-        return Spike(self.time[key], self.idx[key])
+        return Spike(
+            self.time[key],
+            self.idx[key],
+        )
 
 
 @dataclasses.dataclass
@@ -45,10 +49,14 @@ class EventPropSpike:
 
     @property
     def shape(self):
-        return self.time.shape
+        return self.time.shape  # pylint: disable=no-member
 
     def __getitem__(self, key) -> EventPropSpike:
-        return EventPropSpike(self.time[key], self.idx[key], self.current[key])
+        return EventPropSpike(
+            self.time[key],
+            self.idx[key],
+            self.current[key],
+        )
 
 
 @dataclasses.dataclass
@@ -59,7 +67,7 @@ class InputQueue:
 
     @property
     def is_empty(self) -> bool:
-        return self.head >= self.spikes.time.size
+        return self.head >= self.spikes.time.size  # pylint: disable=no-member
 
     def peek(self) -> EventPropSpike:
         return self.spikes[self.head]

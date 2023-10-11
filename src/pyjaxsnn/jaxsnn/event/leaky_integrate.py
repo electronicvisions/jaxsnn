@@ -41,14 +41,14 @@ def li_cell(
 leaky_integrator = jax.vmap(li_cell, in_axes=(None, None, 1, None), out_axes=1)
 
 
-def LeakyIntegrator(
+def LeakyIntegrator(  # pylint: disable=invalid-name
     n_hidden: int,
     t_max: float,
     params: LIFParameters,
     mean: float = 0.5,
     std: float = 2.0,
     time_steps: int = 20,
-):
+):  # pylint: disable=too-many-arguments
     def init_fn(rng: jax.random.KeyArray, input_shape: int):
         return (
             n_hidden,

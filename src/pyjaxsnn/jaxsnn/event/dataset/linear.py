@@ -6,7 +6,7 @@ from jaxsnn.event.dataset.utils import Dataset, add_current
 from jaxsnn.event.types import Spike
 
 
-def linear_dataset(
+def linear_dataset(  # pylint: disable=too-many-arguments,too-many-locals
     rng: random.KeyArray,
     t_late: float,
     shape: List[int],
@@ -23,7 +23,7 @@ def linear_dataset(
         wrong_target_time = 1.0 * t_late
 
     size = np.prod(np.array(shape))
-    input = random.uniform(rng, (size, 2))
+    inputs = random.uniform(rng, (size, 2))
     encoding = np.array(
         [
             [correct_target_time, wrong_target_time],
@@ -31,21 +31,21 @@ def linear_dataset(
         ]
     )
 
-    which_class = (input[:, 0] < input[:, 1]).astype(int)
+    which_class = (inputs[:, 0] < inputs[:, 1]).astype(int)
     target = encoding[which_class]
     spike_idx = np.array([0, 1])
 
     if mirror:
         spike_idx = np.concatenate((spike_idx, np.array([2, 3])))
-        input = np.hstack((input, 1 - input))
+        inputs = np.hstack((inputs, 1 - inputs))
 
     if bias_spike is not None:
         spike_idx = np.concatenate((spike_idx, np.array([spike_idx[-1] + 1])))
         column = np.full(size, bias_spike)[:, None]
-        input = np.hstack((input, column))
+        inputs = np.hstack((inputs, column))
 
     if duplication is not None:
-        input = np.repeat(input, duplication, axis=-1)
+        inputs = np.repeat(inputs, duplication, axis=-1)
 
         if duplicate_neurons:
             # duplicate over multiple neurons
@@ -53,20 +53,20 @@ def linear_dataset(
         else:
             spike_idx = np.repeat(spike_idx, duplication, axis=-1)
 
-    input = input * t_late
+    inputs = inputs * t_late
 
     spike_idx = np.tile(spike_idx, (np.prod(np.array(shape)), 1))
-    assert spike_idx.shape == input.shape
+    assert spike_idx.shape == inputs.shape
 
     # sort spikes
-    sort_idx = np.argsort(input, axis=-1)
-    input = input[np.arange(input.shape[0])[:, None], sort_idx]
+    sort_idx = np.argsort(inputs, axis=-1)
+    inputs = inputs[np.arange(inputs.shape[0])[:, None], sort_idx]
     spike_idx = spike_idx[np.arange(spike_idx.shape[0])[:, None], sort_idx]
 
-    input_spikes = Spike(
-        input.reshape(*(shape + [-1])),
+    inputs_spikes = Spike(
+        inputs.reshape(*(shape + [-1])),
         spike_idx.reshape(*(shape) + [-1]),
     )
 
     target = target.reshape(*(shape + [2]))
-    return (add_current(input_spikes), target, "linear")
+    return (add_current(inputs_spikes), target, "linear")

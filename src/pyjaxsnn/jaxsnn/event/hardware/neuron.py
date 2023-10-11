@@ -1,10 +1,10 @@
+# pylint: disable=wrong-import-order,logging-not-lazy,logging-fstring-interpolation
 """
 Implementing SNN modules
 """
 import logging
 from typing import List, Optional
 
-import hxtorch
 import numpy as np
 import pygrenade_vx.network.placed_logical as grenade
 from dlens_vx_v3 import hal, halco, lola
@@ -28,7 +28,7 @@ class Neuron(Module):
         hal.NeuronConfig.ReadoutSource.membrane
     )
 
-    def __init__(
+    def __init__(  # pylint:disable=too-many-arguments
         self,
         size: int,
         params: LIFParameters,
@@ -147,7 +147,7 @@ class Neuron(Module):
             grenade.Population.Neuron(
                 logical_neuron,
                 {
-                    halco.CompartmentOnLogicalNeuron(): grenade.Population.Neuron.Compartment(
+                    halco.CompartmentOnLogicalNeuron(): grenade.Population.Neuron.Compartment(  # pylint: disable=line-too-long
                         grenade.Population.Neuron.Compartment.SpikeMaster(
                             0, True
                         ),

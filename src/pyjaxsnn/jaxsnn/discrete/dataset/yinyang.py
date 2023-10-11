@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 from typing import Optional
 
 import jax
@@ -40,9 +41,9 @@ get_class_batched = jax.vmap(get_class, in_axes=(0, None, None))
 
 
 class YinYangDataset:
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
-        key: random.KeyArray,
+        rng: random.KeyArray,
         size: int = 1000,
         r_small: float = 0.1,
         r_big: float = 0.5,
@@ -52,25 +53,26 @@ class YinYangDataset:
         Initializing the dataset:
 
         .. code: python
-            from jaxsnn.discrete.ataset.yinyang import YinYangDataset
+            from jaxsnn.discrete.dataset.yinyang import YinYangDataset
 
-            dataset_train = YinYangDataset(size=5000, key=42)
-            dataset_validation = YinYangDataset(size=1000, key=41)
-            dataset_test = YinYangDataset(size=1000, key=40)
+            dataset_train = YinYangDataset(size=5000, rng=42)
+            dataset_validation = YinYangDataset(size=1000, rng=41)
+            dataset_test = YinYangDataset(size=1000, rng=40)
 
-        **Note** It is very important to give different seeds for trainings-, validation- and test set, as the data is
-        generated randomly using rejection sampling. Therefore giving the same key value will result in having the
-        same samples in the different datasets!
+        It is very important to give different seeds for trainings-,
+        validation- and test set, as the data is generated randomly
+        using rejection sampling. Therefore giving the same rng value will
+        result in having the same samples in the different datasets.
         """
         self.r_small = r_small
         self.r_big = r_big
         self.vals: jax.Array = np.array([])
         self.classes: jax.Array = np.array([])
         self.class_names = ["yin", "yang", "dot"]
-        key, subkey = random.split(key)
+        rng, subkey = random.split(rng)
 
         # on average we need around 7 tries for one sample
-        coords = random.uniform(key, (size * 10 + 100, 2)) * 2.0 * self.r_big
+        coords = random.uniform(rng, (size * 10 + 100, 2)) * 2.0 * self.r_big
 
         classes = get_class_batched(coords, self.r_big, self.r_small)
 
@@ -94,7 +96,7 @@ class YinYangDataset:
         return len(self.classes)
 
 
-def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
+def data_loader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
     permutation = (
         random.permutation(rng, len(dataset))
         if rng is not None
@@ -105,8 +107,3 @@ def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
     )
     classes = dataset.classes[permutation].reshape(-1, batch_size)
     return vals, classes
-
-
-if __name__ == "__main__":
-    key = random.PRNGKey(42)
-    dataset = YinYangDataset(key, size=10000)

@@ -1,3 +1,5 @@
+# pylint: disable=wrong-import-order,logging-not-lazy
+# pylint: disable=logging-fstring-interpolation
 """
 Defining basic types to create hw-executable instances
 """
@@ -94,10 +96,7 @@ class Experiment:
 
         # If chip is still None we load default nightly calib
         if self._chip is None:
-            log.info(
-                "No chip object present. Using chip object with default "
-                + "nightly calib."
-            )
+            log.info("No chip present. Using chip with default nightly calib.")
             self._chip = self.load_calib(calib_helper.nightly_calib_path())
 
         self._static_config_prepared = True
@@ -237,11 +236,6 @@ class Experiment:
         input_pop.add_to_input_generator(inputs, input_generator)
         return input_generator.done()
 
-    def _generate_playback_hooks(
-        self,
-    ) -> grenade.signal_flow.ExecutionInstancePlaybackHooks:
-        return grenade.signal_flow.ExecutionInstancePlaybackHooks()
-
     def _get_population_observables(
         self,
         network_graph: grenade.network.placed_logical.NetworkGraph,
@@ -289,7 +283,7 @@ class Experiment:
         """
         self._projections.append(module)
 
-    def get_hw_results(
+    def get_hw_results(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         inputs: Spike,
         weights: List[Weight],
@@ -342,7 +336,10 @@ class Experiment:
 
         grenade_start = time.time()
         outputs = hxtorch.snn.grenade_run(
-            self._chip, network, inputs, self._generate_playback_hooks()
+            self._chip,
+            network,
+            inputs,
+            grenade.signal_flow.ExecutionInstancePlaybackHooks(),
         )
         time_grenade_run = time.time() - grenade_start
         start_get_observables = time.time()
@@ -375,7 +372,13 @@ class Experiment:
                 .data.to_dense()
                 .numpy()
             )
-            madc_recording = data[:, :, self._populations[1]._record_neuron_id]
+            madc_recording = data[
+                :,
+                :,
+                self._populations[  # pylint: disable=protected-access
+                    1
+                ]._record_neuron_id,  # pylint: disable=protected-access
+            ]
             return spike_list, madc_recording
 
         time_get_observables = time.time() - start_get_observables

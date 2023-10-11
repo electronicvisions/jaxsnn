@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 from functools import partial
 from typing import Tuple
 
@@ -47,8 +48,8 @@ def constant_current_lif_encode(
     seq_length: int,
 ):
     """
-    Encodes input currents as fixed (constant) voltage currents, and simulates the spikes that
-    occur during a number of timesteps/iterations (seq_length).
+    Encodes input currents as fixed (constant) voltage currents, and simulates
+    the spikes that occur during a number of timesteps/iterations (seq_length).
 
     Example:
         >>> data = np.array([2, 4, 8, 16])
@@ -66,7 +67,8 @@ def constant_current_lif_encode(
         seq_length (int): The number of iterations to simulate
 
     Returns:
-        An array with an extra dimension of size `seq_length` containing spikes (1) or no spikes (0).
+        An array with an extra dimension of size `seq_length` containing
+        spikes (1) or no spikes (0).
     """
     init = np.zeros(*input_current.shape)
     input_current = np.tile(input_current, (seq_length, 1))
@@ -74,15 +76,15 @@ def constant_current_lif_encode(
 
 
 @partial(jax.jit, static_argnames=["seq_length"])
-def spatio_temporal_encode(
+def spatio_temporal_encode_inner(
     input_values: jax.Array,
     seq_length: int,
     t_late: float,
     dt: float,
 ):
     """
-    Encodes n-dimensional input coordinates with range [0, 1], and simulates the spikes that
-    occur during a number of timesteps/iterations (seq_length).
+    Encodes n-dimensional input coordinates with range [0, 1], and simulates
+    the spikes that occur during a number of timesteps/iterations (seq_length).
 
     Example:
         >>> data = np.array([2, 4, 8, 16])
@@ -93,14 +95,15 @@ def spatio_temporal_encode(
                  [0., 0., 1., 1.]]))
 
     Parameters:
-        input_values (torch.Tensor): The input tensor, representing points in 2d space
+        input_values (torch.Tensor): The input tensor, representing 2d points
         seq_length (int): The number of iterations to simulate
         t_early (float): Earliest time at which coordinates may be encoded
         t_late (float): Latest time at which coordinates may be encoded
         dt (float): Time delta between simulation steps
 
     Returns:
-        A tensor with an extra dimension of size `seq_length` containing spikes (1) or no spikes (0).
+        A tensor with an extra dimension of size `seq_length` containing
+        spikes (1) or no spikes (0).
     """
     if len(input_values.shape) > 2:
         raise ValueError(
@@ -113,18 +116,11 @@ def spatio_temporal_encode(
     return encoded
 
 
-def SpatioTemporalEncode(T, t_late, DT):
+def spatio_temporal_encode(T, t_late, DT):
     def init_fn(rng, input_shape):
         return (input_shape, None, rng)
 
-    def apply_fn(params, inputs, **kwargs):
-        return spatio_temporal_encode(inputs, T, t_late, DT), None
+    def apply_fn(params, inputs, **kwargs):  # pylint: disable=unused-argument
+        return spatio_temporal_encode_inner(inputs, T, t_late, DT), None
 
     return init_fn, apply_fn
-
-
-if __name__ == "__main__":
-    # data = np.array([[0.1, 0.1, 0.9, 0.9], [0.5, 0.8, 0.5, 0.2]])
-    # value = spatio_temporal_encode(data, 10)
-
-    data = np.array([0.5, 0.8, 0.5, 0.2])

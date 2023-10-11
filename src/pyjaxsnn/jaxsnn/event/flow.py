@@ -16,7 +16,7 @@ def lif_wrap(func):
 
 def exponential_flow(kernel: jax.Array):
     def flow(initial_state: jax.Array, time: float):
-        return np.dot(linalg.expm(kernel * time), initial_state)  # type: ignore
+        return np.dot(linalg.expm(kernel * time), initial_state)
 
     return lif_wrap(flow)
 

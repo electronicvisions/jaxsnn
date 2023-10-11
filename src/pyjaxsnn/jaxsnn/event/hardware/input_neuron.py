@@ -1,7 +1,7 @@
+# pylint: disable=logging-not-lazy,logging-fstring-interpolation
 import logging
 
 import _hxtorch_core
-import hxtorch
 import numpy as onp
 import pygrenade_vx.network.placed_logical as grenade
 from jaxsnn.event.hardware.module import Module
@@ -56,17 +56,17 @@ class InputNeuron(Module):
         return self.descriptor
 
     def add_to_input_generator(
-        self, input: Spike, builder: grenade.InputGenerator
+        self, inputs: Spike, builder: grenade.InputGenerator
     ) -> None:
         """
         Add the neurons events represented by this instance to grenades input
         generator.
 
-        :param input: input spikes for this neuron
+        :param inputs: input spikes for this neuron
         :param builder: Grenade's input generator to append the events to.
         """
         # convert input from seconds to milliseconds
-        spike_tuple = (onp.array(input.idx), onp.array(input.time) * 1_000)
+        spike_tuple = (onp.array(inputs.idx), onp.array(inputs.time) * 1_000)
         spike_times = _hxtorch_core.dense_spikes_to_list(
             spike_tuple, self.size
         )

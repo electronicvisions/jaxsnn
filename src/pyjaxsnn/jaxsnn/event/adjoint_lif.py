@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 from typing import Callable
 
 import jax
@@ -14,7 +15,7 @@ from jaxsnn.event.types import (
 )
 
 
-def adjoint_transition_without_recurrence(
+def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
     adjoint_state: StepState,
     spike: EventPropSpike,
@@ -24,7 +25,7 @@ def adjoint_transition_without_recurrence(
     weights: Weight,
     input_queue_head: int,
 ):
-    def adjoint_transition_in_layer(
+    def adjoint_transition_in_layer(  # pylint: disable=too-many-arguments,unused-argument
         params: LIFParameters,
         adjoint_state: StepState,
         spike: EventPropSpike,
@@ -45,7 +46,7 @@ def adjoint_transition_without_recurrence(
         ].add(adjoint_spike.time / safe_denominator)
         return adjoint_state, grads
 
-    def adjoint_input_transition(
+    def adjoint_input_transition(  # pylint: disable=too-many-arguments,unused-argument
         params: LIFParameters,
         adjoint_state: StepState,
         spike: EventPropSpike,
@@ -103,7 +104,7 @@ def adjoint_transition_without_recurrence(
     )
 
 
-def adjoint_transition_with_recurrence(
+def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
     adjoint_state: StepState,
     spike: EventPropSpike,
@@ -113,7 +114,7 @@ def adjoint_transition_with_recurrence(
     weights: Weight,
     input_queue_head: int,
 ):
-    def adjoint_transition_with_recurrence_in_layer(
+    def adjoint_transition_with_recurrence_in_layer(  # pylint: disable=too-many-arguments
         params: LIFParameters,
         adjoint_state: StepState,
         spike: EventPropSpike,
@@ -121,7 +122,7 @@ def adjoint_transition_with_recurrence(
         adjoint_spike: EventPropSpike,
         grads: WeightRecurrent,
         weights: WeightRecurrent,
-        input_queue_head: int,
+        input_queue_head: int,  # pylint: disable=unused-argument
     ):
         index_for_layer = spike.idx - layer_start
         epsilon = 1e-6
@@ -150,12 +151,12 @@ def adjoint_transition_with_recurrence(
         )
         return updated_state, grads
 
-    def adjoint_input_transition(
+    def adjoint_input_transition(  # pylint: disable=too-many-arguments
         params: LIFParameters,
         adjoint_state: StepState,
         spike: EventPropSpike,
         layer_start: int,
-        adjoint_spike: EventPropSpike,
+        adjoint_spike: EventPropSpike,  # pylint: disable=unused-argument
         grads: WeightRecurrent,
         weights: WeightRecurrent,
         input_queue_head: int,
@@ -227,7 +228,7 @@ def adjoint_lif_dynamic(params: LIFParameters, lambda_0: jax.Array, t: float):
 
 
 # define hybrid adjoint dynamics (EventProp)
-def step_bwd(
+def step_bwd(  # pylint: disable=too-many-locals
     adjoint_dynamics: Callable,
     adjoint_tr_dynamics: Callable,
     t_max: float,
@@ -262,5 +263,4 @@ def step_bwd(
             - adjoint_state.input_queue.head,
         ),
     )
-    # tr_state, new_grads = adjoint_state, grads
     return (tr_state, new_grads, layer_start), 1

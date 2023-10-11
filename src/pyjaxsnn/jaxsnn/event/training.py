@@ -1,3 +1,4 @@
+# pylint: disable=logging-fstring-interpolation
 import logging
 from typing import Callable, Tuple
 
@@ -37,7 +38,7 @@ def epoch(
     testset: Dataset,
     opt_state: OptState,
     i: int,
-):
+):  # pylint: disable=too-many-arguments
     res, duration = time_it(jax.lax.scan, update_fn, opt_state, trainset[:2])
     opt_state, (recording, grad) = res
 

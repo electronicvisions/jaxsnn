@@ -18,7 +18,7 @@ def good_params(params: LIFParameters) -> Dict:
     }
 
 
-def yinyang_dataset(
+def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
     rng: random.KeyArray,
     shape: List[int],
     t_late: float,
@@ -42,30 +42,30 @@ def yinyang_dataset(
         ]
     )
 
-    input = random.uniform(rng, (size * 10 + 100, 2)) * 2.0 * r_big
-    which_class = get_class_batched(input, r_big, r_small)
+    inputs = random.uniform(rng, (size * 10 + 100, 2)) * 2.0 * r_big
+    which_class = get_class_batched(inputs, r_big, r_small)
 
     n_per_class = [size // 3, size // 3, size - 2 * (size // 3)]
     idx = np.concatenate(
         [np.where(which_class == i)[0][:n] for i, n in enumerate(n_per_class)]
     )
     idx = random.permutation(subkey, idx, axis=0)
-    input = input[idx]
+    inputs = inputs[idx]
     which_class = which_class[idx]
     target = encoding[which_class]
 
     spike_idx = np.array([0, 1])
     if mirror:
         spike_idx = np.concatenate((spike_idx, np.array([2, 3])))
-        input = np.hstack((input, 1 - input))
+        inputs = np.hstack((inputs, 1 - inputs))
 
     if bias_spike is not None:
         spike_idx = np.concatenate((spike_idx, np.array([spike_idx[-1] + 1])))
         column = np.full(size, bias_spike)[:, None]
-        input = np.hstack((input, column))
+        inputs = np.hstack((inputs, column))
 
     if duplication is not None:
-        input = np.repeat(input, duplication, axis=-1)
+        inputs = np.repeat(inputs, duplication, axis=-1)
         if duplicate_neurons:
             # duplicate over multiple neurons
             spike_idx = np.arange(spike_idx.shape[0] * duplication)
@@ -73,16 +73,16 @@ def yinyang_dataset(
             spike_idx = np.repeat(spike_idx, duplication, axis=-1)
 
     spike_idx = np.tile(spike_idx, (np.prod(np.array(shape)), 1))
-    assert spike_idx.shape == input.shape
+    assert spike_idx.shape == inputs.shape
 
     # sort spikes
-    sort_idx = np.argsort(input, axis=-1)
-    input = input[np.arange(input.shape[0])[:, None], sort_idx]
+    sort_idx = np.argsort(inputs, axis=-1)
+    inputs = inputs[np.arange(inputs.shape[0])[:, None], sort_idx]
     spike_idx = spike_idx[np.arange(spike_idx.shape[0])[:, None], sort_idx]
 
-    input = input * t_late
+    inputs = inputs * t_late
     input_spikes = Spike(
-        input.reshape(*(shape + [-1])), spike_idx.reshape(*(shape) + [-1])
+        inputs.reshape(*(shape + [-1])), spike_idx.reshape(*(shape) + [-1])
     )
 
     target = target.reshape(*(shape + [3]))

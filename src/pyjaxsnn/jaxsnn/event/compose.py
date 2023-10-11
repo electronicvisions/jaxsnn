@@ -7,8 +7,8 @@ from jaxsnn.event.types import (
     InitApplyHW,
     SingleInitApply,
     SingleInitApplyHW,
-    Weight,
     Spike,
+    Weight,
 )
 
 
@@ -18,9 +18,8 @@ def serial(*layers: SingleInitApply) -> InitApply:
     Returns:
         InitApply: Init/apply pair
     """
-    # init_fns, apply_fns = zip(*layers)
-    init_fns = [l[0] for l in layers]
-    apply_fns = [l[1] for l in layers]
+    init_fns = [layer[0] for layer in layers]
+    apply_fns = [layer[1] for layer in layers]
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
@@ -37,7 +36,10 @@ def serial(*layers: SingleInitApply) -> InitApply:
     def apply_fn(
         weights: List[Weight], spikes: EventPropSpike
     ) -> List[EventPropSpike]:
-        """Take parameters of the network and the input spikes and return the output spikes of each layer
+        """Forward function of the network.
+
+        Take parameters of the network and the input spikes and return the
+        output spikes of each layer.
 
         Args:
             weights (List[Weight]): Parameters of the network
@@ -48,9 +50,9 @@ def serial(*layers: SingleInitApply) -> InitApply:
         """
         recording = []
         layer_start = 0
-        for fn, param in zip(apply_fns, weights):
+        for layer_apply_fn, param in zip(apply_fns, weights):
             layer_start += param.input.shape[0]
-            spikes = fn(layer_start, param, spikes)
+            spikes = layer_apply_fn(layer_start, param, spikes)
             recording.append(spikes)
         return recording
 
@@ -58,19 +60,20 @@ def serial(*layers: SingleInitApply) -> InitApply:
 
 
 def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
-    """Concatenate multiple layers of init/apply functions for the special case of the spikes already known.
+    """Concatenate multiple layers of init/apply functions.
 
-    For a special case of hardware-in-the-loop training it is necessary to do a forward run in software (after already
-    having the observations from software) in order to add information about the synaptic current at spike time.
-    This information is not returned from the hardware but needed for the EventProp algorithm. As there is one more
-    input, a different concatenation functino is needed.
+    For a special case of hardware-in-the-loop training it is necessary to
+    do a forward run in software (after already having the observations from
+    software) in order to add information about the synaptic current at spike
+    time. This information is not returned from the hardware but needed for
+    the EventProp algorithm. As there is one more input, a different
+    concatenation functino is needed.
 
     Returns:
         InitApply: Init/apply pair
     """
-    # init_fns, apply_fns = zip(*layers)
-    init_fns = [l[0] for l in layers]
-    apply_fns = [l[1] for l in layers]
+    init_fns = [layer[0] for layer in layers]
+    apply_fns = [layer[1] for layer in layers]
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
@@ -89,10 +92,14 @@ def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
         weights: List[Weight],
         spikes: EventPropSpike,
     ) -> List[EventPropSpike]:
-        """Take parameters of the network and the input spikes and return the output spikes of each layer
+        """Forward function of the network.
+
+        Take parameters of the network and the input spikes and return the
+        output spikes of each layer
 
         Args:
-            known_spikes(List[EventPropSpike]): The spikes that happened on hardware in each layer
+            known_spikes(List[EventPropSpike]): The spikes that
+                happened on hardware in each layer
             weights (List[Weight]): Parameters of the network
             spikes (EventPropSpike): Input spikes
 
@@ -101,9 +108,10 @@ def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
         """
         recording = []
         layer_start = 0
-        for fn, param, known in zip(apply_fns, weights, known_spikes):
+        for item in zip(apply_fns, weights, known_spikes):
+            layer_apply_fn, param, known = item
             layer_start += param.input.shape[0]
-            spikes = fn(layer_start, param, spikes, known)
+            spikes = layer_apply_fn(layer_start, param, spikes, known)
             recording.append(spikes)
         return recording
 

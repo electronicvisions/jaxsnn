@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 import dataclasses
 
 import jax
@@ -54,7 +55,7 @@ def LI(out_dim, scale_in=0.2):
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
         return out_dim, input_weights, rng
 
-    def apply_fn(weights, inputs, **kwargs):
+    def apply_fn(weights, inputs, **kwargs):  # pylint: disable=unused-argument
         batch = inputs.shape[1]
         shape = (batch, out_dim)
         state = LIState(np.zeros(shape), np.zeros(shape))
@@ -74,7 +75,9 @@ def LIStep(out_dim, scale_in=0.2):
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
         return out_dim, input_weights, rng
 
-    def apply_fn(state, weights, inputs, **kwargs):
+    def apply_fn(
+        state, weights, inputs, **kwargs
+    ):  # pylint: disable=unused-argument
         return li_feed_forward_step((state, weights), inputs)
 
     def state_fn(batch_size):

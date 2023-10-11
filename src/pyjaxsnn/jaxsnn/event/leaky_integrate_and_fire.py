@@ -1,22 +1,25 @@
+# pylint: disable=invalid-name
 """Implement different LIF layers, which can be concatenated
 
-Each layer returns a paif or two functions, the `init` function and the `apply` function.
-These functions can be concatenated with `jaxsnn.event.compose.serial`, which also returns
-and init/apply pair, consisting of multiple layers. The `init` function is used to initalize
-the weights of the network. The `apply` function does the inference and is equivalent to
-the forward function is in PyTorch. It receives the input spikes and weights of the network
-and returns the hidden spikes.
+Each layer returns a paif or two functions, the `init` function and the
+`apply` function. These functions can be concatenated with
+`jaxsnn.event.compose.serial`, which also returns and init/apply pair,
+consisting of multiple layers. The `init` function is used to initalize the
+weights of the network. The `apply` function does the inference and is
+equivalent to the forward function is in PyTorch. It receives the input
+spikes and weights of the network and returns the hidden spikes.
 
-The layers in this module differ in the topology they offer (feed-forward / recurrent) and
-in the way the gradients are computed (analytical via jax.grad or with an adjoint system
-(EventProp).
+The layers in this module differ in the topology they offer (feed-forward /
+recurrent) and in the way the gradients are computed (analytical via jax.grad
+or with an adjoint system (EventProp).
 
-`HardwareLIF` and `HardwareRecurrentLIF` allow the execution of the forward pass on the
-neuromorphic BSS-2 system. They forward pass is executed on the neuromorphic system and
-the spikes are retrived. Because the spike data from BSS-2 is missing information about the
-synaptic current at spike time (which is needed for the EventProp algorithm), a second
-forward pass in software is executed. The spike times from the hardware are used as solution
-for the root solving. The adjoint system of the EventProp algorithm is added as a custom
+`HardwareLIF` and `HardwareRecurrentLIF` allow the execution of the forward
+pass on the neuromorphic BSS-2 system. They forward pass is executed on the
+neuromorphic system and the spikes are retrived. Because the spike data from
+BSS-2 is missing information about the synaptic current at spike time (which
+is needed for the EventProp algorithm), a second forward pass in software is
+executed. The spike times from the hardware are used as solution for the root
+solving. The adjoint system of the EventProp algorithm is added as a custom
 Vector-Jacobian-Product (VJP).
 """
 
@@ -56,7 +59,7 @@ from jaxsnn.event.types import (
 )
 
 
-def LIF(
+def LIF(  # pylint: disable=too-many-arguments
     n_hidden: int,
     n_spikes: int,
     t_max: float,
@@ -65,7 +68,7 @@ def LIF(
     std: float = 2.0,
     duplication: Optional[int] = None,
 ) -> SingleInitApply:
-    """A feed-forward layer of LIF Neurons
+    """A feed-forward layer of LIF Neurons.
 
     Args:
         n_hidden (int): Number of hidden neurons
@@ -73,7 +76,8 @@ def LIF(
         t_max (float): Maxium simulation time
         p (LIFParameters): Parameters of the LIF neurons
         mean (float, optional): Mean of initial weights. Defaults to 0.5.
-        std (float, optional): Standard deviation of initial weights. Defaults to 2.0.
+        std (float, optional): Standard deviation of initial weights.
+            Defaults to 2.0.
 
     Returns:
         SingleInitApply: _description_
@@ -93,7 +97,7 @@ def LIF(
     return init_fn, apply_fn
 
 
-def RecurrentLIF(
+def RecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     layers: List[int],
     n_spikes: int,
     t_max: float,
@@ -118,7 +122,7 @@ def RecurrentLIF(
     return init_fn, apply_fn
 
 
-def EventPropLIF(
+def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     n_hidden: int,
     n_spikes: int,
     t_max: float,
@@ -128,7 +132,7 @@ def EventPropLIF(
     wrap_only_step: bool = False,
     duplication: Optional[int] = None,
 ) -> SingleInitApply:
-    """Feed-forward layer of LIF neurons with EventProp gradient computation
+    """Feed-forward layer of LIF neurons with EventProp gradient computation.
 
     Args:
         n_hidden (int): Number of hidden neurons
@@ -136,10 +140,13 @@ def EventPropLIF(
         t_max (float): Maximum simulation time
         p (LIFParameters): Parameters of the LIF neurons
         mean (float, optional): Mean of initial weights. Defaults to 0.5.
-        std (float, optional): Standard deviation of initial weights. Defaults to 2.0.
-        wrap_only_step (bool, optional): If custom vjp should be defined only for the
-            step function or for the entire trajectory. Defaults to False.
-        duplication (Optional[int], optional): Factor with which input weights are duplicated. Defaults to None.
+        std (float, optional): Standard deviation of initial weights.
+            Defaults to 2.0.
+        wrap_only_step (bool, optional): If custom vjp should be defined
+            only for the step function or for the entire trajectory.
+            Defaults to False.
+        duplication (Optional[int], optional): Factor with which input weights
+            are duplicated. Defaults to None.
 
     Returns:
         SingleInitApply: Pair of init apply functions.
@@ -236,7 +243,7 @@ def EventPropLIF(
     return init_fn, apply_fn
 
 
-def RecurrentEventPropLIF(
+def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     layers: List[int],
     n_spikes: int,
     t_max: float,
@@ -246,11 +253,13 @@ def RecurrentEventPropLIF(
     wrap_only_step: bool = False,
     duplication: Optional[int] = None,
 ) -> SingleInitApply:
-    """Use quadrants of the recurrent weight matrix to set up a multi-layer feed-forward LIF in one recurrent layer.
+    """Use quadrants of the recurrent weight matrix to set up a multi-layer
+    feed-forward LIF in one recurrent layer.
 
-    When simulating multiple layers, the first layer needs to be fully simulated before
-    the resulting spikes are passed to the next layer. When vieweing multiple feed-forward layers as
-    one recurrent layer with the only rectangular parts of the weight matrix initialized with non-zero entries,
+    When simulating multiple layers, the first layer needs to be fully
+    simulated before the resulting spikes are passed to the next layer. When
+    viewing multiple feed-forward layers as one recurrent layer with the only
+    rectangular parts of the weight matrix initialized with non-zero entries,
     multiple feed-forward layers can be simulated together.
 
     Args:
@@ -260,9 +269,11 @@ def RecurrentEventPropLIF(
         p (LIFParameters): Parameters of the LIF neurons
         mean (float): Mean of initial weights.
         std (float): Standard deviation of initial weights.
-        wrap_only_step (bool, optional): If custom vjp should be defined only for the
-            step function or for the entire trajectory. Defaults to False.
-        duplication (Optional[int], optional): Factor with which input weights are duplicated. Defaults to None.
+        wrap_only_step (bool, optional): If custom vjp should be defined only
+            for the step function or for the entire trajectory. Defaults
+            to False.
+        duplication (Optional[int], optional): Factor with which input weights
+            are duplicated. Defaults to None.
 
     Returns:
         SingleInitApply: Pair of init apply functions.
@@ -358,7 +369,7 @@ def RecurrentEventPropLIF(
     return init_fn, apply_fn
 
 
-def HardwareRecurrentLIF(
+def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     layers: List[int],
     n_spikes: int,
     t_max: float,
@@ -450,7 +461,7 @@ def HardwareRecurrentLIF(
     return init_fn, apply_fn
 
 
-def HardwareLIF(
+def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
     n_hidden: int,
     n_spikes: int,
     t_max: float,
@@ -513,7 +524,7 @@ def HardwareLIF(
         return (output_state, spikes), (spikes, output_state, known_spikes)
 
     def custom_trajectory_bwd(res, g):
-        spikes, (state, weights, layer_start), known_spikes = res
+        spikes, (_, weights, layer_start), known_spikes = res
         (adjoint_state, grads, _), adjoint_spikes = g
 
         (adjoint_state, grads, layer_start), _ = jax.lax.scan(

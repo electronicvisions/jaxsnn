@@ -3,7 +3,7 @@ from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.types import StepState, Weight, WeightInput, WeightRecurrent
 
 
-def transition_with_recurrence(
+def transition_with_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
     state: StepState,
     weights: Weight,
@@ -16,7 +16,7 @@ def transition_with_recurrence(
         state: StepState,
         weights: WeightRecurrent,
         spike_idx: int,
-        prev_layer_start: int,
+        prev_layer_start: int,  # pylint: disable=unused-argument
     ):
         tr_row = weights.recurrent[spike_idx]
 
@@ -27,10 +27,10 @@ def transition_with_recurrence(
         return state
 
     def input_transition(
-        params: LIFParameters,
+        params: LIFParameters,  # pylint: disable=unused-argument
         state: StepState,
         weights: WeightRecurrent,
-        spike_idx: int,
+        spike_idx: int,  # pylint: disable=unused-argument
         prev_layer_start: int,
     ):
         spike = state.input_queue.pop()
@@ -55,7 +55,7 @@ def transition_with_recurrence(
     )
 
 
-def transition_without_recurrence(
+def transition_without_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
     state: StepState,
     weights: WeightInput,
@@ -66,7 +66,7 @@ def transition_without_recurrence(
     def input_transition(
         state: StepState,
         weights: WeightInput,
-        spike_idx: int,
+        spike_idx: int,  # pylint: disable=unused-argument
         prev_layer_start: int,
     ):
         spike = state.input_queue.pop()
@@ -79,7 +79,9 @@ def transition_without_recurrence(
         )
         return state
 
-    def no_transition(state: StepState, *args):
+    def no_transition(
+        state: StepState, *args
+    ):  # pylint: disable=unused-argument
         state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(
             params.v_reset
         )

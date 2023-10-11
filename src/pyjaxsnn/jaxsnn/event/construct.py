@@ -35,15 +35,17 @@ def construct_recurrent_init_fn(
 
         recurrent_weights = np.zeros((hidden_size, hidden_size))
         l_sum = 0
-        for i, (l1, l2) in enumerate(zip(layers, layers[1:])):
+        for i, (layer_1, layer_2) in enumerate(zip(layers, layers[1:])):
             rng, layer_rng = jax.random.split(rng)
+            ix_middle = l_sum + layer_1
+
             recurrent_weights = recurrent_weights.at[
-                l_sum : l_sum + l1, l_sum + l1 : l_sum + l1 + l2
+                l_sum:ix_middle, ix_middle:ix_middle + layer_2
             ].set(
-                jax.random.normal(layer_rng, (l1, l2)) * std[i + 1]
+                jax.random.normal(layer_rng, (layer_1, layer_2)) * std[i + 1]
                 + mean[i + 1]
             )
-            l_sum += l1
+            l_sum += layer_1
 
         weights = WeightRecurrent(input_weights, recurrent_weights)
         return hidden_size, weights

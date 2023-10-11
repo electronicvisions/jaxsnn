@@ -23,8 +23,8 @@ def batch_wrapper(
     """Add an outer batch dimension to `loss_fn`.
 
     The loss function returns the actual loss value, and some more information.
-    When adding the batch dimension, the average of the loss value is taken, but
-    the information is stacked.
+    When adding the batch dimension, the average of the loss value is taken,
+    bu the information is stacked.
     """
 
     def wrapped_fn(*args, **kwargs):
@@ -37,19 +37,21 @@ def batch_wrapper(
     return wrapped_fn
 
 
-# Input to step function. Consists of StepState, weights of the network and start index of the layer
+# Input to step function.
+# Consists of StepState, weights of the network and start index of the layer
 StepInput = Tuple[StepState, Weight, int]
 
 
-def step(
+def step(  # pylint: disable=unused-argument,too-many-locals
     dynamics: Callable,
     tr_dynamics: Callable,
     solver: Solver,
     t_max: float,
-    input: StepInput,
+    step_input: StepInput,
     *args: int,
 ) -> Tuple[StepInput, EventPropSpike]:
-    """Determine the next spike (external or internal), and integrate the neurons to that point.
+    """Find next spike (external or internal), and simulate to that point.
+
     Args:
         dynamics (Callable): Function describing the continous neuron dynamics
         tr_dynamics (Callable): Function describing the transition dynamics
@@ -57,9 +59,9 @@ def step(
         solver (Solver): Parallel root solver which returns the next event
         state (StepInput): (StepState, weights, int)
     Returns:
-        Tuple[StepInput, Spike]: New state after transition and spike for storing
+        Tuple[StepInput, Spike]: New state after transition and stored spike
     """
-    state, weights, layer_start = input
+    state, weights, layer_start = step_input
     prev_layer_start = layer_start - weights.input.shape[0]
 
     next_internal = solver(state.neuron_state, state.time, t_max)
@@ -125,12 +127,14 @@ def trajectory(
         input_spikes: EventPropSpike,
     ) -> EventPropSpike:
         initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
-        s = StepState(
+        step_state = StepState(
             neuron_state=initial_state,
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
-        _, spikes = jax.lax.scan(step_fn, (s, weights, layer_start), np.arange(n_spikes))  # type: ignore
+        _, spikes = jax.lax.scan(
+            step_fn, (step_state, weights, layer_start), np.arange(n_spikes)
+        )
         return spikes
 
     return fun

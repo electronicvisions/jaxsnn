@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 import dataclasses
 from functools import partial
 from typing import NamedTuple
@@ -20,8 +21,8 @@ class LIFInput:
         z (jax.Array): input spikes
     """
 
-    I: jax.Array
-    z: jax.Array
+    I: jax.Array  # pylint: disable=disallowed-name
+    z: jax.Array  # pylint: disable=disallowed-name
 
 
 class LIFState(NamedTuple):
@@ -46,7 +47,7 @@ def lif_step(
     method=superspike,
     params: LIFParameters = LIFParameters(),
     dt=0.001,
-):
+):  # pylint: disable=too-many-locals
     state, weights = init
     input_weights, recurrent_weights = weights
     z, v, i = state
@@ -88,7 +89,7 @@ def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
         )
         return out_dim, (input_weights, recurrent_weights)
 
-    def apply_fn(weights, inputs, **kwargs):
+    def apply_fn(weights, inputs, **kwargs):  # pylint: disable=unused-argument
         batch = inputs.shape[1]
         shape = (batch, out_dim)
         state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
@@ -99,7 +100,9 @@ def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
     return init_fn, apply_fn
 
 
-def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
+def LIFStep(
+    out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs
+):  # pylint: disable=unused-argument
     """Layer constructor function for a lif (leaky-integrated-fire) layer."""
 
     def init_fn(rng, input_shape):
@@ -112,14 +115,16 @@ def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
         )
         return out_dim, (input_weights, recurrent_weights), rng
 
-    def state_fn(batch_size, **kwargs):
+    def state_fn(batch_size, **kwargs):  # pylint: disable=unused-argument
         shape = (batch_size, out_dim)
         state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
         return state
 
     lif_step_fn = jax.jit(partial(lif_step, method=method))
 
-    def apply_fn(state, weights, inputs, **kwargs):
+    def apply_fn(
+        state, weights, inputs, **kwargs
+    ):  # pylint: disable=unused-argument
         return lif_step_fn((state, weights), inputs)
 
     return init_fn, apply_fn, state_fn

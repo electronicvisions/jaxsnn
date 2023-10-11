@@ -5,7 +5,7 @@ import optax
 from jax import random
 from jaxsnn import discrete
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.dataset.yinyang import DataLoader, YinYangDataset
+from jaxsnn.discrete.dataset.yinyang import YinYangDataset, data_loader
 from jaxsnn.discrete.loss import acc_and_loss, nll_loss
 from jaxsnn.discrete.threshold import superspike
 
@@ -44,12 +44,12 @@ def test_train():
     test_dataset = YinYangDataset(test_key, 1000)
 
     snn_init, snn_apply = discrete.serial(
-        discrete.SpatioTemporalEncode(T, t_late, DT),
+        discrete.spatio_temporal_encode(T, t_late, DT),
         discrete.euler_integrate(
             discrete.LIFStep(hidden_features, superspike),
             discrete.LIStep(n_classes),
         ),
-        discrete.MaxOverTimeDecode(),
+        discrete.max_over_time_decode(),
     )
 
     _, weights = snn_init(init_key, input_shape=input_shape)
@@ -62,7 +62,7 @@ def test_train():
     loss_fn = partial(nll_loss, snn_apply, expected_spikes=expected_spikes)
     train_step_fn = partial(partial(update, optimizer), loss_fn=loss_fn)
 
-    trainloader = DataLoader(trainset, batch_size, rng=None)
+    trainloader = data_loader(trainset, batch_size, rng=None)
     for _ in range(epochs):
         (opt_state, weights, _), _ = jax.lax.scan(
             train_step_fn, (opt_state, weights, 0), trainloader

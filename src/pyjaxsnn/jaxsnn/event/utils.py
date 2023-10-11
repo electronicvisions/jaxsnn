@@ -26,18 +26,16 @@ def bump_weights(
     return weights
 
 
-def clip_gradient(grad: List[WeightInput]) -> List[WeightInput]:
-    for i in range(len(grad)):
-        grad[i] = WeightInput(
-            np.where(np.isnan(grad[i].input), 0.0, grad[i].input)
-        )
-    return grad
+def clip_gradient(grads: List[WeightInput]) -> List[WeightInput]:
+    for i, grad in enumerate(grads):
+        grads[i] = WeightInput(np.where(np.isnan(grad.input), 0.0, grad.input))
+    return grads
 
 
 def save_weights(weights: List[Weight], folder: str):
-    for i, p in enumerate(weights):
+    for i, weight in enumerate(weights):
         filename = f"{folder}/weights_{i}.npy"
-        np.save(filename, p.input, allow_pickle=True)
+        np.save(filename, weight.input, allow_pickle=True)
 
 
 def save_weights_recurrent(weights: WeightRecurrent, folder: str):
@@ -69,7 +67,7 @@ def get_index_trainset(trainset, idx):
     )
 
 
-def time_it(fn: Callable, *args) -> Tuple[Any, float]:
+def time_it(timed_function: Callable, *args) -> Tuple[Any, float]:
     start = time.time()
-    res = fn(*args)
+    res = timed_function(*args)
     return res, time.time() - start

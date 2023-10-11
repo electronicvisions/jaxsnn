@@ -1,9 +1,10 @@
-"""Analytically find the time of the next spike for a LIF neuron for the special case of
-$\tau_mem = 2 * \tau_syn$.
+"""Analytically find the time of the next spike for a LIF neuron for the
+special case of $\tau_mem = 2 * \tau_syn$.
 
-When using `jax.vmap` to do this root solving in parallel, `jax.lax.cond` is mapped to
-`jax.lax.switch`, meaning that both branches are executed. Therefore, special care
-is taken to ensure that no NaNs occur, which would effect gradient calculation."""
+When using `jax.vmap` to do this root solving in parallel, `jax.lax.cond`
+is mapped to `jax.lax.switch`, meaning that both branches are executed.
+Therefore, special care is taken to ensure that no NaNs occur, which would
+affect gradient calculation."""
 
 import jax
 import jax.numpy as np

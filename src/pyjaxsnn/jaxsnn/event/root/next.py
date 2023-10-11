@@ -26,7 +26,7 @@ def next_event(
 def next_queue(
     known_spikes: Spike,
     layer_start: int,
-    neuron_state: LIFState,
+    neuron_state: LIFState,  # pylint: disable=unused-argument
     time: float,
     t_max: float,
 ) -> Spike:

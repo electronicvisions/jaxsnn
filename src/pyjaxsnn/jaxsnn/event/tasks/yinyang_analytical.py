@@ -1,3 +1,4 @@
+# pylint: disable=logging-not-lazy,logging-fstring-interpolation
 import datetime as dt
 import json
 import logging
@@ -22,7 +23,7 @@ from jaxsnn.event.utils import save_weights as save_weights_fn
 log = logging.getLogger("root")
 
 
-def train(
+def train(  # pylint: disable=too-many-locals
     seed: int,
     folder: str,
     plot: bool = True,
@@ -83,7 +84,7 @@ def train(
     )
 
     # init weights
-    input_size = trainset[0].idx.shape[-1]
+    input_size = trainset[0].idx.shape[-1]  # pylint: disable=no-member
     weights = init_fn(param_rng, input_size)
     n_neurons = weights[0].input.shape[0] + hidden_size + output_size
 
@@ -150,19 +151,20 @@ def train(
         "net": [input_size, hidden_size, output_size],
         "n_spikes": [input_size, n_spikes_hidden, n_spikes_output],
         "optimizer": optimizer_fn.__name__,
-        "loss": [round(float(l), 5) for l in test_result.loss],
-        "accuracy": [round(float(a), 5) for a in test_result.accuracy],
-        "time per epoch": [round(float(d), 3) for d in duration],
+        "loss": [round(float(loss), 5) for loss in test_result.loss],
+        "accuracy": [round(float(acc), 5) for acc in test_result.accuracy],
+        "time per epoch": [round(float(dur), 3) for dur in duration],
     }
 
-    with open(f"{folder}/params_{max_acc}_{time_string}.json", "w") as outfile:
+    filename = f"{folder}/params_{max_acc}_{time_string}.json"
+    with open(filename, "w", encoding="utf-8") as outfile:
         json.dump(experiment, outfile, indent=4)
 
 
 if __name__ == "__main__":
     dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    folder = f"data/event/yinyang_analytical/{dt_string}"
-    Path(folder).mkdir(parents=True, exist_ok=True)
-    log.info(f"Running experiment, results in folder: {folder}")
+    data_folder = f"data/event/yinyang_analytical/{dt_string}"
+    Path(data_folder).mkdir(parents=True, exist_ok=True)
+    log.info(f"Running experiment, results in folder: {data_folder}")
 
-    train(0, folder, plot=False, save_weights=False)
+    train(0, data_folder, plot=False, save_weights=False)
