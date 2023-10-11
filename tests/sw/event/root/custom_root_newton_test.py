@@ -9,15 +9,17 @@ from numpy.testing import assert_almost_equal
 
 
 def get_lif_dynamics():
-    p = LIFParameters()
-    A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
+    params = LIFParameters()
+    kernel = np.array(
+        [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
+    )
 
-    def f(state, t):
-        x0 = np.array([state.V, state.I])
-        return np.dot(jax.scipy.linalg.expm(A * t), x0)
+    def f(state, time):
+        initial_state = np.array([state.V, state.I])
+        return np.dot(jax.scipy.linalg.expm(kernel * time), initial_state)
 
     def jc(state, t):
-        return f(state, t)[0] - p.v_th
+        return f(state, t)[0] - params.v_th
 
     return jc
 

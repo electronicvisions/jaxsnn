@@ -12,16 +12,16 @@ def serial(*layers):
     init_fns, apply_fns = zip(*layers)
 
     def init_fn(rng, input_shape):
-        params = []
+        weights = []
         for init_fn in init_fns:
             input_shape, param, rng = init_fn(rng, input_shape)
-            params.append(param)
-        return input_shape, params
+            weights.append(param)
+        return input_shape, weights
 
     @jax.jit
-    def apply_fn(params, input, **kwargs):
+    def apply_fn(weights, input, **kwargs):
         recording = []
-        for fn, param in zip(apply_fns, params):
+        for fn, param in zip(apply_fns, weights):
             input, layer_records = fn(param, input, **kwargs)
             if isinstance(layer_records, list):
                 recording.extend(layer_records)
@@ -36,19 +36,19 @@ def euler_integrate(*layers):
     init_fns, apply_fns, state_fns = zip(*layers)
 
     def init_fn(rng, input_shape):
-        params = []
+        weights = []
         for init_fn in init_fns:
             input_shape, param, rng = init_fn(rng, input_shape)
-            params.append(param)
-        return input_shape, params, rng
+            weights.append(param)
+        return input_shape, weights, rng
 
-    def apply_fn(params, input, **kwargs):
+    def apply_fn(weights, input, **kwargs):
         batch_size = input.shape[1]
         states = [state_fn(batch_size) for state_fn in state_fns]
 
         def inner(states, input_ts, **kwargs):
             new_states = []
-            for fn, param, state in zip(apply_fns, params, states):
+            for fn, param, state in zip(apply_fns, weights, states):
                 (new_state, _), input_ts = fn(state, param, input_ts, **kwargs)
                 new_states.append(new_state)
 

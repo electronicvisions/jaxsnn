@@ -47,7 +47,9 @@ def next_queue(
     Returns:
         Spike: Spike which will occur next in the layer
     """
-    this_layer = np.where(known_spikes.idx >= layer_start, known_spikes.time, t_max)
+    this_layer = np.where(
+        known_spikes.idx >= layer_start, known_spikes.time, t_max
+    )
     time_or_t_max = np.where(this_layer > time, this_layer, t_max)
     idx = np.argmin(time_or_t_max)
     return Spike(time_or_t_max[idx], known_spikes.idx[idx] - layer_start)

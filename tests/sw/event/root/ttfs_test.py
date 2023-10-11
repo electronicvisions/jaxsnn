@@ -7,7 +7,7 @@ from jaxsnn.event.leaky_integrate import LIFState
 from jaxsnn.event.root.ttfs import ttfs_solver
 from numpy.testing import assert_almost_equal
 
-p = LIFParameters()
+params = LIFParameters()
 t_max = 0.2
 
 
@@ -15,7 +15,7 @@ def test_ttfs_solver_vanishing_denomniator():
     def loss(weight):
         state = LIFState(V=-551.6683959960938, I=0.0006204545497894287)
         state.V = state.V * weight
-        return ttfs_solver(p.tau_mem, p.v_th, state, t_max)
+        return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
 
     weight = np.array(1.0)
     value, grad = jax.value_and_grad(loss)(weight)
@@ -27,7 +27,7 @@ def test_ttfs_solver_no_spike():
     def loss(weight):
         state = LIFState(V=0.0, I=2.0)
         state.I = state.I * weight
-        return ttfs_solver(p.tau_mem, p.v_th, state, t_max)
+        return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
 
     weight = np.array(1.0)
     value, grad = jax.value_and_grad(loss)(weight)
@@ -39,7 +39,7 @@ def test_ttfs_solver_spike():
     def loss(weight):
         state = LIFState(V=0.0, I=3.0)
         state.I = state.I * weight
-        return ttfs_solver(p.tau_mem, p.v_th, state, t_max)
+        return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
 
     weight = np.array(1.0)
     value, grad = jax.value_and_grad(loss)(weight)
@@ -48,8 +48,7 @@ def test_ttfs_solver_spike():
 
 
 def test_nan():
-    p = LIFParameters()
-    t_max = 4.0 * p.tau_syn
+    t_max = 4.0 * params.tau_syn
     neuron_state = LIFState(
         V=np.zeros(60),
         I=np.array(
@@ -118,7 +117,7 @@ def test_nan():
         ),
     )
 
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = jax.jit(jax.vmap(solver, in_axes=(0, None)))
 
     def loss_fn(weight):

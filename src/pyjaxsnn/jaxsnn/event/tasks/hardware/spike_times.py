@@ -13,7 +13,11 @@ from jaxsnn.event.hardware.calib import (
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
 from jaxsnn.event.hardware.neuron import Neuron
-from jaxsnn.event.hardware.utils import cut_spikes, filter_spikes, linear_saturating
+from jaxsnn.event.hardware.utils import (
+    cut_spikes,
+    filter_spikes,
+    linear_saturating,
+)
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.types import EventPropSpike, Spike, WeightInput
 
@@ -24,7 +28,7 @@ HW_CYCLE_CORRECTION = -50
 
 
 def main():
-    p = LIFParameters(
+    params = LIFParameters(
         v_reset=-0.0, v_th=1.0, tau_syn_inv=1 / 6e-6, tau_mem_inv=1 / 12e-6
     )
     runtime_us = 50
@@ -38,11 +42,13 @@ def main():
 
     # setup hardware experiment
     experiment = Experiment(wafer_config=wafer_config)
-    InputNeuron(n_input, p, experiment)
-    Neuron(1, p, experiment)
+    InputNeuron(n_input, params, experiment)
+    Neuron(1, params, experiment)
 
     inputs = Spike(
-        idx=np.repeat(np.expand_dims(np.arange(n_input), axis=1), n_batches, axis=1).T,
+        idx=np.repeat(
+            np.expand_dims(np.arange(n_input), axis=1), n_batches, axis=1
+        ).T,
         time=np.zeros((n_batches, n_input)),
     )
     runs = []
@@ -74,7 +80,9 @@ def main():
 
     log.info(f"Shape: {np.array(runs).shape}")
     np.save(
-        f"jaxsnn/plots/hardware/spike_times/spike_times.npy", runs, allow_pickle=True
+        f"jaxsnn/plots/hardware/spike_times/spike_times.npy",
+        runs,
+        allow_pickle=True,
     )
 
     first_hw_spike = (
@@ -90,7 +98,7 @@ def main():
         n_hidden=1,
         n_spikes=n_input + n_spikes,
         t_max=runtime_us * 1e-6,
-        p=p,
+        params=params,
     )
 
     # iterate software
@@ -116,13 +124,17 @@ def main():
         )
         if not np.isinf(spike.time[0]) and first_sw_spike is None:
             first_sw_spike = (spike.time[0], weight)
-            log.info(f"First SW spike at weight: {weight:.2f} and time {spike.time[0]}")
+            log.info(
+                f"First SW spike at weight: {weight:.2f} and time {spike.time[0]}"
+            )
         sw_spikes.append(spike.time[0])
 
     log.info(
         f"Suggesting weight mapping factor of {int(first_hw_spike[1] / first_sw_spike[1])}"
     )
-    log.info(f"Suggesting time shift of {first_hw_spike[0] - first_sw_spike[0]}")
+    log.info(
+        f"Suggesting time shift of {first_hw_spike[0] - first_sw_spike[0]}"
+    )
 
     int_weights = weights * wafer_config.weight_scaling
 
@@ -146,7 +158,11 @@ def main():
     axs.set_title(
         f"Spike time for {n_input} input spikes at t=0, wafer {wafer_config.name}"
     )
-    axs.plot(int_weights, (np.array(sw_spikes) + offset) * 1e6 * 125, label="Software")
+    axs.plot(
+        int_weights,
+        (np.array(sw_spikes) + offset) * 1e6 * 125,
+        label="Software",
+    )
     axs.set_xlabel(
         f"Input weight on hardware, scaling factor: {wafer_config.weight_scaling}"
     )
@@ -154,7 +170,9 @@ def main():
     fig.legend()
 
     dt_string = dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    fig.savefig(f"jaxsnn/plots/hardware/spike_times/{dt_string}_spike_times.png")
+    fig.savefig(
+        f"jaxsnn/plots/hardware/spike_times/{dt_string}_spike_times.png"
+    )
     log.info("Saved plot")
 
 

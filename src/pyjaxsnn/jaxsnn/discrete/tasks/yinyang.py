@@ -24,15 +24,15 @@ def train_step(optimizer, state, batch, loss_fn):
     The step function is compliant with the syntax of `jaxlax.scan`,
     making it easy to be looped over.
     """
-    opt_state, params, i = state
+    opt_state, weights, i = state
     input, output = batch
 
     (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        params, (input, output)
+        weights, (input, output)
     )
     updates, opt_state = optimizer.update(grads, opt_state)
-    params = optax.apply_updates(params, updates)
-    return (opt_state, params, i + 1), recording
+    weights = optax.apply_updates(weights, updates)
+    return (opt_state, weights, i + 1), recording
 
 
 def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
@@ -48,7 +48,9 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     lr_decay = 0.98
     step_size = 5e-4
 
-    t_late = 1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
+    t_late = (
+        1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
+    )
     time_steps = int(2 * t_late / DT)
     log.info(f"DT: {DT}, {time_steps} time steps, t_late: {t_late}")
 
@@ -82,29 +84,31 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
 
     overall_time = time.time()
     init_key = random.PRNGKey(seed)
-    _, params = snn_init(init_key, input_shape=input_shape)
-    opt_state = optimizer.init(params)
+    _, weights = snn_init(init_key, input_shape=input_shape)
+    opt_state = optimizer.init(weights)
 
     accuracies = []
     loss = []
     for epoch in range(epochs):
         trainloader = DataLoader(trainset, batch_size, rng=None)
         start = time.time()
-        (opt_state, params, i), recording = jax.lax.scan(
-            train_step_fn, (opt_state, params, 0), trainloader
+        (opt_state, weights, i), recording = jax.lax.scan(
+            train_step_fn, (opt_state, weights, 0), trainloader
         )
         end = time.time() - start
 
         spikes_per_item = np.count_nonzero(recording[1].z) / len(trainset)
         accuracy, test_loss = discrete.acc_and_loss(
-            snn_apply, params, (test_dataset.vals, test_dataset.classes)
+            snn_apply, weights, (test_dataset.vals, test_dataset.classes)
         )
         accuracies.append(accuracy)
         loss.append(test_loss)
         log.info(
             f"Epoch: {epoch}, Loss: {test_loss:3f}, Test accuracy: {accuracy:.3f}, Seconds: {end:.3f}, Spikes: {spikes_per_item:.1f}"
         )
-    log.info(f"Finished {epochs} epochs in {time.time() - overall_time:.3f} seconds")
+    log.info(
+        f"Finished {epochs} epochs in {time.time() - overall_time:.3f} seconds"
+    )
     return accuracies, loss
 
 

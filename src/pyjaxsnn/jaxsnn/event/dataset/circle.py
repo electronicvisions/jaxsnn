@@ -23,7 +23,8 @@ def circle_dataset(
     center = (0.5, 0.5)
     radius = np.sqrt(0.5 / np.pi)  # spread classes equal
     which_class = (
-        (input[:, 0] - center[0]) ** 2 + (input[:, 1] - center[1]) ** 2 <= radius**2
+        (input[:, 0] - center[0]) ** 2 + (input[:, 1] - center[1]) ** 2
+        <= radius**2
     ).astype(int)
     target = encoding[which_class]
 

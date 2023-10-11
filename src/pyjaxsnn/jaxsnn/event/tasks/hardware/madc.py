@@ -10,7 +10,11 @@ from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
 from jaxsnn.event.hardware.neuron import Neuron
-from jaxsnn.event.hardware.utils import cut_spikes, filter_spikes, simulate_madc
+from jaxsnn.event.hardware.utils import (
+    cut_spikes,
+    filter_spikes,
+    simulate_madc,
+)
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.types import EventPropSpike, Spike, WeightInput
 
@@ -28,7 +32,7 @@ def fill_zeros_with_last(arr):
 
 
 def main():
-    p = LIFParameters(
+    params = LIFParameters(
         v_reset=-1_000.0, v_th=1.0, tau_syn_inv=1 / 6e-6, tau_mem_inv=1 / 12e-6
     )
     runtime_us = 15
@@ -57,8 +61,10 @@ def main():
 
     # setup hardware experiment
     experiment = Experiment(wafer_config)
-    InputNeuron(input_neurons, p, experiment)
-    Neuron(1, p, experiment, enable_madc_recording=True, record_neuron_id=0)
+    InputNeuron(input_neurons, params, experiment)
+    Neuron(
+        1, params, experiment, enable_madc_recording=True, record_neuron_id=0
+    )
 
     hw_spike, madc_recording = experiment.get_hw_results(
         batched_inputs,
@@ -75,7 +81,7 @@ def main():
         n_hidden=1,
         n_spikes=n_input * duplication + n_output_spikes,
         t_max=runtime_us * 1e-6,
-        p=p,
+        params=params,
     )
 
     # iterate software
@@ -106,8 +112,8 @@ def main():
 
     log.info(f"Simulating madc with len {len}")
     sw_madc = simulate_madc(
-        p.tau_mem_inv,
-        p.tau_syn_inv,
+        params.tau_mem_inv,
+        params.tau_syn_inv,
         inputs,
         weight,
         np.arange(len) / (1e6 * cycles_per_us),
@@ -143,7 +149,9 @@ def main():
         madc_recording,
         allow_pickle=True,
     )
-    log.info(f"Count: {len}, Non zero count: {np.count_nonzero(madc_recording[:, 0])}")
+    log.info(
+        f"Count: {len}, Non zero count: {np.count_nonzero(madc_recording[:, 0])}"
+    )
 
 
 if __name__ == "__main__":

@@ -32,7 +32,10 @@ from jaxsnn.event.adjoint_lif import (
     adjoint_transition_without_recurrence,
     step_bwd,
 )
-from jaxsnn.event.construct import construct_init_fn, construct_recurrent_init_fn
+from jaxsnn.event.construct import (
+    construct_init_fn,
+    construct_recurrent_init_fn,
+)
 from jaxsnn.event.flow import lif_exponential_flow
 from jaxsnn.event.functional import StepInput, step, trajectory
 from jaxsnn.event.root import ttfs_solver
@@ -57,7 +60,7 @@ def LIF(
     n_hidden: int,
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: float = 0.5,
     std: float = 2.0,
     duplication: Optional[int] = None,
@@ -75,13 +78,13 @@ def LIF(
     Returns:
         SingleInitApply: _description_
     """
-    single_flow = lif_exponential_flow(p)
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # construct step function
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_without_recurrence, p)
+    transition = partial(transition_without_recurrence, params)
     step_fn = partial(step, dynamics, transition, batched_solver, t_max)
 
     apply_fn = trajectory(step_fn, n_hidden, n_spikes)
@@ -94,18 +97,18 @@ def RecurrentLIF(
     layers: List[int],
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: List[float],
     std: List[float],
     duplication: Optional[int] = None,
 ) -> SingleInitApply:
-    single_flow = lif_exponential_flow(p)
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # construct step function
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_with_recurrence, p)
+    transition = partial(transition_with_recurrence, params)
     step_fn = partial(step, dynamics, transition, batched_solver, t_max)
 
     hidden_size = np.sum(np.array(layers))
@@ -119,7 +122,7 @@ def EventPropLIF(
     n_hidden: int,
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean=0.5,
     std=2.0,
     wrap_only_step: bool = False,
@@ -141,20 +144,24 @@ def EventPropLIF(
     Returns:
         SingleInitApply: Pair of init apply functions.
     """
-    single_flow = lif_exponential_flow(p)
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # define step function
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_without_recurrence, p)
+    transition = partial(transition_without_recurrence, params)
     step_fn = partial(step, dynamics, transition, batched_solver, t_max)
 
     # define adjoint step function
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_without_recurrence, p)
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    adjoint_tr_dynamics = partial(
+        adjoint_transition_without_recurrence, params
+    )
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
 
     init_fn = construct_init_fn(n_hidden, mean, std, duplication)
     wrap_only_step = False
@@ -179,7 +186,9 @@ def EventPropLIF(
 
     # wrap step bwd so it is compliant with scan syntax
     def step_bwd_wrapper(
-        weights: Weight, init: StepInput, xs: Tuple[EventPropSpike, EventPropSpike]
+        weights: Weight,
+        init: StepInput,
+        xs: Tuple[EventPropSpike, EventPropSpike],
     ):
         adjoint_state, grads, layer_start = init
         spike, adjoint_spike = xs
@@ -188,7 +197,9 @@ def EventPropLIF(
         return step_fn_bwd(res, g)
 
     def custom_trajectory(s: StepState, weights: Weight, layer_start: int):
-        return jax.lax.scan(step_fn, (s, weights, layer_start), np.arange(n_spikes))
+        return jax.lax.scan(
+            step_fn, (s, weights, layer_start), np.arange(n_spikes)
+        )
 
     def custom_trajectory_fwd(*args):
         # save res for backward
@@ -210,7 +221,9 @@ def EventPropLIF(
     custom_trajectory = jax.custom_vjp(custom_trajectory)
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
-    def apply_fn(layer_start: int, weights: Weight, input_spikes: EventPropSpike):
+    def apply_fn(
+        layer_start: int, weights: Weight, input_spikes: EventPropSpike
+    ):
         initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
         s = StepState(
             neuron_state=initial_state,
@@ -227,7 +240,7 @@ def RecurrentEventPropLIF(
     layers: List[int],
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: List[float],
     std: List[float],
     wrap_only_step: bool = False,
@@ -254,20 +267,22 @@ def RecurrentEventPropLIF(
     Returns:
         SingleInitApply: Pair of init apply functions.
     """
-    single_flow = lif_exponential_flow(p)
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # define step function
-    solver = partial(ttfs_solver, p.tau_mem, p.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_with_recurrence, p)
+    transition = partial(transition_with_recurrence, params)
     step_fn = partial(step, dynamics, transition, batched_solver, t_max)
 
     # define adjoint step function
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, p)
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, params)
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
 
     hidden_size = np.sum(np.array(layers))
     initial_state = LIFState(np.zeros(hidden_size), np.zeros(hidden_size))
@@ -295,7 +310,9 @@ def RecurrentEventPropLIF(
 
     # wrap step bwd so it is compliant with scan syntax
     def step_bwd_wrapper(
-        weights: Weight, init: StepInput, xs: Tuple[EventPropSpike, EventPropSpike]
+        weights: Weight,
+        init: StepInput,
+        xs: Tuple[EventPropSpike, EventPropSpike],
     ):
         adjoint_state, grads, layer_start = init
         spike, adjoint_spike = xs
@@ -304,7 +321,9 @@ def RecurrentEventPropLIF(
         return step_fn_bwd(res, g)
 
     def custom_trajectory(s: StepState, weights: Weight, layer_start: int):
-        return jax.lax.scan(step_fn, (s, weights, layer_start), np.arange(n_spikes))
+        return jax.lax.scan(
+            step_fn, (s, weights, layer_start), np.arange(n_spikes)
+        )
 
     def custom_trajectory_fwd(*args):
         res = custom_trajectory(*args)
@@ -325,7 +344,9 @@ def RecurrentEventPropLIF(
     custom_trajectory = jax.custom_vjp(custom_trajectory)
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
-    def apply_fn(layer_start: int, weights: Weight, input_spikes: EventPropSpike):
+    def apply_fn(
+        layer_start: int, weights: Weight, input_spikes: EventPropSpike
+    ):
         s = StepState(
             neuron_state=initial_state,
             time=0.0,
@@ -341,20 +362,22 @@ def HardwareRecurrentLIF(
     layers: List[int],
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: List[float],
     std: List[float],
     duplication: Optional[int] = None,
 ):
-    single_flow = lif_exponential_flow(p)
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    transition = partial(transition_with_recurrence, p)
+    transition = partial(transition_with_recurrence, params)
 
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, p)
+    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, params)
 
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
 
     hidden_size = np.sum(np.array(layers))
     initial_state = LIFState(np.zeros(hidden_size), np.zeros(hidden_size))
@@ -390,7 +413,9 @@ def HardwareRecurrentLIF(
         known_spikes: Spike,
     ):
         # TODO, do we need to save the known spike for bwd?
-        output_state, spikes = custom_trajectory(s, weights, layer_start, known_spikes)
+        output_state, spikes = custom_trajectory(
+            s, weights, layer_start, known_spikes
+        )
         return (output_state, spikes), (output_state, spikes, known_spikes)
 
     def custom_trajectory_bwd(res, g):
@@ -429,22 +454,26 @@ def HardwareLIF(
     n_hidden: int,
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: float,
     std: float,
     duplication: Optional[int] = None,
 ) -> SingleInitApplyHW:
     # define step function
-    single_flow = lif_exponential_flow(p)
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    transition = partial(transition_without_recurrence, p)
+    transition = partial(transition_without_recurrence, params)
 
     # define adjoint step function (EventProp)
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_without_recurrence, p)
+    adjoint_tr_dynamics = partial(
+        adjoint_transition_without_recurrence, params
+    )
 
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
 
     initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
     init_fn = construct_init_fn(n_hidden, mean, std, duplication)
@@ -478,7 +507,9 @@ def HardwareLIF(
         known_spikes: Spike,
     ):
         # TODO, do we need to save the known spike for bwd?
-        output_state, spikes = custom_trajectory(s, weights, layer_start, known_spikes)
+        output_state, spikes = custom_trajectory(
+            s, weights, layer_start, known_spikes
+        )
         return (output_state, spikes), (spikes, output_state, known_spikes)
 
     def custom_trajectory_bwd(res, g):

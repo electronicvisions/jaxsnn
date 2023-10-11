@@ -8,7 +8,10 @@ from jax import random
 
 def get_class(coords, radius: float, center: Tuple[float, float]):
     return np.where(
-        (coords[0] - center[0]) ** 2 + (coords[1] - center[1]) ** 2 > radius**2, 1, 0
+        (coords[0] - center[0]) ** 2 + (coords[1] - center[1]) ** 2
+        > radius**2,
+        1,
+        0,
     )
 
 
@@ -70,7 +73,9 @@ def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
         if rng is not None
         else np.arange(len(dataset))
     )
-    vals = dataset.vals[permutation].reshape(-1, batch_size, dataset.vals.shape[1])
+    vals = dataset.vals[permutation].reshape(
+        -1, batch_size, dataset.vals.shape[1]
+    )
     classes = dataset.classes[permutation].reshape(-1, batch_size)
     return vals, classes
 

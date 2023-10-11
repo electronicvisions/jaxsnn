@@ -37,7 +37,9 @@ class LIFParameters:
 
     @property
     def dynamics(self) -> jax.Array:
-        return np.array([[-self.tau_mem_inv, self.tau_mem_inv], [0, -self.tau_syn_inv]])
+        return np.array(
+            [[-self.tau_mem_inv, self.tau_mem_inv], [0, -self.tau_syn_inv]]
+        )
 
     def as_dict(self) -> Dict:
         return {

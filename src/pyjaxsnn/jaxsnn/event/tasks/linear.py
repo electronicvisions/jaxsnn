@@ -22,11 +22,11 @@ log = logging.getLogger("root")
 
 
 def train(seed: int, folder: str):
-    p = LIFParameters()
-    t_late = 2.0 * p.tau_syn
-    t_max = 4.0 * p.tau_syn
+    params = LIFParameters()
+    t_late = 2.0 * params.tau_syn
+    t_max = 4.0 * params.tau_syn
 
-    # training params
+    # training weights
     step_size = 1e-3
     n_batches = 100
     batch_size = 32
@@ -48,32 +48,39 @@ def train(seed: int, folder: str):
 
     # define net
     init_fn, apply_fn = serial(
-        LIF(hidden_size, n_spikes=n_spikes_hidden, t_max=t_max, p=p),
-        LIF(output_size, n_spikes=n_spikes_output, t_max=t_max, p=p),
+        LIF(hidden_size, n_spikes=n_spikes_hidden, t_max=t_max, params=params),
+        LIF(output_size, n_spikes=n_spikes_output, t_max=t_max, params=params),
     )
 
-    # init params and optimizer
+    # init weights and optimizer
     input_size = trainset[0].idx.shape[-1]
-    params = init_fn(param_rng, input_size)
+    weights = init_fn(param_rng, input_size)
     n_neurons = hidden_size + output_size
 
     # define and init optimizer
     optimizer_fn = optax.adam
     optimizer = optimizer_fn(step_size)
-    opt_state = optimizer.init(params)
+    opt_state = optimizer.init(weights)
 
     # defined loss and update function
     loss_fn = batch_wrapper(
         partial(
-            loss_wrapper, apply_fn, target_time_loss, p.tau_mem, n_neurons, output_size
+            loss_wrapper,
+            apply_fn,
+            target_time_loss,
+            params.tau_mem,
+            n_neurons,
+            output_size,
         )
     )
-    update_fn = partial(update, optimizer, loss_fn, p)
+    update_fn = partial(update, optimizer, loss_fn, params)
 
     def epoch(opt_state: OptState, i: int):
-        res, duration = time_it(jax.lax.scan, update_fn, opt_state, trainset[:2])
+        res, duration = time_it(
+            jax.lax.scan, update_fn, opt_state, trainset[:2]
+        )
         opt_state, (recording, grad) = res
-        test_result = loss_and_acc(loss_fn, opt_state.params, testset[:2])
+        test_result = loss_and_acc(loss_fn, opt_state.weights, testset[:2])
         log.info(
             f"Epoch {i}, "
             f"loss: {test_result[0]:.4f}, "
@@ -82,19 +89,21 @@ def train(seed: int, folder: str):
             f"grad: {grad[0].input.mean():.5f}, "
             f"in {duration:.2f} s"
         )
-        return opt_state, (test_result, opt_state.params)
+        return opt_state, (test_result, opt_state.weights)
 
     # iterate over epochs
-    (opt_state, params), (test_result, params_over_time) = custom_lax.scan(
-        epoch, OptState(opt_state, params), np.arange(epochs)
+    (opt_state, weights), (test_result, weights_over_time) = custom_lax.scan(
+        epoch, OptState(opt_state, weights), np.arange(epochs)
     )
 
     # save experiment data
     max_acc = round(np.max(test_result.accuracy).item(), 3)
-    log.info(f"Max acc: {max_acc} after {np.argmax(test_result.accuracy)} epochs")
+    log.info(
+        f"Max acc: {max_acc} after {np.argmax(test_result.accuracy)} epochs"
+    )
 
     experiment = {
-        **p.as_dict(),
+        **params.as_dict(),
         "epochs": epochs,
         "step_size": step_size,
         "batch_size": batch_size,

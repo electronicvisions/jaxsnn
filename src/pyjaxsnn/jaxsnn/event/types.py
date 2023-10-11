@@ -70,7 +70,9 @@ class InputQueue:
         return spike
 
     def next_time_or_default(self, default):
-        return jax.lax.cond(self.is_empty, lambda: default, lambda: self.peek().time)
+        return jax.lax.cond(
+            self.is_empty, lambda: default, lambda: self.peek().time
+        )
 
 
 State = TypeVar("State")
@@ -113,7 +115,7 @@ InitApplyHW = Tuple[Init, ApplyHW]
 
 class OptState(NamedTuple):
     opt_state: optax.OptState
-    params: List[Weight]
+    weights: List[Weight]
 
 
 # define the interface that a root solver has
@@ -130,8 +132,13 @@ class TestResult(NamedTuple):
 
 # loss function return loss and some recording
 LossAndRecording = Tuple[float, Tuple[jax.Array, List[EventPropSpike]]]
-LossFn = Callable[[List[Weight], Tuple[EventPropSpike, jax.Array]], LossAndRecording]
+LossFn = Callable[
+    [List[Weight], Tuple[EventPropSpike, jax.Array]], LossAndRecording
+]
 
 
 # when working with hw, we also have the known spikes as input
-HWLossFn = Callable[[List[Weight], Tuple[EventPropSpike, jax.Array], List[EventPropSpike]], LossAndRecording]
+HWLossFn = Callable[
+    [List[Weight], Tuple[EventPropSpike, jax.Array], List[EventPropSpike]],
+    LossAndRecording,
+]

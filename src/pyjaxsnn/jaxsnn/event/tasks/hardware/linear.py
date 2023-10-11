@@ -26,10 +26,14 @@ from jaxsnn.event.leaky_integrate_and_fire import (
     HardwareLIF,
     LIFParameters,
 )
-from jaxsnn.event.loss import loss_and_acc_scan, loss_wrapper_known_spikes, mse_loss
+from jaxsnn.event.loss import (
+    loss_and_acc_scan,
+    loss_wrapper_known_spikes,
+    mse_loss,
+)
 from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.types import Spike, Weight
-from jaxsnn.event.utils import save_params as save_params_fn
+from jaxsnn.event.utils import save_weights as save_weights_fn
 
 log = logging.getLogger("root")
 
@@ -42,10 +46,10 @@ def train(
     seed: int,
     folder: str,
     plot: bool = True,
-    save_params: bool = False,
+    save_weights: bool = False,
 ):
     # neuron params, low v_reset only allows one spike per neuron
-    p = LIFParameters(
+    params = LIFParameters(
         v_reset=-100.0, v_th=1.0, tau_syn_inv=1 / 6e-6, tau_mem_inv=1 / 12e-6
     )
 
@@ -58,8 +62,8 @@ def train(
     epochs = 30
     n_train_batches = int(train_samples / batch_size)
     n_test_batches = int(test_samples / batch_size)
-    t_late = 2.0 * p.tau_syn
-    t_max = 4.0 * p.tau_syn
+    t_late = 2.0 * params.tau_syn
+    t_max = 4.0 * params.tau_syn
     duplication = 5
     duplicate_neurons = True
 
@@ -68,12 +72,14 @@ def train(
     log.info(f"Runtime in us: {t_max_us}")
     weight_mean = 3.0 / duplication
     weight_std = 1.6 / duplication
-    bias_spike = 0.9 * p.tau_syn
+    bias_spike = 0.9 * params.tau_syn
 
-    log.warning(f"Mock HW set to {MOCK_HW}, lr: {step_size}, bias spike: {bias_spike}")
+    log.warning(
+        f"Mock HW set to {MOCK_HW}, lr: {step_size}, bias spike: {bias_spike}"
+    )
 
-    correct_target_time = 0.5 * p.tau_syn
-    wrong_target_time = 1.5 * p.tau_syn
+    correct_target_time = 0.5 * params.tau_syn
+    wrong_target_time = 1.5 * params.tau_syn
 
     # net
     input_size = 4 + int(bias_spike is not None)
@@ -120,7 +126,7 @@ def train(
             n_hidden=output_size,
             n_spikes=n_spikes,
             t_max=t_max,
-            p=p,
+            params=params,
             mean=weight_mean,
             std=weight_std,
             duplication=duplication if duplicate_neurons else None,
@@ -132,18 +138,18 @@ def train(
             n_hidden=output_size,
             n_spikes=n_spikes,
             t_max=t_max,
-            p=p,
+            params=params,
             mean=weight_mean,
             std=weight_std,
         )
     )
 
-    # init params and optimizer
-    params = init_fn(param_rng, input_size)
+    # init weights and optimizer
+    weights = init_fn(param_rng, input_size)
     scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
 
     optimizer = optimizer_fn(scheduler)
-    opt_state = optimizer.init(params)
+    opt_state = optimizer.init(weights)
 
     loss_fn = jax.jit(
         batch_wrapper(
@@ -151,7 +157,7 @@ def train(
                 loss_wrapper_known_spikes,
                 apply_fn,
                 mse_loss,
-                p.tau_mem,
+                params.tau_mem,
                 n_neurons,
                 output_size,
             ),
@@ -161,35 +167,41 @@ def train(
 
     # HW
     experiment = Experiment(calib_path=wafer_config.file)
-    InputNeuron(input_size, p, experiment)
-    Neuron(output_size, p, experiment)
+    InputNeuron(input_size, params, experiment)
+    Neuron(output_size, params, experiment)
 
     # define test function
-    def test_loss_fn(params, batch):
+    def test_loss_fn(weights, batch):
         input_spikes, _ = batch
 
         if MOCK_HW:
-            hw_spikes = jax.vmap(hw_mock, in_axes=(None, 0))(params, input_spikes)
+            hw_spikes = jax.vmap(hw_mock, in_axes=(None, 0))(
+                weights, input_spikes
+            )
         else:
             hw_spikes, _ = experiment.get_hw_results(
-                input_spikes, params, t_max_us, [n_spikes_output], {}
+                input_spikes, weights, t_max_us, [n_spikes_output], {}
             )
 
-        return params, loss_fn(params, batch, hw_spikes)
+        return weights, loss_fn(weights, batch, hw_spikes)
 
     # define update function
     def update(input, batch):
-        opt_state, params, time_data = input
+        opt_state, weights, time_data = input
         input_spikes, _ = batch
 
         if MOCK_HW:
-            hw_spikes = jax.vmap(hw_mock, in_axes=(None, 0))(params, input_spikes)
+            hw_spikes = jax.vmap(hw_mock, in_axes=(None, 0))(
+                weights, input_spikes
+            )
         else:
             hw_spikes, time_data = experiment.get_hw_results(
-                input_spikes, params, t_max_us, [n_spikes_output], time_data
+                input_spikes, weights, t_max_us, [n_spikes_output], time_data
             )
 
-        return update_software((opt_state, params, time_data), batch, hw_spikes)
+        return update_software(
+            (opt_state, weights, time_data), batch, hw_spikes
+        )
 
     @jax.jit
     def update_software(
@@ -197,24 +209,26 @@ def train(
         batch: Tuple[Spike, jax.Array],
         hw_spikes,
     ):
-        opt_state, params, hw_time = input
+        opt_state, weights, hw_time = input
 
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
-            simulate_hw_weights(params), batch, hw_spikes
+            simulate_hw_weights(weights), batch, hw_spikes
         )
 
         grad = jax.tree_util.tree_map(
-            lambda par, g: np.where(par == 0.0, 0.0, g / p.tau_syn), params, grad
+            lambda par, g: np.where(par == 0.0, 0.0, g / params.tau_syn),
+            weights,
+            grad,
         )
 
         updates, opt_state = optimizer.update(grad, opt_state)
-        params = optax.apply_updates(params, updates)
+        weights = optax.apply_updates(weights, updates)
 
-        return (opt_state, params, hw_time), (value, grad)
+        return (opt_state, weights, hw_time), (value, grad)
 
     def epoch(state, i):
-        params = state[1]
-        test_result = loss_and_acc_scan(test_loss_fn, params, testset[:2])
+        weights = state[1]
+        test_result = loss_and_acc_scan(test_loss_fn, weights, testset[:2])
 
         start = time.time()
         state, (recording, grad) = custom_lax.scan(
@@ -222,30 +236,34 @@ def train(
         )
         duration = time.time() - start
 
-        masked = onp.ma.masked_where(recording[1][0] == np.inf, recording[1][0])
+        masked = onp.ma.masked_where(
+            recording[1][0] == np.inf, recording[1][0]
+        )
         log.info(
             f"Epoch {i}, loss: {test_result[0]:.6f}, "
             f"acc: {test_result[1]:.3f}, "
             f"spikes: {np.sum(recording[1][1][0].idx >= 0, axis=-1).mean():.1f}, "
             f"grad: {grad[0].input.mean():.9f}, ",
-            f"params: {params[0].input.mean():.5f}, ",
-            f"time first output: {(masked.mean() / p.tau_syn):.2f} tau_s, "
+            f"weights: {weights[0].input.mean():.5f}, ",
+            f"time first output: {(masked.mean() / params.tau_syn):.2f} tau_s, "
             f"in {duration:.2f} s, ",
             f"hw time: {state[2].get('get_hw_results', 0.0):.2f} s, ",
             f"grenade run time: {state[2].get('grenade_run', 0.0):.2f} s",
         )
-        return state[:2], (test_result, params, duration)
+        return state[:2], (test_result, weights, duration)
 
     # train the net
-    (opt_state, params), (res, params_over_time, durations) = custom_lax.scan(
-        epoch, (opt_state, params), np.arange(epochs)
-    )
+    (opt_state, weights), (
+        res,
+        weights_over_time,
+        durations,
+    ) = custom_lax.scan(epoch, (opt_state, weights), np.arange(epochs))
     loss, acc, t_spike, recording = res  # type: ignore
 
     time_string = dt.datetime.now().strftime("%H:%M:%S")
-    if save_params:
+    if save_weights:
         filenames = [f"{folder}/weights_1.npy", f"{folder}/weights_2.npy"]
-        save_params_fn(params, filenames)
+        save_weights_fn(weights, filenames)
 
     # generate plots
     if plot:
@@ -254,10 +272,10 @@ def train(
             testset,
             recording,  # type: ignore
             t_spike,  # type: ignore
-            params_over_time,
+            weights_over_time,
             loss,  # type: ignore
             acc,  # type: ignore
-            p.tau_syn,  # type: ignore
+            params.tau_syn,  # type: ignore
             hidden_size,
             epochs,
             duplication,
@@ -272,12 +290,12 @@ def train(
         "max_accuracy": max_acc,
         "seed": seed,
         "epochs": epochs,
-        "tau_mem": p.tau_mem,
-        "tau_syn": p.tau_syn,
-        "v_th": p.v_th,
-        "v_reset": p.v_reset,
+        "tau_mem": params.tau_mem,
+        "tau_syn": params.tau_syn,
+        "v_th": params.v_th,
+        "v_reset": params.v_reset,
         "t_late": t_late,
-        "bias_spike (tau_syn)": round(bias_spike / p.tau_syn, 4)
+        "bias_spike (tau_syn)": round(bias_spike / params.tau_syn, 4)
         if bias_spike is not None
         else None,
         "weight_mean": weight_mean,
@@ -290,8 +308,8 @@ def train(
         "n_spikes": [input_size, n_spikes_hidden, n_spikes_output],
         "optimizer": optimizer_fn.__name__,
         "target (tau_syn)": [
-            round(float(correct_target_time) / p.tau_syn, 4),
-            round(float(wrong_target_time) / p.tau_syn, 4),
+            round(float(correct_target_time) / params.tau_syn, 4),
+            round(float(wrong_target_time) / params.tau_syn, 4),
         ],
         "loss": [round(float(l), 5) for l in loss],  # type: ignore
         "accuracy": [round(float(a), 5) for a in acc],  # type: ignore
@@ -309,5 +327,5 @@ if __name__ == "__main__":
     log.info(f"Running experiment, results in folder: {folder}")
 
     hxtorch.init_hardware()
-    train(0, folder, plot=True, save_params=True)
+    train(0, folder, plot=True, save_weights=True)
     hxtorch.release_hardware()

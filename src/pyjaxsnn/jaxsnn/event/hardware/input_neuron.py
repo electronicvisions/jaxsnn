@@ -67,5 +67,7 @@ class InputNeuron(Module):
         """
         # convert input from seconds to milliseconds
         spike_tuple = (onp.array(input.idx), onp.array(input.time) * 1_000)
-        spike_times = _hxtorch_core.dense_spikes_to_list(spike_tuple, self.size)
+        spike_times = _hxtorch_core.dense_spikes_to_list(
+            spike_tuple, self.size
+        )
         builder.add(spike_times, self.descriptor)

@@ -16,7 +16,7 @@ def one_hot(x, k, dtype=np.float32):
 def lif_current_encoder(
     voltage,
     input_current: jax.Array,
-    p: LIFParameters = LIFParameters(),
+    params: LIFParameters = LIFParameters(),
     dt: float = 0.001,
 ) -> Tuple[jax.Array, jax.Array]:
     r"""Computes a single euler-integration step of a leaky integrator. More
@@ -34,11 +34,11 @@ def lif_current_encoder(
         p (LIFParameters): parameters of a leaky integrate and fire neuron
         dt (float): Integration timestep to use
     """
-    dv = dt * p.tau_mem_inv * ((p.v_leak - voltage) + input_current)
+    dv = dt * params.tau_mem_inv * ((params.v_leak - voltage) + input_current)
     voltage = voltage + dv
-    z = superspike(voltage - p.v_th)
+    z = superspike(voltage - params.v_th)
 
-    voltage = voltage - z * (voltage - p.v_reset)
+    voltage = voltage - z * (voltage - params.v_reset)
     return voltage, z
 
 
@@ -103,7 +103,9 @@ def spatio_temporal_encode(
         A tensor with an extra dimension of size `seq_length` containing spikes (1) or no spikes (0).
     """
     if len(input_values.shape) > 2:
-        raise ValueError("Tensor with input values must be one or two dimensional")
+        raise ValueError(
+            "Tensor with input values must be one or two dimensional"
+        )
 
     idx = (input_values * t_late / dt).round().astype(int)
     idx = np.clip(idx, 0, seq_length)

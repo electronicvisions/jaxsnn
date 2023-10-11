@@ -64,7 +64,9 @@ def DataLoader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
         if rng is not None
         else np.arange(len(dataset))
     )
-    vals = dataset.vals[permutation].reshape(-1, batch_size, dataset.vals.shape[1])
+    vals = dataset.vals[permutation].reshape(
+        -1, batch_size, dataset.vals.shape[1]
+    )
     classes = dataset.classes[permutation].reshape(-1, batch_size)
     return vals, classes
 

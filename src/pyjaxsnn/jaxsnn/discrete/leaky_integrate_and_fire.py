@@ -67,7 +67,10 @@ def lif_step(
     i_new = i_decayed + np.matmul(z, recurrent_weights)
     i_new = i_new + np.matmul(spikes, input_weights)
 
-    return (LIFState(z_new, v_new, i_new), (input_weights, recurrent_weights)), z_new
+    return (
+        LIFState(z_new, v_new, i_new),
+        (input_weights, recurrent_weights),
+    ), z_new
 
 
 def lif_integrate(init, spikes):
@@ -80,14 +83,16 @@ def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
     def init_fn(rng, input_shape):
         rng, i_key, r_key = random.split(rng, 3)
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
-        recurrent_weights = scale_rec * random.normal(r_key, (out_dim, out_dim))
+        recurrent_weights = scale_rec * random.normal(
+            r_key, (out_dim, out_dim)
+        )
         return out_dim, (input_weights, recurrent_weights)
 
-    def apply_fn(params, inputs, **kwargs):
+    def apply_fn(weights, inputs, **kwargs):
         batch = inputs.shape[1]
         shape = (batch, out_dim)
         state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
-        (state, _), spikes = jax.lax.scan(lif_step, (state, params), inputs)
+        (state, _), spikes = jax.lax.scan(lif_step, (state, weights), inputs)
 
         return spikes
 
@@ -99,8 +104,12 @@ def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
 
     def init_fn(rng, input_shape):
         rng, i_key, r_key = random.split(rng, 3)
-        input_weights = scale_in * random.normal(i_key, (input_shape, out_dim)) + 0.3
-        recurrent_weights = scale_rec * random.normal(r_key, (out_dim, out_dim))
+        input_weights = (
+            scale_in * random.normal(i_key, (input_shape, out_dim)) + 0.3
+        )
+        recurrent_weights = scale_rec * random.normal(
+            r_key, (out_dim, out_dim)
+        )
         return out_dim, (input_weights, recurrent_weights), rng
 
     def state_fn(batch_size, **kwargs):
@@ -110,7 +119,7 @@ def LIFStep(out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs):
 
     lif_step_fn = jax.jit(partial(lif_step, method=method))
 
-    def apply_fn(state, params, inputs, **kwargs):
-        return lif_step_fn((state, params), inputs)
+    def apply_fn(state, weights, inputs, **kwargs):
+        return lif_step_fn((state, weights), inputs)
 
     return init_fn, apply_fn, state_fn

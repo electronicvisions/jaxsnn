@@ -6,10 +6,10 @@ from jaxsnn.discrete.encode import one_hot
 
 
 def nll_loss(
-    snn_apply, params, batch, expected_spikes=0.5, rho=1e-4
+    snn_apply, weights, batch, expected_spikes=0.5, rho=1e-4
 ) -> Tuple[float, jax.Array]:
     inputs, targets = batch
-    preds, recording = snn_apply(params, inputs)
+    preds, recording = snn_apply(weights, inputs)
     targets = one_hot(targets, preds.shape[1])
     loss = -np.mean(np.sum(targets * preds, axis=1))
     regularization = rho * np.sum(
@@ -18,9 +18,9 @@ def nll_loss(
     return loss + regularization, recording
 
 
-def acc_and_loss(snn_apply, params, batch):
+def acc_and_loss(snn_apply, weights, batch):
     inputs, targets = batch
-    preds, _ = snn_apply(params, inputs)
+    preds, _ = snn_apply(weights, inputs)
     correct = (np.argmax(preds, axis=1) == targets).sum()
     accuracy = correct / len(targets)
 

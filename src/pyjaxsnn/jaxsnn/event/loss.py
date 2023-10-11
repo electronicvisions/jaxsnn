@@ -60,7 +60,7 @@ def loss_wrapper(
     input_spikes, target = batch
     recording = apply_fn(weights, input_spikes)
     output = recording[-1]
-    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
+    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)
@@ -79,7 +79,7 @@ def loss_wrapper_known_spikes(
     input_spikes, target = batch
     recording = apply_fn(spikes, weights, input_spikes)
     output = recording[-1]
-    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
+    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs :]
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 
     return loss_value, (t_first_spike, recording)
@@ -88,18 +88,28 @@ def loss_wrapper_known_spikes(
 def target_time_loss(
     first_spikes: jax.Array, target: jax.Array, tau_mem: float
 ) -> float:
-    loss_value = -np.sum(np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem)))
+    loss_value = -np.sum(
+        np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem))
+    )
     return loss_value
 
 
-def ttfs_loss(first_spikes: jax.Array, target: jax.Array, tau_mem: float) -> float:
+def ttfs_loss(
+    first_spikes: jax.Array, target: jax.Array, tau_mem: float
+) -> float:
     idx = np.argmin(target)
     first_spikes = np.minimum(np.abs(first_spikes), 2 * tau_mem)
-    return -np.log(np.sum(np.exp((first_spikes[idx] - first_spikes) / tau_mem)))
+    return -np.log(
+        np.sum(np.exp((first_spikes[idx] - first_spikes) / tau_mem))
+    )
 
 
-def mse_loss(first_spikes: jax.Array, target: jax.Array, tau_mem: float) -> float:
-    return np.sum(np.square((np.minimum(first_spikes, 2 * tau_mem) - target) / tau_mem))
+def mse_loss(
+    first_spikes: jax.Array, target: jax.Array, tau_mem: float
+) -> float:
+    return np.sum(
+        np.square((np.minimum(first_spikes, 2 * tau_mem) - target) / tau_mem)
+    )
 
 
 def first_spike(spikes: EventPropSpike, size: int) -> jax.Array:
@@ -113,12 +123,14 @@ def first_spike(spikes: EventPropSpike, size: int) -> jax.Array:
 
 def loss_and_acc(
     loss_fn: Callable,
-    params: List[Weight],
+    weights: List[Weight],
     dataset: Tuple[EventPropSpike, jax.Array],
 ) -> TestResult:
     batched_loss = jax.vmap(loss_fn, in_axes=(None, 0))
-    loss, (t_first_spike, recording) = batched_loss(params, dataset)
-    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(t_first_spike, axis=-1)
+    loss, (t_first_spike, recording) = batched_loss(weights, dataset)
+    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(
+        t_first_spike, axis=-1
+    )
     return TestResult(
         np.mean(loss),
         np.mean(accuracy),
@@ -129,13 +141,15 @@ def loss_and_acc(
 
 def loss_and_acc_scan(
     loss_fn: Callable,
-    params: List[Weight],
+    weights: List[Weight],
     dataset: Tuple[EventPropSpike, jax.Array],
 ) -> TestResult:
-    params, (loss, (t_first_spike, recording)) = custom_lax.scan(
-        loss_fn, params, dataset
+    weights, (loss, (t_first_spike, recording)) = custom_lax.scan(
+        loss_fn, weights, dataset
     )
-    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(t_first_spike, axis=-1)
+    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(
+        t_first_spike, axis=-1
+    )
     return TestResult(
         np.mean(loss),
         np.mean(accuracy),

@@ -11,15 +11,15 @@ from jaxsnn.discrete.threshold import superspike
 
 
 def update(optimizer, state, batch, loss_fn):
-    opt_state, params, i = state
+    opt_state, weights, i = state
     input, output = batch
 
     (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        params, (input, output)
+        weights, (input, output)
     )
     updates, opt_state = optimizer.update(grads, opt_state)
-    params = optax.apply_updates(params, updates)
-    return (opt_state, params, i + 1), recording
+    weights = optax.apply_updates(weights, updates)
+    return (opt_state, weights, i + 1), recording
 
 
 def test_train():
@@ -33,7 +33,9 @@ def test_train():
     step_size = 1e-3
     DT = 5e-4
 
-    t_late = 1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
+    t_late = (
+        1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
+    )
     T = int(2 * t_late / DT)
 
     rng = random.PRNGKey(42)
@@ -50,10 +52,10 @@ def test_train():
         discrete.MaxOverTimeDecode(),
     )
 
-    _, params = snn_init(init_key, input_shape=input_shape)
+    _, weights = snn_init(init_key, input_shape=input_shape)
 
     optimizer = optax.adam(step_size)
-    opt_state = optimizer.init(params)
+    opt_state = optimizer.init(weights)
 
     # define functions
     snn_apply = partial(snn_apply, recording=True)
@@ -62,11 +64,11 @@ def test_train():
 
     trainloader = DataLoader(trainset, batch_size, rng=None)
     for _ in range(epochs):
-        (opt_state, params, _), _ = jax.lax.scan(
-            train_step_fn, (opt_state, params, 0), trainloader
+        (opt_state, weights, _), _ = jax.lax.scan(
+            train_step_fn, (opt_state, weights, 0), trainloader
         )
 
     accuracy, _ = acc_and_loss(
-        snn_apply, params, (test_dataset.vals, test_dataset.classes)
+        snn_apply, weights, (test_dataset.vals, test_dataset.classes)
     )
     assert accuracy > 0.70

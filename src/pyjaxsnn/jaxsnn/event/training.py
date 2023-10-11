@@ -16,16 +16,18 @@ log = logging.getLogger("root")
 def update(
     optimizer,
     loss_fn: Callable,
-    p: LIFParameters,
+    params: LIFParameters,
     state: OptState,
     batch: Tuple[Spike, jax.Array],
 ) -> Tuple[OptState, Tuple[jax.Array, jax.Array]]:
-    value, grad = jax.value_and_grad(loss_fn, has_aux=True)(state.params, batch)
-    grad = jax.tree_util.tree_map(lambda g: g / p.tau_syn, grad)
+    value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
+        state.weights, batch
+    )
+    grad = jax.tree_util.tree_map(lambda g: g / params.tau_syn, grad)
 
     updates, opt_state = optimizer.update(grad, state.opt_state)
-    params = optax.apply_updates(state.params, updates)
-    return OptState(opt_state, params), (value, grad)
+    weights = optax.apply_updates(state.weights, updates)
+    return OptState(opt_state, weights), (value, grad)
 
 
 def epoch(
@@ -39,7 +41,7 @@ def epoch(
     res, duration = time_it(jax.lax.scan, update_fn, opt_state, trainset[:2])
     opt_state, (recording, grad) = res
 
-    test_result = loss_and_acc(loss_fn, opt_state.params, testset[:2])
+    test_result = loss_and_acc(loss_fn, opt_state.weights, testset[:2])
     log.info(
         f"Epoch {i}, "
         f"loss: {test_result[0]:.4f}, "
@@ -48,4 +50,4 @@ def epoch(
         f"grad: {grad[0].input.mean():.5f}, "
         f"in {duration:.2f} s"
     )
-    return opt_state, (test_result, opt_state.params, duration)
+    return opt_state, (test_result, opt_state.weights, duration)

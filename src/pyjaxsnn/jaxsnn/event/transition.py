@@ -4,7 +4,7 @@ from jaxsnn.event.types import StepState, Weight, WeightInput, WeightRecurrent
 
 
 def transition_with_recurrence(
-    p: LIFParameters,
+    params: LIFParameters,
     state: StepState,
     weights: Weight,
     spike_idx: int,
@@ -12,7 +12,7 @@ def transition_with_recurrence(
     prev_layer_start: int,
 ) -> StepState:
     def recurrent_transition(
-        p: LIFParameters,
+        params: LIFParameters,
         state: StepState,
         weights: WeightRecurrent,
         spike_idx: int,
@@ -21,11 +21,13 @@ def transition_with_recurrence(
         tr_row = weights.recurrent[spike_idx]
 
         state.neuron_state.I = state.neuron_state.I + tr_row
-        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(p.v_reset)
+        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(
+            params.v_reset
+        )
         return state
 
     def input_transition(
-        p: LIFParameters,
+        params: LIFParameters,
         state: StepState,
         weights: WeightRecurrent,
         spike_idx: int,
@@ -45,7 +47,7 @@ def transition_with_recurrence(
         recurrent_spike,
         recurrent_transition,
         input_transition,
-        p,
+        params,
         state,
         weights,
         spike_idx,
@@ -54,7 +56,7 @@ def transition_with_recurrence(
 
 
 def transition_without_recurrence(
-    p: LIFParameters,
+    params: LIFParameters,
     state: StepState,
     weights: WeightInput,
     spike_idx: int,
@@ -62,7 +64,10 @@ def transition_without_recurrence(
     prev_layer_start: int,
 ) -> StepState:
     def input_transition(
-        state: StepState, weights: WeightInput, spike_idx: int, prev_layer_start: int
+        state: StepState,
+        weights: WeightInput,
+        spike_idx: int,
+        prev_layer_start: int,
     ):
         spike = state.input_queue.pop()
         index_for_layer = spike.idx - prev_layer_start
@@ -75,7 +80,9 @@ def transition_without_recurrence(
         return state
 
     def no_transition(state: StepState, *args):
-        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(p.v_reset)
+        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(
+            params.v_reset
+        )
         return state
 
     return jax.lax.cond(

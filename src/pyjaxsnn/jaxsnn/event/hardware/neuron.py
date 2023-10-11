@@ -148,7 +148,9 @@ class Neuron(Module):
                 logical_neuron,
                 {
                     halco.CompartmentOnLogicalNeuron(): grenade.Population.Neuron.Compartment(
-                        grenade.Population.Neuron.Compartment.SpikeMaster(0, True),
+                        grenade.Population.Neuron.Compartment.SpikeMaster(
+                            0, True
+                        ),
                         [receptors] * len(logical_neuron.get_atomic_neurons()),
                     )
                 },
@@ -171,7 +173,9 @@ class Neuron(Module):
         madc_recording.population = self.descriptor
         madc_recording.source = self._madc_readout_source
         madc_recording.neuron_on_population = int(self._record_neuron_id)
-        madc_recording.compartment_on_neuron = halco.CompartmentOnLogicalNeuron()
+        madc_recording.compartment_on_neuron = (
+            halco.CompartmentOnLogicalNeuron()
+        )
         madc_recording.atomic_neuron_on_compartment = 0
         builder.add(madc_recording)
         log.debug(f"Added population '{self}' to grenade graph.")

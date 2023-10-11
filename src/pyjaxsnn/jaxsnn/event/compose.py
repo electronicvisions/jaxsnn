@@ -24,21 +24,23 @@ def serial(*layers: SingleInitApply) -> InitApply:
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
-        params = []
+        weights = []
         for init_fn in init_fns:
             if len(init_fns) > 1:
                 rng, layer_rng = jax.random.split(rng)
             else:
                 layer_rng = rng
             input_shape, param = init_fn(layer_rng, input_shape)
-            params.append(param)
-        return params
+            weights.append(param)
+        return weights
 
-    def apply_fn(params: List[Weight], spikes: EventPropSpike) -> List[EventPropSpike]:
+    def apply_fn(
+        weights: List[Weight], spikes: EventPropSpike
+    ) -> List[EventPropSpike]:
         """Take parameters of the network and the input spikes and return the output spikes of each layer
 
         Args:
-            params (List[Weight]): Parameters of the network
+            weights (List[Weight]): Parameters of the network
             spikes (EventPropSpike): Input spikes
 
         Returns:
@@ -46,7 +48,7 @@ def serial(*layers: SingleInitApply) -> InitApply:
         """
         recording = []
         layer_start = 0
-        for fn, param in zip(apply_fns, params):
+        for fn, param in zip(apply_fns, weights):
             layer_start += param.input.shape[0]
             spikes = fn(layer_start, param, spikes)
             recording.append(spikes)
@@ -72,24 +74,26 @@ def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
-        params = []
+        weights = []
         for init_fn in init_fns:
             if len(init_fns) > 1:
                 rng, layer_rng = jax.random.split(rng)
             else:
                 layer_rng = rng
             input_shape, param = init_fn(layer_rng, input_shape)
-            params.append(param)
-        return params
+            weights.append(param)
+        return weights
 
     def apply_fn(
-        known_spikes: List[Spike], params: List[Weight], spikes: EventPropSpike
+        known_spikes: List[Spike],
+        weights: List[Weight],
+        spikes: EventPropSpike,
     ) -> List[EventPropSpike]:
         """Take parameters of the network and the input spikes and return the output spikes of each layer
 
         Args:
             known_spikes(List[EventPropSpike]): The spikes that happened on hardware in each layer
-            params (List[Weight]): Parameters of the network
+            weights (List[Weight]): Parameters of the network
             spikes (EventPropSpike): Input spikes
 
         Returns:
@@ -97,7 +101,7 @@ def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
         """
         recording = []
         layer_start = 0
-        for fn, param, known in zip(apply_fns, params, known_spikes):
+        for fn, param, known in zip(apply_fns, weights, known_spikes):
             layer_start += param.input.shape[0]
             spikes = fn(layer_start, param, spikes, known)
             recording.append(spikes)

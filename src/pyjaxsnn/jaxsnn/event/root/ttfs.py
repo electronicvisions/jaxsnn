@@ -22,11 +22,17 @@ def ttfs_inner_most(
 
 
 def ttfs_inner(
-    a_1: jax.Array, a_2: jax.Array, second_term: jax.Array, tau_mem: float, t_max: float
+    a_1: jax.Array,
+    a_2: jax.Array,
+    second_term: jax.Array,
+    tau_mem: float,
+    t_max: float,
 ):
     epsilon = 1e-7
     denominator = a_2 + np.sqrt(np.maximum(second_term, epsilon))
-    save_denominator = np.where(np.abs(denominator) > epsilon, denominator, epsilon)
+    save_denominator = np.where(
+        np.abs(denominator) > epsilon, denominator, epsilon
+    )
     return jax.lax.cond(
         np.abs(denominator) > epsilon,
         ttfs_inner_most,

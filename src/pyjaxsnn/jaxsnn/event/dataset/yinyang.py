@@ -8,13 +8,13 @@ from jaxsnn.event.dataset.utils import Dataset, add_current
 from jaxsnn.event.types import Spike
 
 
-def good_params(p: LIFParameters) -> Dict:
+def good_params(params: LIFParameters) -> Dict:
     return {
         "mirror": True,
         "bias_spike": 0.0,
-        "correct_target_time": 0.9 * p.tau_syn,
-        "wrong_target_time": 1.1 * p.tau_syn,
-        "t_late": 2.0 * p.tau_syn,
+        "correct_target_time": 0.9 * params.tau_syn,
+        "wrong_target_time": 1.1 * params.tau_syn,
+        "t_late": 2.0 * params.tau_syn,
     }
 
 

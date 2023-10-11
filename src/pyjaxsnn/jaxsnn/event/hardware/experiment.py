@@ -103,7 +103,9 @@ class Experiment:
         self._static_config_prepared = True
         log.debug("Preparation of static config done.")
 
-    def load_calib(self, calib_path: Optional[Union[Path, str]] = None) -> lola.Chip:
+    def load_calib(
+        self, calib_path: Optional[Union[Path, str]] = None
+    ) -> lola.Chip:
         """
         Load a calibration from path `calib_path` and apply to the experiment`s
         chip object. If no path is specified a nightly calib is applied.
@@ -264,8 +266,12 @@ class Experiment:
         """
         # Get hw data
         assert len(n_spikes) == len(self._populations[1:])
-        n_spike_map = {p.descriptor: n for n, p in zip(n_spikes, self._populations[1:])}
-        return _hxtorch_core.extract_n_spikes(result_map, network_graph, n_spike_map)
+        n_spike_map = {
+            p.descriptor: n for n, p in zip(n_spikes, self._populations[1:])
+        }
+        return _hxtorch_core.extract_n_spikes(
+            result_map, network_graph, n_spike_map
+        )
 
     def register_population(self, module: Union[InputNeuron, Neuron]) -> None:
         """
@@ -309,7 +315,9 @@ class Experiment:
 
         # Generate network graph
         start = time.time()
-        network = self._generate_network_graphs(weights, build_graph=build_graph)
+        network = self._generate_network_graphs(
+            weights, build_graph=build_graph
+        )
         generate_network_time = time.time() - start
 
         # configure populations
@@ -348,7 +356,9 @@ class Experiment:
             spike_list.append(
                 Spike(
                     idx=np.where(spikes[0] == -1, -1, spikes[0] + offset),
-                    time=(spikes[1] + hw_cycle_correction) / cycles_per_us * 1e-6,
+                    time=(spikes[1] + hw_cycle_correction)
+                    / cycles_per_us
+                    * 1e-6,
                 )
             )
             offset += self._populations[i].size
@@ -361,7 +371,9 @@ class Experiment:
             )
 
             data = (
-                hw_madc_samples[self._populations[1].descriptor].data.to_dense().numpy()
+                hw_madc_samples[self._populations[1].descriptor]
+                .data.to_dense()
+                .numpy()
             )
             madc_recording = data[:, :, self._populations[1]._record_neuron_id]
             return spike_list, madc_recording

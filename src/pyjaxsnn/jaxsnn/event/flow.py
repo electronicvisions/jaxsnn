@@ -14,13 +14,15 @@ def lif_wrap(func):
     return inner
 
 
-def exponential_flow(A: jax.Array):
-    def flow(x0: jax.Array, t: float):
-        return np.dot(linalg.expm(A * t), x0)  # type: ignore
+def exponential_flow(kernel: jax.Array):
+    def flow(initial_state: jax.Array, time: float):
+        return np.dot(linalg.expm(kernel * time), initial_state)  # type: ignore
 
     return lif_wrap(flow)
 
 
-def lif_exponential_flow(p: LIFParameters):
-    A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
-    return exponential_flow(A)
+def lif_exponential_flow(params: LIFParameters):
+    kernel = np.array(
+        [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
+    )
+    return exponential_flow(kernel)

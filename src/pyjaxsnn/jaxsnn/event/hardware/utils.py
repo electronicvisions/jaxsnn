@@ -26,7 +26,9 @@ def spike_to_grenade_input(spike: Spike, input_neurons: int):
     for batch_idx in range(batch_dim):
         spikes = [[] for _ in range(input_neurons)]
         for i in range(spike_dim):
-            idx, time = spike.idx[batch_idx, i], float(spike.time[batch_idx, i])
+            idx, time = spike.idx[batch_idx, i], float(
+                spike.time[batch_idx, i]
+            )
             spikes[idx].append(time)
         batch.append(spikes)
     return batch
@@ -55,7 +57,9 @@ def linear_saturating(
     :returns: The transformed weight tensor.
     """
     if as_int:
-        return np.round(np.clip(scale * weight, min_weight, max_weight)).astype(int)
+        return np.round(
+            np.clip(scale * weight, min_weight, max_weight)
+        ).astype(int)
     return np.clip(scale * weight, min_weight, max_weight)
 
 
@@ -70,13 +74,17 @@ def filter_spikes_batch(
     filtered_idx = np.where(spikes.idx >= layer_start, spikes.idx, -1)
 
     if layer_end is not None:
-        filtered_time = np.where(filtered_idx < layer_end, filtered_time, np.inf)
+        filtered_time = np.where(
+            filtered_idx < layer_end, filtered_time, np.inf
+        )
         filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
 
     return sort_batch(Spike(filtered_time, filtered_idx))
 
 
-def filter_spikes(spikes: Spike, layer_start: int, layer_end: Optional[int] = None):
+def filter_spikes(
+    spikes: Spike, layer_start: int, layer_end: Optional[int] = None
+):
     """Only return spikes of neurons after layer start
 
     Other spikes are encoded with time=np.inf and index=-1
@@ -85,7 +93,9 @@ def filter_spikes(spikes: Spike, layer_start: int, layer_end: Optional[int] = No
     filtered_idx = np.where(spikes.idx >= layer_start, spikes.idx, -1)
 
     if layer_end is not None:
-        filtered_time = np.where(filtered_idx < layer_end, filtered_time, np.inf)
+        filtered_time = np.where(
+            filtered_idx < layer_end, filtered_time, np.inf
+        )
         filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
 
     sort_idx = np.argsort(filtered_time, axis=-1)
@@ -122,26 +132,33 @@ def add_noise_batch(
 
 
 def simulate_hw_weights(
-    params: List[Weight], scale: float, as_int: bool = False
+    weights: List[Weight], scale: float, as_int: bool = False
 ) -> List[Weight]:
-    new_params = []
-    for param in params:
-        if isinstance(param, WeightInput):
-            new_param = WeightInput(
-                linear_saturating(param.input, scale, as_int=as_int) / scale
+    new_weights = []
+    for weight in weights:
+        if isinstance(weight, WeightInput):
+            new_weight = WeightInput(
+                linear_saturating(weight.input, scale, as_int=as_int) / scale
             )
         else:
-            new_param = WeightRecurrent(
-                input=linear_saturating(param.input, scale, as_int=as_int) / scale,
-                recurrent=linear_saturating(param.recurrent, scale, as_int=as_int)
+            new_weight = WeightRecurrent(
+                input=linear_saturating(weight.input, scale, as_int=as_int)
+                / scale,
+                recurrent=linear_saturating(
+                    weight.recurrent, scale, as_int=as_int
+                )
                 / scale,
             )
-        new_params.append(new_param)
-    return new_params
+        new_weights.append(new_weight)
+    return new_weights
 
 
 def simulate_madc(
-    tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight: float, ts: jax.Array
+    tau_mem_inv: float,
+    tau_syn_inv: float,
+    inputs: Spike,
+    weight: float,
+    ts: jax.Array,
 ):
     A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
     tk = inputs.time
@@ -162,7 +179,9 @@ def simulate_madc(
 def add_linear_noise(spike: Spike) -> Spike:
     batch_size, n_spikes = spike.idx.shape
     time_noise = np.repeat(
-        np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0), batch_size, axis=0
+        np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0),
+        batch_size,
+        axis=0,
     )
     assert time_noise.shape == spike.idx.shape
     return Spike(idx=spike.idx, time=spike.time + time_noise)

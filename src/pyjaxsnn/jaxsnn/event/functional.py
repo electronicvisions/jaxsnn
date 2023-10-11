@@ -16,7 +16,9 @@ from jaxsnn.event.types import (
 
 
 def batch_wrapper(
-    loss_fn: Union[LossFn, HWLossFn], in_axes: tuple = (None, 0), pmap: bool = False
+    loss_fn: Union[LossFn, HWLossFn],
+    in_axes: tuple = (None, 0),
+    pmap: bool = False,
 ):
     """Add an outer batch dimension to `loss_fn`.
 
@@ -35,7 +37,7 @@ def batch_wrapper(
     return wrapped_fn
 
 
-# Input to step function. Consists of StepState, params of the network and start index of the layer
+# Input to step function. Consists of StepState, weights of the network and start index of the layer
 StepInput = Tuple[StepState, Weight, int]
 
 
@@ -64,7 +66,9 @@ def step(
 
     # determine spike nature and spike time
     input_time = jax.lax.cond(
-        state.input_queue.is_empty, lambda: t_max, lambda: state.input_queue.peek().time
+        state.input_queue.is_empty,
+        lambda: t_max,
+        lambda: state.input_queue.peek().time,
     )
     t_dyn = np.minimum(next_internal.time, input_time)
 

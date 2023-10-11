@@ -63,20 +63,32 @@ class Synapse(Module):
         weight_exc = np.copy(self.weight)
         weight_inh = np.copy(self.weight)
 
-        weight_exc = utils.linear_saturating(weight_exc, scale=scale, min_weight=0.0)
-        weight_inh = utils.linear_saturating(weight_inh, scale=scale, max_weight=0.0)
+        weight_exc = utils.linear_saturating(
+            weight_exc, scale=scale, min_weight=0.0
+        )
+        weight_inh = utils.linear_saturating(
+            weight_inh, scale=scale, max_weight=0.0
+        )
 
-        connections_exc = _hxtorch_core.weight_to_connection(onp.array(weight_exc))
-        connections_inh = _hxtorch_core.weight_to_connection(onp.array(weight_inh))
+        connections_exc = _hxtorch_core.weight_to_connection(
+            onp.array(weight_exc)
+        )
+        connections_inh = _hxtorch_core.weight_to_connection(
+            onp.array(weight_inh)
+        )
 
         projection_exc = grenade.Projection(
-            grenade.Receptor(grenade.Receptor.ID(), grenade.Receptor.Type.excitatory),
+            grenade.Receptor(
+                grenade.Receptor.ID(), grenade.Receptor.Type.excitatory
+            ),
             connections_exc,
             pre,
             post,
         )
         projection_inh = grenade.Projection(
-            grenade.Receptor(grenade.Receptor.ID(), grenade.Receptor.Type.inhibitory),
+            grenade.Receptor(
+                grenade.Receptor.ID(), grenade.Receptor.Type.inhibitory
+            ),
             connections_inh,
             pre,
             post,

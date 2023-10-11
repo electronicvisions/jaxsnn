@@ -25,18 +25,18 @@ class LIState:
 def li_feed_forward_step(
     init,
     spikes: jax.Array,
-    p: LIParameters = LIParameters(),
+    params: LIParameters = LIParameters(),
     dt: float = 0.001,
 ):
     state, input_weights = init
     # compute current jumps
     i_jump = state.i + np.matmul(spikes, input_weights)
     # compute voltage updates
-    dv = dt * p.tau_mem_inv * ((p.v_leak - state.v) + i_jump)
+    dv = dt * params.tau_mem_inv * ((params.v_leak - state.v) + i_jump)
     v_new = state.v + dv
 
     # compute current updates
-    di = -dt * p.tau_syn_inv * i_jump
+    di = -dt * params.tau_syn_inv * i_jump
     i_decayed = i_jump + di
 
     return (LIState(v_new, i_decayed), input_weights), v_new
@@ -54,11 +54,13 @@ def LI(out_dim, scale_in=0.2):
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
         return out_dim, input_weights, rng
 
-    def apply_fn(params, inputs, **kwargs):
+    def apply_fn(weights, inputs, **kwargs):
         batch = inputs.shape[1]
         shape = (batch, out_dim)
         state = LIState(np.zeros(shape), np.zeros(shape))
-        _, voltages = jax.lax.scan(li_feed_forward_step, (state, params), inputs)
+        _, voltages = jax.lax.scan(
+            li_feed_forward_step, (state, weights), inputs
+        )
         return voltages
 
     return init_fn, apply_fn
@@ -72,8 +74,8 @@ def LIStep(out_dim, scale_in=0.2):
         input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
         return out_dim, input_weights, rng
 
-    def apply_fn(state, params, inputs, **kwargs):
-        return li_feed_forward_step((state, params), inputs)
+    def apply_fn(state, weights, inputs, **kwargs):
+        return li_feed_forward_step((state, weights), inputs)
 
     def state_fn(batch_size):
         shape = (batch_size, out_dim)

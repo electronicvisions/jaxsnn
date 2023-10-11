@@ -38,10 +38,14 @@ from jaxsnn.event.leaky_integrate_and_fire import (
     LIFParameters,
     RecurrentEventPropLIF,
 )
-from jaxsnn.event.loss import loss_and_acc_scan, loss_wrapper_known_spikes, mse_loss
+from jaxsnn.event.loss import (
+    loss_and_acc_scan,
+    loss_wrapper_known_spikes,
+    mse_loss,
+)
 from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.types import Spike, Weight
-from jaxsnn.event.utils import load_params_recurrent, save_params_recurrent
+from jaxsnn.event.utils import load_weights_recurrent, save_weights_recurrent
 
 log = logging.getLogger("root")
 
@@ -67,10 +71,10 @@ def train(
     seed: int,
     folder: str,
     plot: bool = True,
-    save_params: bool = False,
+    save_weights: bool = False,
 ):
     # neuron params, low v_reset only allows one spike per neuron
-    p = LIFParameters(
+    params = LIFParameters(
         v_reset=-1000.0, v_th=1.0, tau_syn_inv=1 / 6e-6, tau_mem_inv=1 / 12e-6
     )
 
@@ -83,8 +87,8 @@ def train(
     epochs = 300
     n_train_batches = int(train_samples / batch_size)
     n_test_batches = int(test_samples / batch_size)
-    t_late = 2.0 * p.tau_syn
-    t_max = 4.0 * p.tau_syn
+    t_late = 2.0 * params.tau_syn
+    t_max = 4.0 * params.tau_syn
 
     # at least 50 us because otherwise we get jitter
     t_max_us = max(t_max / 1e-6, 50)
@@ -98,8 +102,8 @@ def train(
     # in units of t_late
     bias_spike = 0.0
 
-    correct_target_time = 0.9 * p.tau_syn
-    wrong_target_time = 1.1 * p.tau_syn
+    correct_target_time = 0.9 * params.tau_syn
+    wrong_target_time = 1.1 * params.tau_syn
 
     log.info(
         f"Mock HW set to {MOCK_HW}, lr: {step_size}, bias spike: {bias_spike}, duplication: {duplication}, sim hw weights: {SIM_HW_WEIGHTS_RANGE}, sim integer: {SIM_HW_WEIGHTS_INT} config: {wafer_config}, noise: {NOISE}, correction: {HW_CYCLE_CORRECTION}, max_grad: {MAX_GRAD}"
@@ -153,7 +157,7 @@ def train(
             layers=[hidden_size, output_size],
             n_spikes=n_spikes,
             t_max=t_max,
-            p=p,
+            params=params,
             mean=weight_mean,
             std=weight_std,
             wrap_only_step=False,
@@ -166,24 +170,24 @@ def train(
             layers=[hidden_size, output_size],
             n_spikes=n_spikes,
             t_max=t_max,
-            p=p,
+            params=params,
             mean=weight_mean,
             std=weight_std,
             duplication=duplication if duplicate_neurons else None,
         )
     )
 
-    # init params and optimizer
+    # init weights and optimizer
     if LOAD_FOLDER is None:
-        params = init_fn(param_rng, input_size)
+        weights = init_fn(param_rng, input_size)
     else:
-        log.warning(f"Loading params from folder: {LOAD_FOLDER}")
-        params = [load_params_recurrent(LOAD_FOLDER)]
+        log.warning(f"Loading weights from folder: {LOAD_FOLDER}")
+        weights = [load_weights_recurrent(LOAD_FOLDER)]
 
     scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
 
     optimizer = optimizer_fn(scheduler)
-    opt_state = optimizer.init(params)
+    opt_state = optimizer.init(weights)
 
     loss_fn = jax.jit(
         batch_wrapper(
@@ -191,7 +195,7 @@ def train(
                 loss_wrapper_known_spikes,
                 apply_fn,
                 mse_loss,
-                p.tau_mem,
+                params.tau_mem,
                 n_neurons,
                 output_size,
             ),
@@ -203,28 +207,28 @@ def train(
     # HW
     if not MOCK_HW:
         experiment = Experiment(wafer_config)
-        InputNeuron(input_size, p, experiment)
-        Neuron(hidden_size, p, experiment)
-        Neuron(output_size, p, experiment)
+        InputNeuron(input_size, params, experiment)
+        Neuron(hidden_size, params, experiment)
+        Neuron(output_size, params, experiment)
 
     def update(input, batch):
-        (opt_state, params, time_data), rng = input
+        (opt_state, weights, time_data), rng = input
         input_spikes, _ = batch
 
         if MOCK_HW:
             if SIM_HW_WEIGHTS_INT:
                 hw_spikes = hw_mock_batched(
                     simulate_hw_weights(
-                        params, wafer_config.weight_scaling, as_int=True
+                        weights, wafer_config.weight_scaling, as_int=True
                     ),
                     input_spikes,
                 )
             else:
-                hw_spikes = hw_mock_batched(params, input_spikes)
+                hw_spikes = hw_mock_batched(weights, input_spikes)
         else:
             hw_spikes, time_data = experiment.get_hw_results(
                 input_spikes,
-                params,
+                weights,
                 t_max_us,
                 n_spikes=[n_spikes_hidden, n_spikes_output],
                 time_data=time_data,
@@ -250,25 +254,29 @@ def train(
 
         if NOISE is not None:
             rng, noise_rng = jax.random.split(rng, 2)
-            hw_spikes = [add_noise_batch(hw_spikes[0], noise_rng, std=NOISE, bias=BIAS)]
-        res = update_software((opt_state, params, time_data), batch, hw_spikes)
+            hw_spikes = [
+                add_noise_batch(hw_spikes[0], noise_rng, std=NOISE, bias=BIAS)
+            ]
+        res = update_software(
+            (opt_state, weights, time_data), batch, hw_spikes
+        )
         return (res[0], rng), res[1]
 
     # define test function
-    def test_loss_fn(params, batch):
-        params, rng = params
+    def test_loss_fn(weights, batch):
+        weights, rng = weights
         input_spikes, _ = batch
 
         if MOCK_HW:
             if SIM_HW_WEIGHTS_INT:
                 hw_spikes = hw_mock_batched(
                     simulate_hw_weights(
-                        params, wafer_config.weight_scaling, as_int=True
+                        weights, wafer_config.weight_scaling, as_int=True
                     ),
                     input_spikes,
                 )
             else:
-                hw_spikes = hw_mock_batched(params, input_spikes)
+                hw_spikes = hw_mock_batched(weights, input_spikes)
             hw_spikes = [
                 cut_spikes_batch(
                     filter_spikes_batch(hw_spikes[0], input_size),
@@ -278,7 +286,7 @@ def train(
         else:
             hw_spikes, _ = experiment.get_hw_results(
                 input_spikes,
-                params,
+                weights,
                 t_max_us,
                 n_spikes=[n_spikes_hidden, n_spikes_output],
                 time_data={},
@@ -304,17 +312,21 @@ def train(
 
         if NOISE is not None:
             rng, noise_rng = jax.random.split(rng, 2)
-            hw_spikes = [add_noise_batch(hw_spikes[0], noise_rng, std=NOISE, bias=BIAS)]
+            hw_spikes = [
+                add_noise_batch(hw_spikes[0], noise_rng, std=NOISE, bias=BIAS)
+            ]
 
         if SIM_HW_WEIGHTS_INT:
             loss_result = loss_fn(
-                simulate_hw_weights(params, wafer_config.weight_scaling, as_int=True),
+                simulate_hw_weights(
+                    weights, wafer_config.weight_scaling, as_int=True
+                ),
                 batch,
                 hw_spikes,
             )
         else:
-            loss_result = loss_fn(params, batch, hw_spikes)
-        return (params, rng), loss_result
+            loss_result = loss_fn(weights, batch, hw_spikes)
+        return (weights, rng), loss_result
 
     @jax.jit
     def update_software(
@@ -322,35 +334,39 @@ def train(
         batch: Tuple[Spike, jax.Array],
         hw_spikes,
     ):
-        opt_state, params, hw_time = input
+        opt_state, weights, hw_time = input
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
-            params, batch, hw_spikes
+            weights, batch, hw_spikes
         )
 
         grad = jax.tree_util.tree_map(
-            lambda par, g: np.where(par == 0.0, 0.0, g), params, grad
+            lambda par, g: np.where(par == 0.0, 0.0, g), weights, grad
         )
 
         # grad clipping
         if MAX_GRAD is not None:
             grad = jax.tree_util.tree_map(
-                lambda par, g: np.where(np.abs(g) > MAX_GRAD[1], 0.0, g), params, grad
+                lambda par, g: np.where(np.abs(g) > MAX_GRAD[1], 0.0, g),
+                weights,
+                grad,
             )
 
         updates, opt_state = optimizer.update(grad, opt_state)
-        params = optax.apply_updates(params, updates)
+        weights = optax.apply_updates(weights, updates)
         if SIM_HW_WEIGHTS_RANGE:
-            params = simulate_hw_weights(params, wafer_config.weight_scaling)
+            weights = simulate_hw_weights(weights, wafer_config.weight_scaling)
 
-        return (opt_state, params, hw_time), (value, grad)
+        return (opt_state, weights, hw_time), (value, grad)
 
     def epoch(state, i):
         # do testing before training for plot
-        params = state[1]
+        weights = state[1]
 
         rng = jax.random.PRNGKey(i)
         test_rng, train_rng = jax.random.split(rng, 2)
-        test_result = loss_and_acc_scan(test_loss_fn, (params, test_rng), testset[:2])
+        test_result = loss_and_acc_scan(
+            test_loss_fn, (weights, test_rng), testset[:2]
+        )
         loss, acc, t_first_spike, recording = test_result
 
         start = time.time()
@@ -366,19 +382,21 @@ def train(
 
         duration = time.time() - start
         masked = onp.ma.masked_where(t_first_spike == np.inf, t_first_spike)
-        number_of_hidden_spikes = np.sum(input_size <= recording[0].idx, axis=-1).mean()
-        input_param = params[0].input[:, :hidden_size]
-        recurrent_param = params[0].recurrent[:hidden_size, hidden_size:]
+        number_of_hidden_spikes = np.sum(
+            input_size <= recording[0].idx, axis=-1
+        ).mean()
+        input_param = weights[0].input[:, :hidden_size]
+        recurrent_param = weights[0].recurrent[:hidden_size, hidden_size:]
         log.info(
             f"Epoch {i}, loss: {loss:.6f}, " f"acc: {acc:.3f}, "
             # f"spikes: {number_of_hidden_spikes:.1f}, "
             # f"output inf: {np.mean((t_first_spike == np.inf), axis=(0, 1))}, "
             # f"grad: {np.mean(np.abs(grad[0].input[:, :,:hidden_size])):.4f}, {np.mean(np.abs(grad[0].recurrent[:, :hidden_size,hidden_size:]))}, ",
             # f"max grad: {np.max(np.abs(grad[0].input[:, :,:hidden_size]))}, {np.max(np.abs(grad[0].recurrent[:, :hidden_size,hidden_size:]))}, ",
-            # f"params mean: {input_param.mean():.5f}, {recurrent_param.mean():.5f}, ",
-            # f"params std: {input_param.std():.5f}, {recurrent_param.std():.5f}, ",
+            # f"weights mean: {input_param.mean():.5f}, {recurrent_param.mean():.5f}, ",
+            # f"weights std: {input_param.std():.5f}, {recurrent_param.std():.5f}, ",
             # f"param sat: {np.abs(input_param * wafer_config.weight_scaling >= 63).mean():.3f}, {np.abs(recurrent_param * wafer_config.weight_scaling >= 63).mean():.3f}, "
-            # f"time output: {(masked.mean() / p.tau_syn):.2f} tau_s, "
+            # f"time output: {(masked.mean() / params.tau_syn):.2f} tau_s, "
             f"in {duration:.2f} s, ",
             # f"hw time: {state[2].get('get_hw_results', 0.0):.2f} s, ",
             # f"grenade run time: {state[2].get('grenade_run', 0.0):.2f} s, ",
@@ -389,20 +407,20 @@ def train(
         # reset timing stats
         for k, v in state[2].items():
             state[2][k] = 0.0
-        return state, (test_result, params, duration)
+        return state, (test_result, weights, duration)
 
     # train the net
-    (opt_state, params, timing), (
+    (opt_state, weights, timing), (
         res,
-        params_over_time,
+        weights_over_time,
         durations,
-    ) = custom_lax.scan(epoch, (opt_state, params, {}), np.arange(epochs))
+    ) = custom_lax.scan(epoch, (opt_state, weights, {}), np.arange(epochs))
     loss, acc, t_spike, recording = res  # type: ignore
 
     time_string = dt.datetime.now().strftime("%H:%M:%S")
     Path(folder).mkdir(parents=True, exist_ok=True)
-    if save_params:
-        save_params_recurrent(params[0], folder)
+    if save_weights:
+        save_weights_recurrent(weights[0], folder)
 
     # generate plots
     if plot:
@@ -411,10 +429,10 @@ def train(
             testset,
             recording,  # type: ignore
             t_spike,  # type: ignore
-            params_over_time,
+            weights_over_time,
             loss,  # type: ignore
             acc,  # type: ignore
-            p.tau_syn,  # type: ignore
+            params.tau_syn,  # type: ignore
             hidden_size,
             epochs,
             duplication,
@@ -432,10 +450,10 @@ def train(
         "max_accuracy": max_acc,
         "seed": seed,
         "epochs": epochs,
-        "tau_mem": p.tau_mem,
-        "tau_syn": p.tau_syn,
-        "v_th": p.v_th,
-        "v_reset": p.v_reset,
+        "tau_mem": params.tau_mem,
+        "tau_syn": params.tau_syn,
+        "v_th": params.v_th,
+        "v_reset": params.v_reset,
         "noise": NOISE,
         "sim_hw_weights_range": SIM_HW_WEIGHTS_RANGE,
         "sim_hw_weights_int": SIM_HW_WEIGHTS_INT,
@@ -451,8 +469,8 @@ def train(
         "n_spikes": [input_size, n_spikes_hidden, n_spikes_output],
         "optimizer": optimizer_fn.__name__,
         "target (tau_syn)": [
-            round(float(correct_target_time) / p.tau_syn, 4),
-            round(float(wrong_target_time) / p.tau_syn, 4),
+            round(float(correct_target_time) / params.tau_syn, 4),
+            round(float(wrong_target_time) / params.tau_syn, 4),
         ],
         "loss": [round(float(l), 5) for l in loss],  # type: ignore
         "accuracy": [round(float(a), 5) for a in acc],  # type: ignore
@@ -467,10 +485,12 @@ if __name__ == "__main__":
     for seed in range(2, 5):
         dt_string = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         folder = f"jaxsnn/plots/hardware/yinyang_{'mock' if MOCK_HW else 'no_mock'}/{dt_string}"
-        log.info(f"Running experiment, results in folder: {folder}, seed: {seed}")
+        log.info(
+            f"Running experiment, results in folder: {folder}, seed: {seed}"
+        )
         if not MOCK_HW:
             hxtorch.init_hardware()
-        train(seed, folder, plot=True, save_params=False)
+        train(seed, folder, plot=True, save_weights=False)
 
         if not MOCK_HW:
             hxtorch.release_hardware()
