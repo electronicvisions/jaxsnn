@@ -91,3 +91,7 @@ KI-System, the Helmholtz Association Initiative and Networking Fund [Advanced
 Computing Architectures (ACA)] under Project SO-092, as well as from the
 Manfred Stärk Foundation, and the Lautenschläger-Forschungspreis 2018 for
 Karlheinz Meier.
+
+## Licensing
+
+`SPDX-License-Identifier: LGPL-2.1-or-later`
