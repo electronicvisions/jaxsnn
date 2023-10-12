@@ -127,11 +127,12 @@ def train(  # pylint: disable=too-many-locals
             mock_hw=True,
         )
 
+    # find best epoch
+    best_epoch = np.argmax(test_result.accuracy)
+    max_acc = round(test_result.accuracy[best_epoch].item(), 3)
+    log.info(f"Max acc: {max_acc} after {best_epoch} epochs")
+
     # save experiment data
-    max_acc = round(np.max(test_result.accuracy).item(), 3)
-    log.info(
-        f"Max acc: {max_acc} after {np.argmax(test_result.accuracy)} epochs"
-    )
     experiment = {
         **params.as_dict(),
         **yinyang_params,

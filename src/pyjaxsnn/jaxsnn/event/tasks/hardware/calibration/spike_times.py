@@ -1,22 +1,21 @@
+"""Compare the spike time of a single neuron with multiple input
+spikes in software against the spike time on BSS-2 and suggest
+a weight scaling factor and time shift factor between the two.
+"""
+
 import datetime as dt
 import logging
 
 import hxtorch
 import jax.numpy as np
 import matplotlib.pyplot as plt
-from jaxsnn.event.hardware.calib import (
-    W_63_F3_LONG_REFRAC,
-    W_66_F3_TAU_MEM_FACTOR_2,
-    W_69_F0_LONG_REFRAC,
-    W_69_F0_TAU_MEM_FACTOR_2,
-)
+from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
 from jaxsnn.event.hardware.neuron import Neuron
 from jaxsnn.event.hardware.utils import (
     cut_spikes,
     filter_spikes,
-    linear_saturating,
 )
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.types import EventPropSpike, Spike, WeightInput
@@ -80,7 +79,7 @@ def main():
 
     log.info(f"Shape: {np.array(runs).shape}")
     np.save(
-        f"jaxsnn/plots/hardware/spike_times/spike_times.npy",
+        "data/hardware/spike_times/spike_times.npy",
         runs,
         allow_pickle=True,
     )
@@ -170,9 +169,7 @@ def main():
     fig.legend()
 
     dt_string = dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    fig.savefig(
-        f"jaxsnn/plots/hardware/spike_times/{dt_string}_spike_times.png"
-    )
+    fig.savefig(f"data/hardware/spike_times/{dt_string}_spike_times.png")
     log.info("Saved plot")
 
 

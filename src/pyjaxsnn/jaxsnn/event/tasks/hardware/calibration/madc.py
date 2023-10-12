@@ -1,3 +1,7 @@
+"""Plot the expected spike time of a single neuron with multiple input
+spikes in software against the measured MADC trace. This can be used
+to find the proper weight scaling and cycle offset factor.
+"""
 import datetime as dt
 import logging
 
@@ -120,6 +124,7 @@ def main():
     )
     sw_madc = sw_madc[:, 0] * 190 + 315
     prettified = fill_zeros_with_last(madc_recording[:, 0])
+
     # find first non zero
     first_non_zero = np.argmax(prettified != 0)
     prettified[:first_non_zero] = prettified[first_non_zero]
@@ -129,12 +134,13 @@ def main():
     log.info(f"SW spike time: {sw_spike_time}")
 
     log.info(f"HW spike time: {hw_spike_time}")
-    # axs.axvline(hw_spike_time, label="HW spike")
-    # axs.axvline(sw_spike_time, color="orange", label="SW spike")
 
     # first batch
     axs.set_title(
-        f"MADC recording, wafer {wafer_config.name}, input spike after 200 and 500 cycles, hw cycle correction: {HW_CYCLE_CORRECTION}, weight scaling: {wafer_config.weight_scaling}"
+        f"MADC recording, wafer {wafer_config.name}, "
+        "input spike after 200 and 500 cycles, "
+        f"hw cycle correction: {HW_CYCLE_CORRECTION}, "
+        f"weight scaling: {wafer_config.weight_scaling}"
     )
     axs.plot(np.arange(len) + HW_CYCLE_CORRECTION, prettified)
     axs.plot(np.arange(int(sw_spike_time)), sw_madc[: int(sw_spike_time)])
@@ -143,14 +149,15 @@ def main():
     fig.legend()
 
     dt_string = dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    fig.savefig(f"jaxsnn/plots/hardware/madc/{dt_string}_spike_times.png")
+    fig.savefig(f"data/event/hardware/madc/{dt_string}_spike_times.png")
     np.save(
-        f"jaxsnn/plots/hardware/madc/{dt_string}_trace.npy",
+        f"data/event/hardware/madc/{dt_string}_trace.npy",
         madc_recording,
         allow_pickle=True,
     )
     log.info(
-        f"Count: {len}, Non zero count: {np.count_nonzero(madc_recording[:, 0])}"
+        f"Count: {len}, "
+        f"Non zero count: {np.count_nonzero(madc_recording[:, 0])}"
     )
 
 

@@ -40,7 +40,7 @@ def construct_recurrent_init_fn(
             ix_middle = l_sum + layer_1
 
             recurrent_weights = recurrent_weights.at[
-                l_sum:ix_middle, ix_middle:ix_middle + layer_2
+                l_sum:ix_middle, ix_middle: ix_middle + layer_2
             ].set(
                 jax.random.normal(layer_rng, (layer_1, layer_2)) * std[i + 1]
                 + mean[i + 1]

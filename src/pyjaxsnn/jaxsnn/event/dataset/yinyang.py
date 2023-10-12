@@ -18,6 +18,18 @@ def good_params(params: LIFParameters) -> Dict:
     }
 
 
+def good_params_for_hw(params: LIFParameters) -> Dict:
+    return {
+        "mirror": True,
+        "bias_spike": 0.0,
+        "correct_target_time": 0.9 * params.tau_syn,
+        "wrong_target_time": 1.1 * params.tau_syn,
+        "t_late": 2.0 * params.tau_syn,
+        "duplication": 5,
+        "duplicate_neurons": True,
+    }
+
+
 def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
     rng: random.KeyArray,
     shape: List[int],
