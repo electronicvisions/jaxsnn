@@ -9,12 +9,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import _hxtorch_core
+import _hxtorch_spiking
 import hxtorch
 import jax.numpy as np
 import pygrenade_vx as grenade
 from dlens_vx_v3 import hal, lola
-from hxtorch.snn.experiment import NeuronPlacement
-from hxtorch.snn.utils import calib_helper
+from hxtorch.spiking.experiment import NeuronPlacement
+from hxtorch.spiking.utils import calib_helper
 from jaxsnn.base.types import Array
 from jaxsnn.event.hardware.calib import WaferConfig
 from jaxsnn.event.hardware.input_neuron import InputNeuron
@@ -25,18 +26,21 @@ from jaxsnn.event.types import Spike, Weight
 log = logging.getLogger("root")
 
 HardwareSpike = Dict[
-    grenade.network.placed_logical.PopulationDescriptor, Tuple[Array, Array]
+    grenade.network.PopulationOnNetwork, Tuple[Array, Array]
 ]
 
 
 class Experiment:
     """Experiment class for describing experiments on hardware"""
 
+    # pyling: disable=too-many-arguments
     def __init__(
-        self,
-        wafer_config: WaferConfig,
-        hw_routing_func=grenade.network.placed_logical.build_routing,
-    ) -> None:
+            self,
+            wafer_config: WaferConfig,
+            hw_routing_func=grenade.network.routing.PortfolioRouter(),
+            execution_instance: grenade.common.ExecutionInstanceID
+            = grenade.common.ExecutionInstanceID()) \
+            -> None:
         """
         Instanziate a new experiment, represting an experiment on hardware
         and/or in software.
@@ -59,6 +63,7 @@ class Experiment:
 
         self.neuron_placement = NeuronPlacement()
         self.hw_routing_func = hw_routing_func
+        self.execution_instance = execution_instance
         self._static_config_prepared = False
         self._populations_configured = False
         self.has_madc_recording = False
@@ -121,7 +126,7 @@ class Experiment:
         self,
         weights: List[Weight],
         build_graph: bool = True,
-    ) -> grenade.network.placed_logical.NetworkGraph:
+    ) -> grenade.network.NetworkGraph:
         """
         Generate grenade network graph from the populations and projections in
         modules
@@ -133,7 +138,7 @@ class Experiment:
             return self.grenade_network_graph
 
         # Create network builder
-        network_builder = grenade.network.placed_logical.NetworkBuilder()
+        network_builder = grenade.network.NetworkBuilder()
 
         # add input population
         for pop in self._populations:
@@ -172,12 +177,11 @@ class Experiment:
         if self.grenade_network is None:
             routing_result = self.hw_routing_func(network)
             self.grenade_network_graph = (
-                grenade.network.placed_logical.build_network_graph(
-                    network, routing_result
-                )
+                grenade.network.build_network_graph(
+                    network, routing_result)
             )
         else:
-            grenade.network.placed_logical.update_network_graph(
+            grenade.network.update_network_graph(
                 self.grenade_network_graph, network
             )
 
@@ -211,19 +215,21 @@ class Experiment:
 
     def _generate_inputs(
         self,
-        network_graph: grenade.network.placed_logical.NetworkGraph,
+        network_graph: grenade.network.NetworkGraph,
         inputs: Spike,
     ) -> grenade.signal_flow.IODataMap:
         """
         Generate external input events from the routed network graph
         representation.
         """
-        assert network_graph.event_input_vertex is not None
-        if network_graph.event_input_vertex is None:
+        assert network_graph.graph_translation.execution_instances[
+            self.execution_instance].event_input_vertex is not None
+        if network_graph.graph_translation.execution_instances[
+                self.execution_instance].event_input_vertex is None:
             return grenade.signal_flow.IODataMap()
 
         self._batch_size = inputs.time.shape[0]
-        input_generator = grenade.network.placed_logical.InputGenerator(
+        input_generator = grenade.network.InputGenerator(
             network_graph, self._batch_size
         )
 
@@ -238,8 +244,9 @@ class Experiment:
 
     def _get_population_observables(
         self,
-        network_graph: grenade.network.placed_logical.NetworkGraph,
+        network_graph: grenade.network.NetworkGraph,
         result_map: grenade.signal_flow.IODataMap,
+        runtime,
         n_spikes: List[int],
     ) -> HardwareSpike:
         """
@@ -264,7 +271,7 @@ class Experiment:
             p.descriptor: n for n, p in zip(n_spikes, self._populations[1:])
         }
         return _hxtorch_core.extract_n_spikes(
-            result_map, network_graph, n_spike_map
+            result_map, network_graph, runtime, n_spike_map
         )
 
     def register_population(self, module: Union[InputNeuron, Neuron]) -> None:
@@ -330,20 +337,21 @@ class Experiment:
         # generate external spike trains
         inputs = self._generate_inputs(network, inputs)
         inputs.runtime = [
-            {grenade.signal_flow.ExecutionInstance(): runtime_in_clocks}
+            {grenade.common.ExecutionInstanceID(): runtime_in_clocks}
         ] * self._batch_size
         log.debug(f"Registered runtimes: {inputs.runtime}")
 
         grenade_start = time.time()
-        outputs = hxtorch.snn.grenade_run(
+        outputs = _hxtorch_spiking.run(
             self._chip,
             network,
             inputs,
-            grenade.signal_flow.ExecutionInstancePlaybackHooks(),
+            grenade.signal_flow.ExecutionInstancePlaybackHooks()
         )
         time_grenade_run = time.time() - grenade_start
         start_get_observables = time.time()
-        hw_data = self._get_population_observables(network, outputs, n_spikes)
+        hw_data = self._get_population_observables(
+            network, outputs, runtime_in_clocks, n_spikes)
 
         # convert from fpga cycles to s
         spike_list = []
@@ -363,7 +371,7 @@ class Experiment:
         # madc
         if self.has_madc_recording:
             log.info(f"Runtime in clocks: {runtime_in_clocks}")
-            hw_madc_samples = hxtorch.snn.extract_madc(
+            hw_madc_samples = hxtorch.spiking.extract_madc(
                 outputs, network, runtime_in_clocks
             )
 

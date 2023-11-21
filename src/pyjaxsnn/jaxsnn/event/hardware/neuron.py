@@ -6,9 +6,9 @@ import logging
 from typing import List, Optional
 
 import numpy as np
-import pygrenade_vx.network.placed_logical as grenade
+import pygrenade_vx.network as grenade
 from dlens_vx_v3 import hal, halco, lola
-from hxtorch.snn.morphology import SingleCompartmentNeuron
+from hxtorch.spiking.morphology import SingleCompartmentNeuron
 from jaxsnn.event.hardware.module import Module
 from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
 
@@ -116,7 +116,7 @@ class Neuron(Module):
 
     def add_to_network_graph(
         self, builder: grenade.NetworkBuilder
-    ) -> grenade.PopulationDescriptor:
+    ) -> grenade.PopulationOnNetwork:
         """
         Add the layer's neurons to grenades network builder.
         Note, the event output of the neurons

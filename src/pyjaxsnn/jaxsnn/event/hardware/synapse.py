@@ -9,7 +9,7 @@ import _hxtorch_core
 import jax
 import jax.numpy as np
 import numpy as onp
-import pygrenade_vx.network.placed_logical as grenade
+import pygrenade_vx.network as grenade
 from jaxsnn.event.hardware import utils
 from jaxsnn.event.hardware.module import Module
 
@@ -43,10 +43,10 @@ class Synapse(Module):
     def add_to_network_graph(
         self,
         builder: grenade.NetworkBuilder,
-        pre: grenade.PopulationDescriptor,
-        post: grenade.PopulationDescriptor,
+        pre: grenade.PopulationOnNetwork,
+        post: grenade.PopulationOnNetwork,
         scale: float,
-    ) -> Tuple[grenade.ProjectionDescriptor, ...]:
+    ) -> Tuple[grenade.ProjectionOnNetwork, ...]:
         """
         Adds the projection to a grenade network builder by providing the
         population descriptor of the corresponding pre and post population.
@@ -57,7 +57,7 @@ class Synapse(Module):
         :param pre: Population descriptor of pre-population.
         :param post: Population descriptor of post-population.
 
-        :returns: A tuple of grenade ProjectionDescriptors holding the
+        :returns: A tuple of grenade ProjectionOnNetworks holding the
             descriptors for the excitatory and inhibitory projection.
         """
         weight_exc = np.copy(self.weight)

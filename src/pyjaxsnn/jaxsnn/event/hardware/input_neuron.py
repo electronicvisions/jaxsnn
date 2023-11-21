@@ -3,7 +3,7 @@ import logging
 
 import _hxtorch_core
 import numpy as onp
-import pygrenade_vx.network.placed_logical as grenade
+import pygrenade_vx.network as grenade
 from jaxsnn.event.hardware.module import Module
 from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
 from jaxsnn.event.types import Spike
@@ -40,7 +40,7 @@ class InputNeuron(Module):
 
     def add_to_network_graph(
         self, builder: grenade.NetworkBuilder
-    ) -> grenade.PopulationDescriptor:
+    ) -> grenade.PopulationOnNetwork:
         """
         Adds instance to grenade's network builder.
 
@@ -48,7 +48,7 @@ class InputNeuron(Module):
         :returns: External population descriptor.
         """
         # create grenade population
-        population = grenade.ExternalPopulation(self.size)
+        population = grenade.ExternalSourcePopulation(self.size)
         # add to builder
         self.descriptor = builder.add(population)
         log.debug(f"Added Input Population: {self}")

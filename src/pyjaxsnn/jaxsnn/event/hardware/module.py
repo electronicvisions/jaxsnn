@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Tuple, Union
 
-import pygrenade_vx.network.placed_logical as grenade
+import pygrenade_vx.network as grenade
 
 
 class Module:
@@ -21,7 +21,7 @@ class Module:
 
         # Grenade descriptor
         self.descriptor: Union[
-            grenade.PopulationDescriptor, grenade.ProjectionDescriptor
+            grenade.PopulationOnNetwork, grenade.ProjectionOnNetwork
         ]
 
     @property
