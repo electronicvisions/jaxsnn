@@ -28,29 +28,3 @@ def superspike_bwd(res, g):
 
 
 superspike.defvjp(superspike_fwd, superspike_bwd)
-
-
-@jax.custom_vjp
-def triangular(x, alpha=0.3):  # pylint: disable=unused-argument
-    r"""Triangular/piecewise linear surrogate / pseudo-derivative.
-
-    References:
-
-    https://www.pnas.org/content/113/41/11441.short
-
-    https://www.nature.com/articles/s41467-020-17236-y
-    """
-    return heaviside(x)
-
-
-def triangular_fwd(x, alpha):
-    return heaviside(x), (x, alpha)
-
-
-def triangular_bwd(res, g):
-    (x, alpha) = res
-    grad = g * alpha * np.threshold(1.0 - np.abs(x), 0, 0)
-    return (grad, None)
-
-
-triangular.defvjp(triangular_fwd, triangular_bwd)
