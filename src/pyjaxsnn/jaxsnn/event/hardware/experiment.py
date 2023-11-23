@@ -174,21 +174,25 @@ class Experiment:
         network = network_builder.done()
 
         # route network if required
-        if self.grenade_network is None:
+        routing_result = None
+        if self.grenade_network_graph is None \
+                or grenade.network.requires_routing(
+                    network, self.grenade_network_graph):
             routing_result = self.hw_routing_func(network)
-            self.grenade_network_graph = (
-                grenade.network.build_network_graph(
-                    network, routing_result)
-            )
-        else:
-            grenade.network.update_network_graph(
-                self.grenade_network_graph, network
-            )
 
         # Keep graph
         self.grenade_network = network
 
         # build or update network graph
+        if routing_result is not None:
+            self.grenade_network_graph = grenade.network\
+                .build_network_graph(
+                    self.grenade_network, routing_result)
+        else:
+            grenade.network.update_network_graph(
+                self.grenade_network_graph,
+                self.grenade_network)
+
         return self.grenade_network_graph
 
     def _configure_populations(self):
