@@ -8,6 +8,7 @@ from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
 def bump_weights(
     weights: List[WeightInput], recording: List[Spike]
 ) -> List[WeightInput]:
+    # TODO #4038 The next two variables should be an argument
     min_avg_spike = (0.3, 0.0)
     scalar_bump = 5e-3
     batch_size = recording[0].idx.shape[0]

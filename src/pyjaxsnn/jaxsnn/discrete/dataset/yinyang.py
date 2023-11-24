@@ -40,6 +40,7 @@ def get_class(coords, r_big: float, r_small: float):
 get_class_batched = jax.vmap(get_class, in_axes=(0, None, None))
 
 
+# TODO #4038: Feels like duplicating hxtorch functionality
 class YinYangDataset:
     def __init__(  # pylint: disable=too-many-arguments
         self,

@@ -139,6 +139,7 @@ def train(
 
     # define and init optimizer
     optimizer_fn = optax.adam
+    # TODO #4038 why step_size below?
     scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
     optimizer = optimizer_fn(scheduler)
     opt_state = optimizer.init(weights)

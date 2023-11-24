@@ -393,6 +393,7 @@ class Experiment:
             ]
             return spike_list, madc_recording
 
+        # TODO #4038: drop this
         time_get_observables = time.time() - start_get_observables
         # save times
         if time_data is not None:
