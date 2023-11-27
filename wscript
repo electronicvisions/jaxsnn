@@ -56,7 +56,7 @@ def build(bld):
 
     bld(
         target="jaxsnn_swtests",
-        tests=bld.path.ant_glob("tests/sw/*.py"),
+        tests=bld.path.ant_glob("tests/sw/**/*.py"),
         features="use pytest",
         use=["jaxsnn"],
         install_path="${PREFIX}/bin/tests/sw",
