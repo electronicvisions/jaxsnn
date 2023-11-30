@@ -17,6 +17,7 @@ dependencies = [
   "jax>=0.4.13",
   "optax>=0.1.4",
   "tree-math>0.1.0",
+  "matplotlib",
 ]
 
 [project.urls]
@@ -25,5 +26,5 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src/pyjaxsnn"]
-include = ["jaxsnn"]
+include = ["jaxsnn*"]
 
