@@ -60,20 +60,97 @@ export SINGULARITYENV_LD_LIBRARY_PATH=`pwd`/lib:$SINGULARITYENV_LD_LIBRARY_PATH
 export PYTHONPATH=`pwd`/lib:$PYTHONPATH
 ```
 
+## Structure
+
+`jaxsnn` is split into two parts. Training of **SNNs** is done in the init/apply style.
+
+### Time Discrete
+
+`jaxsnn.discrete` simulates **SNNs** by treating time in a discrete way. It uses euler steps of a fixed size to advance the network forward in time which draws inspiration from [norse](www.github.com/norse/norse). 
+
+
+### Time Continuous
+
+`jaxsnn.event` treats time continously and allows jumping from one event to the next one. It's core functionality consists of the `step` function, which does three things:
+
+1. Find the next threshold crossing
+2. Integrate the neuron to this point in time
+3. Apply the discontinuity after the treshold crossing
+
+`jaxsnn.event.leaky_integrate_and_fire` provides multiple neuron types which can be used to build larger networks. Each neuron type defined the three functions mentioned above.
+
+### BSS-2 Connection
+
+`jaxsnn.event.hardware` provides functionality to connect to the [BSS-2 system](https://www.frontiersin.org/articles/10.3389/fnins.2022.795876/full) and to conduct learning experimens on dedicated neuromorphic hardare.
+
 
 ## First Steps
 
-Check out our examples:
+We provide multiple examples for usage of `jaxsnn`.
 
+Time discrete learning using surrogate gradients on the Yin-Yang dataset:
 
-```
-python -m jaxsnn.event.tasks.yinyang
+```bash
+python -m jaxsnn.discrete.tasks.yinyang
 ```
 
+Event-based two layer feed-forward network with analytical gradients:
+
+```bash
+python -m jaxsnn.event.tasks.yinyang_analytical
 ```
+
+Event-based recurrent network (with weights set up to emulate a two-layer feed-forward network) with gradients computed using the EventProp algorithm:
+
+```bash
 python -m jaxsnn.event.tasks.yinyang_event_prop
 ```
 
+### BSS-2
+
+If you want to work with the BSS-2 system, a working example is provided:
+
+```bash
+python -m jaxsnn.event.tasks.hardware.yinyang
+```
+
+The operation point calibration script is `src/pyjaxsnn/jaxsnn/event/hardware/calib/neuron_calib.py`.
+Example:
+
+```bash
+srun -p cube --wafer 69 --fpga-without-aout 0 --pty c python ./neuron_calib.py \
+	--wafer           W69F0 \
+	--threshold         150 \
+	--tau-syn          6e-6 \
+	--tau-mem         12e-6 \
+	--refractory-time 30e-6 \
+	--synapse-dac-bias 1000
+	--calib-dir src/pyjaxsnn/jaxsnn/event/hardware/calib
+```
+
+If you want to study the behaviour that different hardware artifacts (noise on the spike times) have on the performance of SNNs, check out this example:
+
+```bash
+python -m jaxsnn.event.tasks.hardware.yinyang_mock
+```
+
+You can switch between an actual execution on BSS-2 and a pure software mock mode, in which the hardware is emulated by a second software network. You can
+add noise to spikes from this first network or limit the dynamic range (like it is on BSS-2).
+
+## Docs
+
+Multiple notebooks help you getting started with `jaxsnn`.
+
+- `event_based_snn.ipynb` gives a great introduction on how to write event-based software for gradient-based learning with SNNs in JAX
+- `ttfs.ipynb` explores how spikes times can be computed analytically and how a small network of LIF neurons can be constructed
+- `event_prop.ipynb` compares the gradients of the EventProp algorithm analytical gradients (TTFS)
+
+## TODO
+
+- Numeric: In the `EventPropLIF` neuron module, gradients currently do not flow correctly over multiple layers. This problem consists because the state of the input queue is not adjusted correctly in the `custom_vjp`. It is therefore only possible to defined a multile layer networks via one recursive layer using `RecurrentEventPropLIF`
+- The mapping between the hardware neuron modules `HardwareRecurrentLIF` (which can simulate multiple feed-forward layers) and the populations / projections is not yet implemented cleanly and is hacked into the tasks (experiment returns a list of spikes for two layers, which are merged together, projections are hardcoded)
+- Currently, in each task and experiment, small noise is added to the spike data from hardware. This is because the `jaxsnn` gradient computation can not handle mutliple spikes with **exactly** the same time, which can happen on BSS-2 because of the cycle resolution. This should either be moved to the `experiment` class directly, or the software should be adjusted to handle this case.
+- Plotting: The plotting currently does not load from saved data, but runs at the end of each task. It should be set up to run stand-alone with data loaded from a file.
 
 ## Acknowledgements
 
@@ -91,3 +168,7 @@ KI-System, the Helmholtz Association Initiative and Networking Fund [Advanced
 Computing Architectures (ACA)] under Project SO-092, as well as from the
 Manfred Stärk Foundation, and the Lautenschläger-Forschungspreis 2018 for
 Karlheinz Meier.
+
+## Licensing
+
+`SPDX-License-Identifier: LGPL-2.1-or-later`

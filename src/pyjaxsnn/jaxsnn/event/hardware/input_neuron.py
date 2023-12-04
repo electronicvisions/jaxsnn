@@ -1,14 +1,14 @@
-from .module import Module
-import time
-import pygrenade_vx.network.placed_logical as grenade
-from jaxsnn.base.types import Spike
-import hxtorch
-from jaxsnn.event.hardware import utils
-import numpy as onp
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
-import _hxtorch_core
+# pylint: disable=logging-not-lazy,logging-fstring-interpolation
+import logging
 
-log = hxtorch.logger.get("hxtorch.snn.modules")
+import _hxtorch_core
+import numpy as onp
+import pygrenade_vx.network as grenade
+from jaxsnn.event.hardware.module import Module
+from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
+from jaxsnn.event.types import Spike
+
+log = logging.getLogger("root")
 
 
 class InputNeuron(Module):
@@ -40,7 +40,7 @@ class InputNeuron(Module):
 
     def add_to_network_graph(
         self, builder: grenade.NetworkBuilder
-    ) -> grenade.PopulationDescriptor:
+    ) -> grenade.PopulationOnNetwork:
         """
         Adds instance to grenade's network builder.
 
@@ -48,24 +48,26 @@ class InputNeuron(Module):
         :returns: External population descriptor.
         """
         # create grenade population
-        population = grenade.ExternalPopulation(self.size)
+        population = grenade.ExternalSourcePopulation(self.size)
         # add to builder
         self.descriptor = builder.add(population)
-        log.TRACE(f"Added Input Population: {self}")
+        log.debug(f"Added Input Population: {self}")
 
         return self.descriptor
 
     def add_to_input_generator(
-        self, input: Spike, builder: grenade.InputGenerator
+        self, inputs: Spike, builder: grenade.InputGenerator
     ) -> None:
         """
         Add the neurons events represented by this instance to grenades input
         generator.
 
-        :param input: input spikes for this neuron
+        :param inputs: input spikes for this neuron
         :param builder: Grenade's input generator to append the events to.
         """
         # convert input from seconds to milliseconds
-        spike_tuple = (onp.array(input.idx), onp.array(input.time) * 1_000)
-        spike_times = _hxtorch_core.dense_spikes_to_list(spike_tuple, self.size)
+        spike_tuple = (onp.array(inputs.idx), onp.array(inputs.time) * 1_000)
+        spike_times = _hxtorch_core.dense_spikes_to_list(
+            spike_tuple, self.size
+        )
         builder.add(spike_times, self.descriptor)

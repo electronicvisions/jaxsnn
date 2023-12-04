@@ -1,19 +1,19 @@
+# pylint: disable=logging-not-lazy,logging-fstring-interpolation
 """
 Implementing SNN modules
 """
+import logging
 from typing import Tuple
+
+import _hxtorch_core
+import jax
 import jax.numpy as np
 import numpy as onp
-from jaxsnn.base.types import Array
+import pygrenade_vx.network as grenade
 from jaxsnn.event.hardware import utils
-
-import pygrenade_vx.network.placed_logical as grenade
-
 from jaxsnn.event.hardware.module import Module
-import hxtorch
-import _hxtorch_core
 
-log = hxtorch.logger.get("hxtorch.snn.modules")
+log = logging.getLogger("root")
 
 
 class Synapse(Module):
@@ -22,9 +22,9 @@ class Synapse(Module):
     """
 
     __constants__ = ["in_features", "out_features"]
-    weight: Array
+    weight: jax.Array
 
-    def __init__(self, experiment, weight: Array) -> None:
+    def __init__(self, experiment, weight: jax.Array) -> None:
         """
         :param in_features: Size of input dimension.
         :param out_features: Size of output dimension.
@@ -43,10 +43,10 @@ class Synapse(Module):
     def add_to_network_graph(
         self,
         builder: grenade.NetworkBuilder,
-        pre: grenade.PopulationDescriptor,
-        post: grenade.PopulationDescriptor,
+        pre: grenade.PopulationOnNetwork,
+        post: grenade.PopulationOnNetwork,
         scale: float,
-    ) -> Tuple[grenade.ProjectionDescriptor, ...]:
+    ) -> Tuple[grenade.ProjectionOnNetwork, ...]:
         """
         Adds the projection to a grenade network builder by providing the
         population descriptor of the corresponding pre and post population.
@@ -57,27 +57,38 @@ class Synapse(Module):
         :param pre: Population descriptor of pre-population.
         :param post: Population descriptor of post-population.
 
-        :returns: A tuple of grenade ProjectionDescriptors holding the
+        :returns: A tuple of grenade ProjectionOnNetworks holding the
             descriptors for the excitatory and inhibitory projection.
         """
         weight_exc = np.copy(self.weight)
         weight_inh = np.copy(self.weight)
 
-        weight_exc = utils.linear_saturating(weight_exc, scale=scale, min_weight=0.0)
-        weight_inh = utils.linear_saturating(weight_inh, scale=scale, max_weight=0.0)
+        weight_exc = utils.linear_saturating(
+            weight_exc, scale=scale, min_weight=0.0
+        )
+        weight_inh = utils.linear_saturating(
+            weight_inh, scale=scale, max_weight=0.0
+        )
 
-
-        connections_exc = _hxtorch_core.weight_to_connection(onp.array(weight_exc))
-        connections_inh = _hxtorch_core.weight_to_connection(onp.array(weight_inh))
+        connections_exc = _hxtorch_core.weight_to_connection(
+            onp.array(weight_exc)
+        )
+        connections_inh = _hxtorch_core.weight_to_connection(
+            onp.array(weight_inh)
+        )
 
         projection_exc = grenade.Projection(
-            grenade.Receptor(grenade.Receptor.ID(), grenade.Receptor.Type.excitatory),
+            grenade.Receptor(
+                grenade.Receptor.ID(), grenade.Receptor.Type.excitatory
+            ),
             connections_exc,
             pre,
             post,
         )
         projection_inh = grenade.Projection(
-            grenade.Receptor(grenade.Receptor.ID(), grenade.Receptor.Type.inhibitory),
+            grenade.Receptor(
+                grenade.Receptor.ID(), grenade.Receptor.Type.inhibitory
+            ),
             connections_inh,
             pre,
             post,
@@ -86,6 +97,6 @@ class Synapse(Module):
         exc_descriptor = builder.add(projection_exc)
         inh_descriptor = builder.add(projection_inh)
         self.descriptor = (exc_descriptor, inh_descriptor)
-        log.TRACE(f"Added projection '{self}' to grenade graph.")
+        log.debug(f"Added projection '{self}' to grenade graph.")
 
         return self.descriptor

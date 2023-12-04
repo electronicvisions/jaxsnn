@@ -1,7 +1,5 @@
-from .toy import (
-    constant_dataset,
-    linear_dataset,
-    circle_dataset,
-    Dataset,
-    yinyang_dataset,
-)
+from .circle import circle_dataset
+from .constant import constant_dataset
+from .linear import linear_dataset
+from .utils import Dataset
+from .yinyang import yinyang_dataset

@@ -1,8 +1,8 @@
-@Library("jenlib")
+@Library("jenlib") _
 
 withCcache() {
 	wafDefaultPipeline(projects: ["jax-snn"],
 	                   container: [app: "dls-core"],
 	                   configureInstallOptions: "--build-profile=ci",
-	                   notificationChannel: "#jenkins-trashbin")
+	                   notificationChannel: "#softies")
 }

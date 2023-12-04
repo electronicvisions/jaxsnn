@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 from typing import NamedTuple
 
 
@@ -40,7 +41,7 @@ W_69_F0_LONG_REFRAC = WaferConfig(
     folder
     + "calibration_W69F0_leak80_th150_reset80_taus-6us_taum-12us_trefrac-30.0us_isyningm-500_sdbias-1000.pbin",
     "W69 F0 long refrac",
-    48.0,
+    56.0,
 )
 W_63_F3_LONG_REFRAC = WaferConfig(
     folder

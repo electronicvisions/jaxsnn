@@ -45,7 +45,7 @@ def build(bld):
     bld(
         target="jaxsnn_linting",
         features="py use pylint pycodestyle",
-        # use=[],
+        use=["hxtorch", "_hxtorch_core"],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         pylint_config=os.path.join(
@@ -56,7 +56,7 @@ def build(bld):
 
     bld(
         target="jaxsnn_swtests",
-        tests=bld.path.ant_glob("tests/sw/*.py"),
+        tests=bld.path.ant_glob("tests/sw/**/*.py"),
         features="use pytest",
         use=["jaxsnn"],
         install_path="${PREFIX}/bin/tests/sw",

@@ -1,268 +1,220 @@
+# pylint: disable=invalid-name
+"""Implement different LIF layers, which can be concatenated
+
+Each layer returns a paif or two functions, the `init` function and the
+`apply` function. These functions can be concatenated with
+`jaxsnn.event.compose.serial`, which also returns and init/apply pair,
+consisting of multiple layers. The `init` function is used to initalize the
+weights of the network. The `apply` function does the inference and is
+equivalent to the forward function is in PyTorch. It receives the input
+spikes and weights of the network and returns the hidden spikes.
+
+The layers in this module differ in the topology they offer (feed-forward /
+recurrent) and in the way the gradients are computed (analytical via jax.grad
+or with an adjoint system (EventProp).
+
+`HardwareLIF` and `HardwareRecurrentLIF` allow the execution of the forward
+pass on the neuromorphic BSS-2 system. They forward pass is executed on the
+neuromorphic system and the spikes are retrived. Because the spike data from
+BSS-2 is missing information about the synaptic current at spike time (which
+is needed for the EventProp algorithm), a second forward pass in software is
+executed. The spike times from the hardware are used as solution for the root
+solving. The adjoint system of the EventProp algorithm is added as a custom
+Vector-Jacobian-Product (VJP).
+"""
+
 from functools import partial
+from typing import List, Optional, Tuple
 
 import jax
 import jax.numpy as np
-from typing import List, Tuple, Optional
-
-from jaxsnn.base.types import (
-    Array,
-    WeightRecurrent,
-    WeightInput,
-    StepState,
-    InputQueue,
-    Spike,
-    EventPropSpike,
-)
+from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.adjoint_lif import (
     adjoint_lif_exponential_flow,
-    adjoint_transition_without_recurrence,
     adjoint_transition_with_recurrence,
+    adjoint_transition_without_recurrence,
+    step_bwd,
 )
-from jaxsnn.event.functional import exponential_flow, step, trajectory
-from jaxsnn.functional.leaky_integrate_and_fire import LIFParameters, LIFState
-from jaxsnn.event.adjoint_lif import step_bwd
+from jaxsnn.event.construct import (
+    construct_init_fn,
+    construct_recurrent_init_fn,
+)
+from jaxsnn.event.flow import lif_exponential_flow
+from jaxsnn.event.functional import StepInput, step, trajectory
+from jaxsnn.event.root import ttfs_solver
+from jaxsnn.event.root.next import next_event, next_queue
 from jaxsnn.event.transition import (
     transition_with_recurrence,
     transition_without_recurrence,
 )
-from jaxsnn.event.root.next import next_event, next_queue
+from jaxsnn.event.types import (
+    EventPropSpike,
+    InputQueue,
+    LIFState,
+    SingleInitApply,
+    SingleInitApplyHW,
+    Spike,
+    StepState,
+    Weight,
+)
 
 
-def lif_exponential_flow(p: LIFParameters):
-    A = np.array([[-p.tau_mem_inv, p.tau_mem_inv], [0, -p.tau_syn_inv]])
-    return exponential_flow(A)
-
-
-def lif_dynamics(p: LIFParameters, x0: Array, t: float):
-    tau_exp = np.exp(-t / p.tau_mem)
-    syn_exp = np.exp(-t / p.tau_syn)
-    A = np.array(
-        [
-            [tau_exp, p.tau_syn / (p.tau_mem - p.tau_syn) * (tau_exp - syn_exp)],
-            [0, syn_exp],
-        ]
-    )
-    return np.dot(A, x0)
-
-
-def LIF(
+def LIF(  # pylint: disable=too-many-arguments
     n_hidden: int,
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
-    solver,
-    mean=0.5,
-    std=2.0,
-):
-    single_flow = lif_exponential_flow(p)
-    dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-
-    transition = partial(transition_without_recurrence, p)
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
-
-    initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
-    forward = trajectory(step_fn, n_spikes)
-
-    def init_fn(rng: jax.random.KeyArray, input_shape: int):
-        return n_hidden, WeightInput(
-            jax.random.normal(rng, (input_shape, n_hidden)) * std + mean
-        )
-
-    return init_fn, partial(forward, initial_state)
-
-
-def RecurrentLIF(
-    layers: List[int],
-    n_spikes: int,
-    t_max: float,
-    p: LIFParameters,
-    solver,
-    mean: List[float],
-    std: List[float],
-):
-    single_flow = lif_exponential_flow(p)
-    dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_with_recurrence, p)
-
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
-
-    hidden_size = np.sum(np.array(layers))
-    initial_state = LIFState(np.zeros(hidden_size), np.zeros(hidden_size))
-
-    forward = trajectory(step_fn, n_spikes)
-
-    def init_fn(
-        rng: jax.random.KeyArray, input_size: int
-    ) -> Tuple[int, WeightRecurrent]:
-        assert len(layers) >= 1
-
-        rng, layer_rng = jax.random.split(rng)
-        input_weights = (
-            jax.random.normal(layer_rng, (input_size, layers[0])) * std[0] + mean[0]
-        )
-        input_weights = (
-            np.zeros((input_size, hidden_size)).at[:, : layers[0]].set(input_weights)
-        )
-
-        recurrent_weights = np.zeros((hidden_size, hidden_size))
-        l_sum = 0
-        for i, (l1, l2) in enumerate(zip(layers, layers[1:])):
-            rng, layer_rng = jax.random.split(rng)
-            recurrent_weights = recurrent_weights.at[
-                l_sum : l_sum + l1, l_sum + l1 : l_sum + l1 + l2
-            ].set(jax.random.normal(layer_rng, (l1, l2)) * std[i + 1] + mean[i + 1])
-            l_sum += l1
-
-        weights = WeightRecurrent(input_weights, recurrent_weights)
-        return hidden_size, weights
-
-    return init_fn, partial(forward, initial_state)
-
-
-def EventPropLIF(
-    n_hidden: int,
-    n_spikes: int,
-    t_max: float,
-    p: LIFParameters,
-    solver,
-    mean=0.5,
-    std=2.0,
+    params: LIFParameters,
+    mean: float = 0.5,
+    std: float = 2.0,
     duplication: Optional[int] = None,
-):
-    single_flow = lif_exponential_flow(p)
+) -> SingleInitApply:
+    """A feed-forward layer of LIF Neurons.
+
+    Args:
+        n_hidden (int): Number of hidden neurons
+        n_spikes (int): Number of spikes which are simulated in this layer
+        t_max (float): Maxium simulation time
+        p (LIFParameters): Parameters of the LIF neurons
+        mean (float, optional): Mean of initial weights. Defaults to 0.5.
+        std (float, optional): Standard deviation of initial weights.
+            Defaults to 2.0.
+
+    Returns:
+        SingleInitApply: _description_
+    """
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
+
+    # construct step function
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_without_recurrence, p)
+    transition = partial(transition_without_recurrence, params)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
 
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
-    adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_without_recurrence, p)
+    apply_fn = trajectory(step_fn, n_hidden, n_spikes)
+    init_fn = construct_init_fn(n_hidden, mean, std, duplication)
 
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
-
-    # define custom forward to save data
-    def step_fn_fwd(input, iteration: int):
-        ((state, weights, layer_start), spike) = step_fn(input, iteration)
-        return ((state, weights, layer_start), spike), (
-            spike,
-            weights,
-            layer_start,
-            state.input_queue.head,
-        )
-
-    # define custom vjp
-    step_fn_event_prop = jax.custom_vjp(step_fn)
-    step_fn_event_prop.defvjp(step_fn_fwd, step_fn_bwd)
-
-    forward = trajectory(step_fn_event_prop, n_spikes)
-    initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
-
-    def init_fn(rng: jax.random.KeyArray, input_shape: int) -> Tuple[int, WeightInput]:
-        if duplication is not None:
-            weights = jax.random.normal(rng, (int(input_shape / duplication), n_hidden))
-            weights = np.repeat(weights, duplication, axis=0)
-        else:
-            weights = jax.random.normal(rng, (input_shape, n_hidden))
-        return n_hidden, WeightInput(weights * std + mean)
-
-    return init_fn, partial(forward, initial_state)
+    return init_fn, apply_fn
 
 
-def RecurrentEventPropLIF(
+def RecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     layers: List[int],
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
-    solver,
+    params: LIFParameters,
     mean: List[float],
     std: List[float],
-    wrap_only_step: bool = False,
-):
-    single_flow = lif_exponential_flow(p)
+    duplication: Optional[int] = None,
+) -> SingleInitApply:
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
+
+    # construct step function
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
-    transition = partial(transition_with_recurrence, p)
-
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
-    adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, p)
-
-    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    transition = partial(transition_with_recurrence, params)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
 
     hidden_size = np.sum(np.array(layers))
-    initial_state = LIFState(np.zeros(hidden_size), np.zeros(hidden_size))
+    apply_fn = trajectory(step_fn, hidden_size, n_spikes)
+    init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
 
-    def init_fn(
-        rng: jax.random.KeyArray, input_size: int
-    ) -> Tuple[int, WeightRecurrent]:
-        assert len(layers) >= 1
+    return init_fn, apply_fn
 
-        rng, layer_rng = jax.random.split(rng)
-        input_weights = (
-            jax.random.normal(layer_rng, (input_size, layers[0])) * std[0] + mean[0]
-        )
-        input_weights = (
-            np.zeros((input_size, hidden_size)).at[:, : layers[0]].set(input_weights)
-        )
 
-        recurrent_weights = np.zeros((hidden_size, hidden_size))
-        l_sum = 0
-        for i, (l1, l2) in enumerate(zip(layers, layers[1:])):
-            rng, layer_rng = jax.random.split(rng)
-            recurrent_weights = recurrent_weights.at[
-                l_sum : l_sum + l1, l_sum + l1 : l_sum + l1 + l2
-            ].set(jax.random.normal(layer_rng, (l1, l2)) * std[i + 1] + mean[i + 1])
-            l_sum += l1
+def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
+    n_hidden: int,
+    n_spikes: int,
+    t_max: float,
+    params: LIFParameters,
+    mean=0.5,
+    std=2.0,
+    wrap_only_step: bool = False,
+    duplication: Optional[int] = None,
+) -> SingleInitApply:
+    """Feed-forward layer of LIF neurons with EventProp gradient computation.
 
-        weights = WeightRecurrent(input_weights, recurrent_weights)
-        return hidden_size, weights
+    Args:
+        n_hidden (int): Number of hidden neurons
+        n_spikes (int): Number of spikes which are simulated in this
+        t_max (float): Maximum simulation time
+        p (LIFParameters): Parameters of the LIF neurons
+        mean (float, optional): Mean of initial weights. Defaults to 0.5.
+        std (float, optional): Standard deviation of initial weights.
+            Defaults to 2.0.
+        wrap_only_step (bool, optional): If custom vjp should be defined
+            only for the step function or for the entire trajectory.
+            Defaults to False.
+        duplication (Optional[int], optional): Factor with which input weights
+            are duplicated. Defaults to None.
 
+    Returns:
+        SingleInitApply: Pair of init apply functions.
+    """
+    single_flow = lif_exponential_flow(params)
+    dynamics = jax.vmap(single_flow, in_axes=(0, None))
+
+    # define step function
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
+    transition = partial(transition_without_recurrence, params)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
+
+    # define adjoint step function
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
+    adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
+    adjoint_tr_dynamics = partial(
+        adjoint_transition_without_recurrence, params
+    )
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
+
+    init_fn = construct_init_fn(n_hidden, mean, std, duplication)
+    wrap_only_step = False
+
+    # TODO
+    # for defining a cusotm backward, one can either define the custom vjp
+    # only for the step function, or define the custom vjp for the whole
+    # trajectory / scan (like done below).
+    # Only doing it for the step function shoud be equivalent but throws NaNs
     if wrap_only_step:
-        # define custom forward to save data
-        def step_fn_fwd(input, iteration: int):
-            ((state, weights, layer_start), spike) = jax.jit(step_fn)(input, iteration)
-            return ((state, weights, layer_start), spike), (
-                spike,
-                weights,
-                layer_start,
-                state.input_queue.head,
-            )
+        # define custom forward to save data of forward pass
+        def step_fn_fwd(*args):
+            res = step_fn(*args)
+            return res, res
 
-        # define custom vjp only for the step function
+        # define custom vjp
         step_fn_event_prop = jax.custom_vjp(step_fn)
         step_fn_event_prop.defvjp(step_fn_fwd, step_fn_bwd)
-        return init_fn, partial(trajectory(step_fn_event_prop, n_spikes), initial_state)
+
+        forward = trajectory(step_fn_event_prop, n_hidden, n_spikes)
+        return init_fn, forward
 
     # wrap step bwd so it is compliant with scan syntax
-    def step_bwd_wrapper(weights, init, xs):
+    def step_bwd_wrapper(
+        weights: Weight,
+        init: StepInput,
+        xs: Tuple[EventPropSpike, EventPropSpike],
+    ):
         adjoint_state, grads, layer_start = init
         spike, adjoint_spike = xs
-        res = (
-            spike,
-            weights,
-            layer_start,
-            len(adjoint_state.input_queue.spikes.time) - adjoint_state.input_queue.head,
-        )
+        res = (None, weights, layer_start), spike
         g = (adjoint_state, grads, 0), adjoint_spike
         return step_fn_bwd(res, g)
 
-    def custom_trajectory(s, weights: int, layer_start: int):
-        adjoint_state, spikes = jax.lax.scan(
+    def custom_trajectory(s: StepState, weights: Weight, layer_start: int):
+        return jax.lax.scan(
             step_fn, (s, weights, layer_start), np.arange(n_spikes)
         )
-        return adjoint_state, spikes
 
-    def custom_trajectory_fwd(s, weights, layer_start: int):
-        # here the hardware call can be injected instead of calling forward
-        output_state, spikes = custom_trajectory(s, weights, layer_start)
-        return (output_state, spikes), (spikes, output_state)
+    def custom_trajectory_fwd(*args):
+        # save res for backward
+        res = custom_trajectory(*args)
+        return res, res
 
     def custom_trajectory_bwd(res, g):
-        spikes, (state, weights, layer_start) = res
+        (_, weights, layer_start), spikes = res
         (adjoint_state, grads, _), adjoint_spikes = g
 
         (adjoint_state, grads, layer_start), _ = jax.lax.scan(
@@ -276,7 +228,10 @@ def RecurrentEventPropLIF(
     custom_trajectory = jax.custom_vjp(custom_trajectory)
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
-    def apply_fn(layer_start: int, weights, input_spikes):
+    def apply_fn(
+        layer_start: int, weights: Weight, input_spikes: EventPropSpike
+    ):
+        initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
         s = StepState(
             neuron_state=initial_state,
             time=0.0,
@@ -288,83 +243,175 @@ def RecurrentEventPropLIF(
     return init_fn, apply_fn
 
 
-def HardwareRecurrentLIF(
+def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     layers: List[int],
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: List[float],
     std: List[float],
+    wrap_only_step: bool = False,
     duplication: Optional[int] = None,
-):
-    single_flow = lif_exponential_flow(p)
+) -> SingleInitApply:
+    """Use quadrants of the recurrent weight matrix to set up a multi-layer
+    feed-forward LIF in one recurrent layer.
+
+    When simulating multiple layers, the first layer needs to be fully
+    simulated before the resulting spikes are passed to the next layer. When
+    viewing multiple feed-forward layers as one recurrent layer with the only
+    rectangular parts of the weight matrix initialized with non-zero entries,
+    multiple feed-forward layers can be simulated together.
+
+    Args:
+        layers (List[int]): Number of neurons in each feed-forward layer
+        n_spikes (int): Number of spikes which are simulated in this
+        t_max (float): Maximum simulation time
+        p (LIFParameters): Parameters of the LIF neurons
+        mean (float): Mean of initial weights.
+        std (float): Standard deviation of initial weights.
+        wrap_only_step (bool, optional): If custom vjp should be defined only
+            for the step function or for the entire trajectory. Defaults
+            to False.
+        duplication (Optional[int], optional): Factor with which input weights
+            are duplicated. Defaults to None.
+
+    Returns:
+        SingleInitApply: Pair of init apply functions.
+    """
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    transition = partial(transition_with_recurrence, p)
 
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
+    # define step function
+    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+    batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
+    transition = partial(transition_with_recurrence, params)
+    step_fn = partial(step, dynamics, transition, batched_solver, t_max)
+
+    # define adjoint step function
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, p)
-
-    step_fn_no_solver = partial(step, dynamics, transition, t_max)
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, params)
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
 
     hidden_size = np.sum(np.array(layers))
     initial_state = LIFState(np.zeros(hidden_size), np.zeros(hidden_size))
 
-    def init_fn(
-        rng: jax.random.KeyArray, input_size: int
-    ) -> Tuple[int, WeightRecurrent]:
-        assert len(layers) >= 1
+    init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
+    wrap_only_step = False
 
-        rng, layer_rng = jax.random.split(rng)
-        if duplication is not None:
-            input_weights = (
-                jax.random.normal(layer_rng, (int(input_size / duplication), layers[0]))
-            )
-            input_weights = np.repeat(input_weights, duplication, axis=0)
-        else:
-            input_weights = (
-                jax.random.normal(layer_rng, (input_size, layers[0]))
-            )
-        input_weights = (
-            np.zeros((input_size, hidden_size)).at[:, : layers[0]].set(input_weights * std[0] + mean[0])
+    # TODO
+    # for defining a custom backward, one can either define the custom vjp
+    # only for the step function, or define the custom vjp for the whole
+    # trajectory / scan (like done below).
+    # Only doing it for the step function shoud be equivalent but throws NaNs
+    if wrap_only_step:
+
+        def step_fn_fwd(*args):
+            res = step_fn(*args)
+            return res, res
+
+        # define custom vjp **only** for the step function
+        step_fn_event_prop = jax.custom_vjp(step_fn)
+        step_fn_event_prop.defvjp(step_fn_fwd, step_fn_bwd)
+
+        forward = trajectory(step_fn_event_prop, hidden_size, n_spikes)
+        return init_fn, forward
+
+    # wrap step bwd so it is compliant with scan syntax
+    def step_bwd_wrapper(
+        weights: Weight,
+        init: StepInput,
+        xs: Tuple[EventPropSpike, EventPropSpike],
+    ):
+        adjoint_state, grads, layer_start = init
+        spike, adjoint_spike = xs
+        res = (None, weights, layer_start), spike
+        g = (adjoint_state, grads, 0), adjoint_spike
+        return step_fn_bwd(res, g)
+
+    def custom_trajectory(s: StepState, weights: Weight, layer_start: int):
+        return jax.lax.scan(
+            step_fn, (s, weights, layer_start), np.arange(n_spikes)
         )
 
-        recurrent_weights = np.zeros((hidden_size, hidden_size))
-        l_sum = 0
-        for i, (l1, l2) in enumerate(zip(layers, layers[1:])):
-            rng, layer_rng = jax.random.split(rng)
-            recurrent_weights = recurrent_weights.at[
-                l_sum : l_sum + l1, l_sum + l1 : l_sum + l1 + l2
-            ].set(jax.random.normal(layer_rng, (l1, l2)) * std[i + 1] + mean[i + 1])
-            l_sum += l1
+    def custom_trajectory_fwd(*args):
+        res = custom_trajectory(*args)
+        return res, res
 
-        weights = WeightRecurrent(input_weights, recurrent_weights)
-        return hidden_size, weights
+    def custom_trajectory_bwd(res, g):
+        (_, weights, layer_start), spikes = res
+        (adjoint_state, grads, _), adjoint_spikes = g
+
+        (adjoint_state, grads, layer_start), _ = jax.lax.scan(
+            partial(step_bwd_wrapper, weights),
+            (adjoint_state, grads, layer_start),
+            (spikes, adjoint_spikes),
+            reverse=True,
+        )
+        return adjoint_state, grads, 0
+
+    custom_trajectory = jax.custom_vjp(custom_trajectory)
+    custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
+
+    def apply_fn(
+        layer_start: int, weights: Weight, input_spikes: EventPropSpike
+    ):
+        s = StepState(
+            neuron_state=initial_state,
+            time=0.0,
+            input_queue=InputQueue(input_spikes),
+        )
+        _, spikes = custom_trajectory(s, weights, layer_start)
+        return spikes
+
+    return init_fn, apply_fn
+
+
+def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
+    layers: List[int],
+    n_spikes: int,
+    t_max: float,
+    params: LIFParameters,
+    mean: List[float],
+    std: List[float],
+    duplication: Optional[int] = None,
+):
+    single_flow = lif_exponential_flow(params)
+    dynamics = jax.vmap(single_flow, in_axes=(0, None))
+    transition = partial(transition_with_recurrence, params)
+
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
+    adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
+    adjoint_tr_dynamics = partial(adjoint_transition_with_recurrence, params)
+
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
+
+    hidden_size = np.sum(np.array(layers))
+    initial_state = LIFState(np.zeros(hidden_size), np.zeros(hidden_size))
+
+    init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
 
     # wrap step bwd so it is compliant with scan syntax
     def step_bwd_wrapper(weights, init, xs):
         adjoint_state, grads, layer_start = init
         spike, adjoint_spike = xs
-        res = (
-            spike,
-            weights,
-            layer_start,
-            len(adjoint_state.input_queue.spikes.time) - adjoint_state.input_queue.head,
-        )
+        res = (None, weights, layer_start), spike
         g = (adjoint_state, grads, 0), adjoint_spike
         return step_fn_bwd(res, g)
 
     def custom_trajectory(
         s: StepState,
-        weights: List[WeightRecurrent],
+        weights: Weight,
         layer_start: int,
         known_spikes: Spike,
     ):
         # attach known spikes to "root solver"
-        step_fn = partial(
-            step_fn_no_solver, partial(next_queue, known_spikes, layer_start)
-        )
+        solver = partial(next_queue, known_spikes, layer_start)
+        step_fn = partial(step, dynamics, transition, solver, t_max)
         state, spikes = jax.lax.scan(
             step_fn, (s, weights, layer_start), np.arange(n_spikes)
         )
@@ -372,16 +419,18 @@ def HardwareRecurrentLIF(
 
     def custom_trajectory_fwd(
         s: StepState,
-        weights: List[WeightRecurrent],
+        weights: Weight,
         layer_start: int,
         known_spikes: Spike,
     ):
-        # here the hardware call can be injected instead of calling forward
-        output_state, spikes = custom_trajectory(s, weights, layer_start, known_spikes)
-        return (output_state, spikes), (spikes, output_state, known_spikes)
+        # TODO, do we need to save the known spike for bwd?
+        output_state, spikes = custom_trajectory(
+            s, weights, layer_start, known_spikes
+        )
+        return (output_state, spikes), (output_state, spikes, known_spikes)
 
     def custom_trajectory_bwd(res, g):
-        spikes, (state, weights, layer_start), known_spikes = res
+        (_, weights, layer_start), spikes, known_spikes = res
         (adjoint_state, grads, _), adjoint_spikes = g
 
         (adjoint_state, grads, layer_start), _ = jax.lax.scan(
@@ -396,7 +445,10 @@ def HardwareRecurrentLIF(
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
     def apply_fn(
-        layer_start: int, weights, input_spikes: EventPropSpike, known_spikes: Spike
+        layer_start: int,
+        weights: Weight,
+        input_spikes: EventPropSpike,
+        known_spikes: Spike,
     ):
         s = StepState(
             neuron_state=initial_state,
@@ -409,64 +461,51 @@ def HardwareRecurrentLIF(
     return init_fn, apply_fn
 
 
-# TODO a lot of code duplication with Reccurrent Version
-def HardwareLIF(
+def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
     n_hidden: int,
     n_spikes: int,
     t_max: float,
-    p: LIFParameters,
+    params: LIFParameters,
     mean: float,
     std: float,
     duplication: Optional[int] = None,
-):
-    single_flow = lif_exponential_flow(p)
+) -> SingleInitApplyHW:
+    # define step function
+    single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
-    transition = partial(transition_without_recurrence, p)
+    transition = partial(transition_without_recurrence, params)
 
-    single_adjoint_flow = adjoint_lif_exponential_flow(p)
+    # define adjoint step function (EventProp)
+    single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
-    adjoint_tr_dynamics = partial(adjoint_transition_without_recurrence, p)
+    adjoint_tr_dynamics = partial(
+        adjoint_transition_without_recurrence, params
+    )
 
-    step_fn_no_solver = partial(step, dynamics, transition, t_max)
-    step_fn_bwd = partial(step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max)
+    step_fn_bwd = partial(
+        step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
+    )
 
     initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
-
-    def init_fn(
-        rng: jax.random.KeyArray, input_size: int
-    ) -> Tuple[int, WeightInput]:
-
-        rng, layer_rng = jax.random.split(rng)
-        if duplication is not None:
-            weights = jax.random.normal(layer_rng, (int(input_size / duplication), n_hidden))
-            weights = np.repeat(weights, duplication, axis=0)
-        else:
-            weights = jax.random.normal(layer_rng, (input_size, n_hidden))
-        return n_hidden, WeightInput(weights * std + mean)
+    init_fn = construct_init_fn(n_hidden, mean, std, duplication)
 
     # wrap step bwd so it is compliant with scan syntax
     def step_bwd_wrapper(weights, init, xs):
         adjoint_state, grads, layer_start = init
         spike, adjoint_spike = xs
-        res = (
-            spike,
-            weights,
-            layer_start,
-            len(adjoint_state.input_queue.spikes.time) - adjoint_state.input_queue.head,
-        )
+        res = (None, weights, layer_start), spike
         g = (adjoint_state, grads, 0), adjoint_spike
         return step_fn_bwd(res, g)
 
     def custom_trajectory(
         s: StepState,
-        weights: List[WeightRecurrent],
+        weights: Weight,
         layer_start: int,
         known_spikes: Spike,
     ):
         # attach known spikes to "root solver"
-        step_fn = partial(
-            step_fn_no_solver, partial(next_queue, known_spikes, layer_start)
-        )
+        solver = partial(next_queue, known_spikes, layer_start)
+        step_fn = partial(step, dynamics, transition, solver, t_max)
         state, spikes = jax.lax.scan(
             step_fn, (s, weights, layer_start), np.arange(n_spikes)
         )
@@ -474,16 +513,18 @@ def HardwareLIF(
 
     def custom_trajectory_fwd(
         s: StepState,
-        weights: List[WeightRecurrent],
+        weights: Weight,
         layer_start: int,
         known_spikes: Spike,
     ):
-        # here the hardware call can be injected instead of calling forward
-        output_state, spikes = custom_trajectory(s, weights, layer_start, known_spikes)
+        # TODO, do we need to save the known spike for bwd?
+        output_state, spikes = custom_trajectory(
+            s, weights, layer_start, known_spikes
+        )
         return (output_state, spikes), (spikes, output_state, known_spikes)
 
     def custom_trajectory_bwd(res, g):
-        spikes, (state, weights, layer_start), known_spikes = res
+        spikes, (_, weights, layer_start), known_spikes = res
         (adjoint_state, grads, _), adjoint_spikes = g
 
         (adjoint_state, grads, layer_start), _ = jax.lax.scan(
@@ -498,7 +539,10 @@ def HardwareLIF(
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
     def apply_fn(
-        layer_start: int, weights, input_spikes: EventPropSpike, known_spikes: Spike
+        layer_start: int,
+        weights: Weight,
+        input_spikes: EventPropSpike,
+        known_spikes: Spike,
     ):
         s = StepState(
             neuron_state=initial_state,

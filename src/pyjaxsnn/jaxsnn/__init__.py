@@ -1,5 +1,14 @@
-import jaxsnn.base
+import logging
 
-from .functional import euler_integrate, serial
-from .functional.leaky_integrate import LI, LIStep
-from .functional.lif import LIF, LIFStep
+from jax import config
+
+formatter = logging.Formatter(fmt="%(levelname)s - %(module)s - %(message)s")
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+
+logger = logging.getLogger("root")
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
+
+
+config.update("jax_debug_nans", True)

@@ -1,0 +1,21 @@
+@Library("jenlib") _
+
+import static java.util.UUID.randomUUID
+
+try {
+	runOnSlave(label: "frontend") {
+		stage("Checkout") {
+			checkout scm
+		}
+
+		pipelineFromMarkdown(markdownFilePath: "INSTALL_OLDSKOOL.md",
+		                     blockType: "shell")
+	}
+} catch (Throwable t) {
+	notifyFailure(mattermostChannel: "#dls-software")
+	throw t
+}
+
+if (currentBuild.currentResult != "SUCCESS") {
+	notifyFailure(mattermostChannel: "#dls-software")
+}

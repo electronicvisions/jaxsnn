@@ -1,20 +1,23 @@
-import numpy as onp
-from jaxsnn.base.types import Spike, WeightInput, Weight, WeightRecurrent, Array
-import jax.numpy as np
-from jax import random
-from typing import List, Optional
-import jax
+# pylint: disable=invalid-name,logging-not-lazy,logging-fstring-interpolation
+import logging
 from functools import partial
-import hxtorch
+from typing import List, Optional
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
+import jax
+import jax.numpy as np
+import numpy as onp
+from jax import random
+from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
+
+log = logging.getLogger(__name__)
 
 
 def spike_to_grenade_input(spike: Spike, input_neurons: int):
     """Convert jaxsnn spike representation to grenade spike representation
 
     We represent spikes as tuple of index and time. An instance of
-    grenade.InputGenerator expects a python list with shape [badge, neuron_idx, spike_time]
+    grenade.InputGenerator expects a python list with shape
+    [badge, neuron_idx, spike_time]
 
     TODO move to hxtorch / grenade
     """
@@ -25,7 +28,9 @@ def spike_to_grenade_input(spike: Spike, input_neurons: int):
     for batch_idx in range(batch_dim):
         spikes = [[] for _ in range(input_neurons)]
         for i in range(spike_dim):
-            idx, time = spike.idx[batch_idx, i], float(spike.time[batch_idx, i])
+            idx, time = spike.idx[batch_idx, i], float(
+                spike.time[batch_idx, i]
+            )
             spikes[idx].append(time)
         batch.append(spikes)
     return batch
@@ -36,6 +41,7 @@ def linear_saturating(
     scale: float,
     min_weight: float = -63.0,
     max_weight: float = 63.0,
+    as_int: bool = True,
 ) -> np.ndarray:
     """
     Scale all weights according to:
@@ -48,13 +54,20 @@ def linear_saturating(
         scaling.
     :param max_weight: The maximum value, bigger values are clipped to after
         scaling.
+    :param as_int: Round to nearest int and return as int type.
 
     :returns: The transformed weight tensor.
     """
-    return np.round(np.clip(scale * weight, min_weight, max_weight)).astype(int)
+    if as_int:
+        return np.round(
+            np.clip(scale * weight, min_weight, max_weight)
+        ).astype(int)
+    return np.clip(scale * weight, min_weight, max_weight)
 
 
-def filter_spikes_batch(spikes: Spike, layer_start: int, layer_end: Optional[int] = None):
+def filter_spikes_batch(
+    spikes: Spike, layer_start: int, layer_end: Optional[int] = None
+):
     """Only return spikes of neurons after layer start
 
     Other spikes are encoded with time=np.inf and index=-1
@@ -63,13 +76,17 @@ def filter_spikes_batch(spikes: Spike, layer_start: int, layer_end: Optional[int
     filtered_idx = np.where(spikes.idx >= layer_start, spikes.idx, -1)
 
     if layer_end is not None:
-        filtered_time = np.where(filtered_idx < layer_end, filtered_time, np.inf)
+        filtered_time = np.where(
+            filtered_idx < layer_end, filtered_time, np.inf
+        )
         filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
 
     return sort_batch(Spike(filtered_time, filtered_idx))
 
 
-def filter_spikes(spikes: Spike, layer_start: int, layer_end: Optional[int] = None):
+def filter_spikes(
+    spikes: Spike, layer_start: int, layer_end: Optional[int] = None
+):
     """Only return spikes of neurons after layer start
 
     Other spikes are encoded with time=np.inf and index=-1
@@ -78,9 +95,10 @@ def filter_spikes(spikes: Spike, layer_start: int, layer_end: Optional[int] = No
     filtered_idx = np.where(spikes.idx >= layer_start, spikes.idx, -1)
 
     if layer_end is not None:
-        filtered_time = np.where(filtered_idx < layer_end, filtered_time, np.inf)
+        filtered_time = np.where(
+            filtered_idx < layer_end, filtered_time, np.inf
+        )
         filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
-
 
     sort_idx = np.argsort(filtered_time, axis=-1)
 
@@ -106,27 +124,44 @@ def sort_batch(spikes: Spike) -> Spike:
     return Spike(time=time, idx=idx)
 
 
-def add_noise_batch(spikes: Spike, rng: random.PRNGKey, std: float = 5e-7) -> Spike:
-    noise = random.normal(rng, spikes.time.shape) * std
+def add_noise_batch(
+    spikes: Spike, rng: random.PRNGKey, std: float = 1e-7, bias: float = 1e-7
+) -> Spike:
+    noise = random.normal(rng, spikes.time.shape) * std + bias
     spikes_with_noise = Spike(time=spikes.time + noise, idx=spikes.idx)
+    # return spikes_with_noise
     return sort_batch(spikes_with_noise)
 
 
-def simulate_hw_weights(params: List[Weight], scale: float) -> List[Weight]:
-    new_params = []
-    for param in params:
-        if isinstance(param, WeightInput):
-            new_param = WeightInput(linear_saturating(param.input, scale) / scale)
-        else:
-            new_param = WeightRecurrent(
-                input=linear_saturating(param.input, scale) / scale,
-                recurrent=linear_saturating(param.recurrent, scale) / scale,
+def simulate_hw_weights(
+    weights: List[Weight], scale: float, as_int: bool = False
+) -> List[Weight]:
+    new_weights = []
+    for weight in weights:
+        if isinstance(weight, WeightInput):
+            new_weight = WeightInput(
+                linear_saturating(weight.input, scale, as_int=as_int) / scale
             )
-        new_params.append(new_param)
-    return new_params
+        else:
+            new_weight = WeightRecurrent(
+                input=linear_saturating(weight.input, scale, as_int=as_int)
+                / scale,
+                recurrent=linear_saturating(
+                    weight.recurrent, scale, as_int=as_int
+                )
+                / scale,
+            )
+        new_weights.append(new_weight)
+    return new_weights
 
 
-def simulate_madc(tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight: float, ts: Array):
+def simulate_madc(
+    tau_mem_inv: float,
+    tau_syn_inv: float,
+    inputs: Spike,
+    weight: float,
+    ts: jax.Array,
+):
     A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
     tk = inputs.time
     xk = np.array([[0.0, weight]])
@@ -134,27 +169,27 @@ def simulate_madc(tau_mem_inv: float, tau_syn_inv: float, inputs: Spike, weight:
     def heaviside(x):
         return 0.5 + 0.5 * np.sign(x)
 
-
     def kernel(t, t0):
         return heaviside(t - t0) * jax.scipy.linalg.expm(A * (t - t0))
 
-
     def f(t0, x0, t):
-        return np.einsum(
-            "ijk, ik -> j", jax.vmap(partial(kernel, t))(t0), x0
-        )
-    
+        return np.einsum("ijk, ik -> j", jax.vmap(partial(kernel, t))(t0), x0)
+
     return jax.vmap(partial(f, tk, xk), in_axes=0)(ts)
 
 
 def add_linear_noise(spike: Spike) -> Spike:
     batch_size, n_spikes = spike.idx.shape
-    time_noise = np.repeat(np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0), batch_size, axis=0)
+    time_noise = np.repeat(
+        np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0),
+        batch_size,
+        axis=0,
+    )
     assert time_noise.shape == spike.idx.shape
     return Spike(idx=spike.idx, time=spike.time + time_noise)
 
 
-def first_spike(spikes: Spike, start: int, stop: int) -> Array:
+def first_spike(spikes: Spike, start: int, stop: int) -> jax.Array:
     return np.array(
         [
             np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
@@ -175,12 +210,9 @@ def spike_similarity_batch(spike1: Spike, spike2: Spike):
 
         # # now compare the times
         diff = first_spike1 - first_spike2
-        masked = onp.ma.masked_where(diff==np.inf, diff)
+        masked = onp.ma.masked_where(diff == np.inf, diff)
         masked = onp.ma.masked_where(masked == np.nan, masked)
-        mean = onp.mean(masked, axis=0)
-        std = onp.std(masked, axis=0)
-        # log.INFO(f"Neurons {start} to {stop}:")
-        # log.INFO(f"Software is on average {mean.mean()} earlier")
-        # log.INFO(f"Average std per neuron: {std.mean()}")
-        log.INFO(f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn, HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn")
-        log.INFO(f"")
+        log.info(
+            f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn,"
+            f"HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn"
+        )

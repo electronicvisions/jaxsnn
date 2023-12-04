@@ -1,41 +1,46 @@
+# pylint: disable=wrong-import-order,logging-not-lazy
+# pylint: disable=logging-fstring-interpolation
 """
 Defining basic types to create hw-executable instances
 """
+import logging
 import time
-from typing import Dict, List, Tuple, Union, Optional
 from pathlib import Path
-from jaxsnn.base.types import Array
-from dlens_vx_v3 import hal, lola
-import pygrenade_vx as grenade
+from typing import Dict, List, Optional, Tuple, Union
+
+import _hxtorch_core
+import _hxtorch_spiking
 import hxtorch
-from hxtorch.snn.utils import calib_helper
-from hxtorch.snn.experiment import NeuronPlacement
-from jaxsnn.base.types import WeightRecurrent, Weight
+import jax.numpy as np
+import pygrenade_vx as grenade
+from dlens_vx_v3 import hal, lola
+from hxtorch.spiking.experiment import NeuronPlacement
+from hxtorch.spiking.utils import calib_helper
+from jaxsnn.base.types import Array
+from jaxsnn.event.hardware.calib import WaferConfig
+from jaxsnn.event.hardware.input_neuron import InputNeuron
 from jaxsnn.event.hardware.neuron import Neuron
 from jaxsnn.event.hardware.synapse import Synapse
-from jaxsnn.base.types import Spike
-from jaxsnn.event.hardware.input_neuron import InputNeuron
-import _hxtorch_core
-import jax.numpy as np
-from jaxsnn.event.hardware.calib import WaferConfig
+from jaxsnn.event.types import Spike, Weight
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
-# grenade_log = hxtorch.logger.get("grenade")
-# hxtorch.logger.set_loglevel(grenade_log, hxtorch.logger.logLevel.TRACE)
+log = logging.getLogger("root")
 
 HardwareSpike = Dict[
-    grenade.network.placed_logical.PopulationDescriptor, Tuple[Array, Array]
+    grenade.network.PopulationOnNetwork, Tuple[Array, Array]
 ]
 
 
 class Experiment:
     """Experiment class for describing experiments on hardware"""
 
+    # pyling: disable=too-many-arguments
     def __init__(
-        self,
-        wafer_config: WaferConfig,
-        hw_routing_func=grenade.network.placed_logical.build_routing,
-    ) -> None:
+            self,
+            wafer_config: WaferConfig,
+            hw_routing_func=grenade.network.routing.PortfolioRouter(),
+            execution_instance: grenade.common.ExecutionInstanceID
+            = grenade.common.ExecutionInstanceID()) \
+            -> None:
         """
         Instanziate a new experiment, represting an experiment on hardware
         and/or in software.
@@ -58,6 +63,7 @@ class Experiment:
 
         self.neuron_placement = NeuronPlacement()
         self.hw_routing_func = hw_routing_func
+        self.execution_instance = execution_instance
         self._static_config_prepared = False
         self._populations_configured = False
         self.has_madc_recording = False
@@ -95,16 +101,15 @@ class Experiment:
 
         # If chip is still None we load default nightly calib
         if self._chip is None:
-            log.INFO(
-                "No chip object present. Using chip object with default "
-                + "nightly calib."
-            )
+            log.info("No chip present. Using chip with default nightly calib.")
             self._chip = self.load_calib(calib_helper.nightly_calib_path())
 
         self._static_config_prepared = True
-        log.TRACE("Preparation of static config done.")
+        log.debug("Preparation of static config done.")
 
-    def load_calib(self, calib_path: Optional[Union[Path, str]] = None) -> lola.Chip:
+    def load_calib(
+        self, calib_path: Optional[Union[Path, str]] = None
+    ) -> lola.Chip:
         """
         Load a calibration from path `calib_path` and apply to the experiment`s
         chip object. If no path is specified a nightly calib is applied.
@@ -113,7 +118,7 @@ class Experiment:
         :return: Returns the chip object for the given calibration.
         """
         # If no calib path is given we load spiking nightly calib
-        log.INFO(f"Loading calibration from {calib_path}")
+        log.info(f"Loading calibration from {calib_path}")
         self._chip = calib_helper.chip_from_file(calib_path)
         return self._chip
 
@@ -121,7 +126,7 @@ class Experiment:
         self,
         weights: List[Weight],
         build_graph: bool = True,
-    ) -> grenade.network.placed_logical.NetworkGraph:
+    ) -> grenade.network.NetworkGraph:
         """
         Generate grenade network graph from the populations and projections in
         modules
@@ -133,39 +138,46 @@ class Experiment:
             return self.grenade_network_graph
 
         # Create network builder
-        network_builder = grenade.network.placed_logical.NetworkBuilder()
+        network_builder = grenade.network.NetworkBuilder()
 
         # add input population
         for pop in self._populations:
+            # log.info(f"Adding population of size: {pop.size}")
             pop.add_to_network_graph(network_builder)
 
         # for i, weight in enumerate(weights):
         #     synapse = Synapse(self, weight.input.T)
-        #     synapse.add_to_network_graph(network_builder, self._populations[i].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling)
+        #     synapse.add_to_network_graph(
+        #         network_builder,
+        #         self._populations[i].descriptor,
+        #         self._populations[1].descriptor,
+        #         self.wafer_config.weight_scaling,
+        #     )
 
-        
         # first weights
-        synapse = Synapse(self, weights[0].input[:, : 100].T)
+        synapse = Synapse(self, weights[0].input[:, :100].T)
         synapse.add_to_network_graph(
-            network_builder, self._populations[0].descriptor, self._populations[1].descriptor, self.wafer_config.weight_scaling
+            network_builder,
+            self._populations[0].descriptor,
+            self._populations[1].descriptor,
+            self.wafer_config.weight_scaling,
         )
 
         # second weights
-        synapse = Synapse(self, weights[0].recurrent[: 100, 100: 103].T)
+        synapse = Synapse(self, weights[0].recurrent[:100, 100:103].T)
         synapse.add_to_network_graph(
-            network_builder, self._populations[1].descriptor, self._populations[2].descriptor, self.wafer_config.weight_scaling
+            network_builder,
+            self._populations[1].descriptor,
+            self._populations[2].descriptor,
+            self.wafer_config.weight_scaling,
         )
-
         network = network_builder.done()
 
         # route network if required
         routing_result = None
-        if (
-            self.grenade_network is None
-            or grenade.network.placed_logical.requires_routing(
-                network, self.grenade_network
-            )
-        ):
+        if self.grenade_network_graph is None \
+                or grenade.network.requires_routing(
+                    network, self.grenade_network_graph):
             routing_result = self.hw_routing_func(network)
 
         # Keep graph
@@ -173,15 +185,13 @@ class Experiment:
 
         # build or update network graph
         if routing_result is not None:
-            self.grenade_network_graph = (
-                grenade.network.placed_logical.build_network_graph(
-                    self.grenade_network, routing_result
-                )
-            )
+            self.grenade_network_graph = grenade.network\
+                .build_network_graph(
+                    self.grenade_network, routing_result)
         else:
-            grenade.network.placed_logical.update_network_graph(
-                self.grenade_network_graph, self.grenade_network
-            )
+            grenade.network.update_network_graph(
+                self.grenade_network_graph,
+                self.grenade_network)
 
         return self.grenade_network_graph
 
@@ -198,30 +208,32 @@ class Experiment:
             if not isinstance(module, Neuron):
                 continue
 
-            log.TRACE(f"Configure population '{module}'.")
+            log.debug(f"Configure population '{module}'.")
             for in_pop_id, unit_id in enumerate(module.unit_ids):
                 coord = self.neuron_placement.id2logicalneuron(unit_id)
                 self._chip.neuron_block = module.configure_hw_entity(
                     in_pop_id, self._chip.neuron_block, coord
                 )
-                log.TRACE(f"Configured neuron at coord {coord}.")
+                log.debug(f"Configured neuron at coord {coord}.")
         self._populations_configured = True
 
     def _generate_inputs(
         self,
-        network_graph: grenade.network.placed_logical.NetworkGraph,
+        network_graph: grenade.network.NetworkGraph,
         inputs: Spike,
     ) -> grenade.signal_flow.IODataMap:
         """
         Generate external input events from the routed network graph
         representation.
         """
-        assert network_graph.event_input_vertex is not None
-        if network_graph.event_input_vertex is None:
+        assert network_graph.graph_translation.execution_instances[
+            self.execution_instance].event_input_vertex is not None
+        if network_graph.graph_translation.execution_instances[
+                self.execution_instance].event_input_vertex is None:
             return grenade.signal_flow.IODataMap()
 
         self._batch_size = inputs.time.shape[0]
-        input_generator = grenade.network.placed_logical.InputGenerator(
+        input_generator = grenade.network.InputGenerator(
             network_graph, self._batch_size
         )
 
@@ -234,15 +246,11 @@ class Experiment:
         input_pop.add_to_input_generator(inputs, input_generator)
         return input_generator.done()
 
-    def _generate_playback_hooks(
-        self,
-    ) -> grenade.signal_flow.ExecutionInstancePlaybackHooks:
-        return grenade.signal_flow.ExecutionInstancePlaybackHooks()
-
     def _get_population_observables(
         self,
-        network_graph: grenade.network.placed_logical.NetworkGraph,
+        network_graph: grenade.network.NetworkGraph,
         result_map: grenade.signal_flow.IODataMap,
+        runtime,
         n_spikes: List[int],
     ) -> HardwareSpike:
         """
@@ -263,8 +271,12 @@ class Experiment:
         """
         # Get hw data
         assert len(n_spikes) == len(self._populations[1:])
-        n_spike_map = {p.descriptor: n for n, p in zip(n_spikes, self._populations[1:])}
-        return _hxtorch_core.extract_n_spikes(result_map, network_graph, n_spike_map)
+        n_spike_map = {
+            p.descriptor: n for n, p in zip(n_spikes, self._populations[1:])
+        }
+        return _hxtorch_core.extract_n_spikes(
+            result_map, network_graph, runtime, n_spike_map
+        )
 
     def register_population(self, module: Union[InputNeuron, Neuron]) -> None:
         """
@@ -282,7 +294,7 @@ class Experiment:
         """
         self._projections.append(module)
 
-    def get_hw_results(
+    def get_hw_results(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         inputs: Spike,
         weights: List[Weight],
@@ -303,11 +315,15 @@ class Experiment:
             population descriptors and values are tuples of values returned by
             the correpsonding module's `post_process` method.
         """
-        start = time.time()
+        overall_start = time.time()
         self._prepare_static_config()
 
         # Generate network graph
-        network = self._generate_network_graphs(weights, build_graph=build_graph)
+        start = time.time()
+        network = self._generate_network_graphs(
+            weights, build_graph=build_graph
+        )
+        generate_network_time = time.time() - start
 
         # configure populations
         self._configure_populations()
@@ -325,22 +341,21 @@ class Experiment:
         # generate external spike trains
         inputs = self._generate_inputs(network, inputs)
         inputs.runtime = [
-            {grenade.signal_flow.ExecutionInstance(): runtime_in_clocks}
+            {grenade.common.ExecutionInstanceID(): runtime_in_clocks}
         ] * self._batch_size
-        log.TRACE(f"Registered runtimes: {inputs.runtime}")
+        log.debug(f"Registered runtimes: {inputs.runtime}")
 
         grenade_start = time.time()
-        outputs = hxtorch.snn.grenade_run(
-            self._chip, network, inputs, self._generate_playback_hooks()
+        outputs = _hxtorch_spiking.run(
+            self._chip,
+            network,
+            inputs,
+            grenade.signal_flow.ExecutionInstancePlaybackHooks()
         )
         time_grenade_run = time.time() - grenade_start
-        if time_data is not None:
-            if time_data.get("grenade_run") is None:
-                time_data["grenade_run"] = time_grenade_run
-            else:
-                time_data["grenade_run"] += time_grenade_run
-
-        hw_data = self._get_population_observables(network, outputs, n_spikes)
+        start_get_observables = time.time()
+        hw_data = self._get_population_observables(
+            network, outputs, runtime_in_clocks, n_spikes)
 
         # convert from fpga cycles to s
         spike_list = []
@@ -350,29 +365,57 @@ class Experiment:
             spike_list.append(
                 Spike(
                     idx=np.where(spikes[0] == -1, -1, spikes[0] + offset),
-                    time=(spikes[1] + hw_cycle_correction) / cycles_per_us * 1e-6,
+                    time=(spikes[1] + hw_cycle_correction)
+                    / cycles_per_us
+                    * 1e-6,
                 )
             )
             offset += self._populations[i].size
 
         # madc
         if self.has_madc_recording:
-            log.INFO(f"Runtime in clocks: {runtime_in_clocks}")
-            hw_madc_samples = hxtorch.snn.extract_madc(
+            log.info(f"Runtime in clocks: {runtime_in_clocks}")
+            hw_madc_samples = hxtorch.spiking.extract_madc(
                 outputs, network, runtime_in_clocks
             )
 
             data = (
-                hw_madc_samples[self._populations[1].descriptor].data.to_dense().numpy()
+                hw_madc_samples[self._populations[1].descriptor]
+                .data.to_dense()
+                .numpy()
             )
-            madc_recording = data[:, :, self._populations[1]._record_neuron_id]
+            madc_recording = data[
+                :,
+                :,
+                self._populations[  # pylint: disable=protected-access
+                    1
+                ]._record_neuron_id,  # pylint: disable=protected-access
+            ]
             return spike_list, madc_recording
 
+        # TODO #4038: drop this
+        time_get_observables = time.time() - start_get_observables
         # save times
         if time_data is not None:
-            time_get_hw_results = time.time() - start
+            time_get_hw_results = time.time() - overall_start
             if time_data.get("get_hw_results") is None:
                 time_data["get_hw_results"] = time_get_hw_results
             else:
                 time_data["get_hw_results"] += time_get_hw_results
+
+            if time_data.get("get_observables") is None:
+                time_data["get_observables"] = time_get_observables
+            else:
+                time_data["get_observables"] += time_get_observables
+
+            if time_data.get("generate_network_time") is None:
+                time_data["generate_network_time"] = generate_network_time
+            else:
+                time_data["generate_network_time"] += generate_network_time
+
+            if time_data.get("grenade_run") is None:
+                time_data["grenade_run"] = time_grenade_run
+            else:
+                time_data["grenade_run"] += time_grenade_run
+
         return spike_list, time_data

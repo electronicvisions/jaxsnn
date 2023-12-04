@@ -1,108 +1,86 @@
-from typing import Any, Callable, Tuple
-from jax.experimental import checkify
+from typing import Callable, Tuple, Union
+
 import jax
 import jax.numpy as np
-from jax.tree_util import tree_flatten, tree_unflatten
-from jax.scipy import linalg
-from jaxsnn.base.types import (
-    Array,
+from jaxsnn.event.types import (
     EventPropSpike,
+    HWLossFn,
     InputQueue,
-    Spike,
+    LIFState,
+    LossFn,
+    SingleApply,
+    Solver,
     StepState,
     Weight,
 )
-from jax import lax
-from jaxsnn.neuron import NeuronState
 
 
-def tree_wrap(func):
-    def inner(*args):
-        values, tree_def = tree_flatten(args[0])
-        res = func(np.stack(values), *args[1:])
-        return tree_unflatten(tree_def, res)
+def batch_wrapper(
+    loss_fn: Union[LossFn, HWLossFn],
+    in_axes: tuple = (None, 0),
+    pmap: bool = False,
+):
+    """Add an outer batch dimension to `loss_fn`.
 
-    return inner
+    The loss function returns the actual loss value, and some more information.
+    When adding the batch dimension, the average of the loss value is taken,
+    bu the information is stacked.
+    """
 
-
-def lif_wrap(func):
-    def inner(*args):
-        res = func(np.stack([args[0].V, args[0].I]), *args[1:])
-        args[0].V = res[0]
-        args[0].I = res[1]
-        return args[0]
-
-    return inner
-
-
-def checkify_wrapper(f):
-    def checked_fn(*args):
-        error, out = checkify.checkify(
-            f, errors=checkify.float_checks | checkify.user_checks
-        )(*args)
-        error.throw()
-        return out
-
-    def second(*args):
-        err, out = checkify.checkify(checked_fn)(*args)
-        return out
-
-    return second
-
-
-def batch_wrapper(func, in_axes: tuple = (None, 0)):
     def wrapped_fn(*args, **kwargs):
-        res = jax.vmap(func, in_axes=in_axes)(*args, **kwargs)
+        if pmap:
+            res = jax.pmap(loss_fn, in_axes=in_axes)(*args, **kwargs)
+        else:
+            res = jax.vmap(loss_fn, in_axes=in_axes)(*args, **kwargs)
         return np.mean(res[0]), res[1]
 
     return wrapped_fn
 
 
-def exponential_flow(A: Array):
-    def flow(x0: Array, t: float):
-        return np.dot(linalg.expm(A * t), x0)  # type: ignore
-
-    return lif_wrap(flow)
+# Input to step function.
+# Consists of StepState, weights of the network and start index of the layer
+StepInput = Tuple[StepState, Weight, int]
 
 
-def step(
+def step(  # pylint: disable=unused-argument,too-many-locals
     dynamics: Callable,
     tr_dynamics: Callable,
+    solver: Solver,
     t_max: float,
-    solver: Callable[[NeuronState, float, float], Spike],
-    input: Tuple[StepState, Weight, int],
+    step_input: StepInput,
     *args: int,
-) -> Tuple[Tuple[StepState, Weight, int], EventPropSpike]:
-    """Determine the next spike (external or internal), and integrate the neurons to that point.
+) -> Tuple[StepInput, EventPropSpike]:
+    """Find next spike (external or internal), and simulate to that point.
+
     Args:
-        dynamics (Callable): Function describing neuron dynamics
-        solver (Callable): Parallel root solver
-        tr_dynamics (Callable): function describing the transition dynamics
+        dynamics (Callable): Function describing the continous neuron dynamics
+        tr_dynamics (Callable): Function describing the transition dynamics
         t_max (float): Max time until which to run
-        weights (Weight): input and recurrent weights
-        input_spikes (Spike): input spikes (time and index)
-        state (StepState): (Neuron state, current_time, input_queue)
+        solver (Solver): Parallel root solver which returns the next event
+        state (StepInput): (StepState, weights, int)
     Returns:
-        Tuple[StepState, Spike]: New state after transition and spike for storing
+        Tuple[StepInput, Spike]: New state after transition and stored spike
     """
-    state, weights, layer_start = input
+    state, weights, layer_start = step_input
     prev_layer_start = layer_start - weights.input.shape[0]
 
     next_internal = solver(state.neuron_state, state.time, t_max)
 
     # determine spike nature and spike time
-    input_time = lax.cond(
-        state.input_queue.is_empty, lambda: t_max, lambda: state.input_queue.peek().time
+    input_time = jax.lax.cond(
+        state.input_queue.is_empty,
+        lambda: t_max,
+        lambda: state.input_queue.peek().time,
     )
     t_dyn = np.minimum(next_internal.time, input_time)
 
     # comparing only makes sense if exactly dt is returned from solver
     spike_in_layer = next_internal.time < input_time
     no_event = t_dyn + 1e-6 > t_max
-    stored_idx = lax.cond(
+    stored_idx = jax.lax.cond(
         no_event,
         lambda: -1,
-        lambda: lax.cond(
+        lambda: jax.lax.cond(
             spike_in_layer,
             lambda: next_internal.idx + layer_start,
             lambda: state.input_queue.peek().idx,
@@ -118,7 +96,7 @@ def step(
         lambda: state.neuron_state.I[next_internal.idx],
         lambda: state.input_queue.peek().current,
     )
-    transitioned_state = lax.cond(
+    transitioned_state = jax.lax.cond(
         no_event,
         lambda *args: state,
         tr_dynamics,
@@ -134,15 +112,29 @@ def step(
 
 
 def trajectory(
-    dynamics: Callable, n_spikes: int
-) -> Callable[[Any, Any, Any, Any], Spike]:
-    def fun(initial_state, layer_start: int, weights, input_spikes) -> Spike:
-        s = StepState(
+    step_fn: Callable[[StepInput, int], Tuple[StepInput, EventPropSpike]],
+    n_hidden: int,
+    n_spikes: int,
+) -> SingleApply:
+    """Evaluate the `step_fn` until `n_spikes` have been simulated.
+
+    Uses a scan over the `step_fn` to return an apply function
+    """
+
+    def fun(
+        layer_start: int,
+        weights: Weight,
+        input_spikes: EventPropSpike,
+    ) -> EventPropSpike:
+        initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
+        step_state = StepState(
             neuron_state=initial_state,
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
-        _, spikes = jax.lax.scan(dynamics, (s, weights, layer_start), np.arange(n_spikes))  # type: ignore
+        _, spikes = jax.lax.scan(
+            step_fn, (step_state, weights, layer_start), np.arange(n_spikes)
+        )
         return spikes
 
     return fun

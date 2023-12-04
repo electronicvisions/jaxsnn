@@ -1,21 +1,16 @@
+# pylint: disable=invalid-name,line-too-long,too-many-arguments,too-many-locals,unsubscriptable-object,unused-argument,undefined-variable
+import logging
 from typing import List, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.pyplot import Axes
-import hxtorch
-from jaxsnn.base.types import (
-    Array,
-    ArrayLike,
-    Spike,
-    Weight,
-    WeightRecurrent,
-)
-from jaxsnn.event.dataset import Dataset
-from jaxsnn.event.hardware.utils import filter_spikes, cut_spikes
+from jaxsnn.base.types import Array
+from jaxsnn.event.dataset.utils import Dataset
+from jaxsnn.event.hardware.utils import filter_spikes
+from jaxsnn.event.types import Spike, TestResult, Weight, WeightRecurrent
 
-log = hxtorch.logger.get("hxtorch.snn.experiment")
+log = logging.getLogger(__name__)
 
 blue = np.array([[47, 66, 87, 210]]) / 256
 red = np.array([[103, 43, 40, 210]]) / 256
@@ -23,41 +18,53 @@ black = np.array([[0, 0, 0, 0.3]])
 green = np.array([[47, 75, 37, 210]]) / 256
 
 
-def plt_spikes(ax: Axes, recording, sizes: Tuple[int], mock: bool):
+def plt_spikes(
+    ax: List[plt.Axes],
+    recording,
+    sizes: Tuple[int],
+    mock: bool,
+    tau_syn: float,
+):
     # plt five different samples
-    for j in range(5):
-        spikes = recording[0][-1, 0, j]
+    for j, plt_idx in enumerate(((0, 0), (0, 1), (1, 0), (1, 1))):
+        spikes = recording[-1][-1, 0, j]
         input_size, hidden_size, _ = sizes
         layers = [
             filter_spikes(spikes, 0, input_size),
-            filter_spikes(spikes, input_size, input_size+hidden_size),
+            filter_spikes(spikes, input_size, hidden_size + input_size),
             filter_spikes(spikes, hidden_size + input_size),
         ]
+
+        unit = tau_syn if mock else 1e-6
+
         for i in range(3):
-            ax[j].scatter(
-                x=layers[i].time * 1e6,
+            ax[plt_idx].scatter(
+                x=layers[i].time / unit,
                 y=layers[i].idx,
-                s=10,
+                s=(20, 10, 20)[i],
                 c=("green", "black", "orange")[i],
-                label=f"Layer {i}"
+                label=f"Layer {i}",
             )
-        ax[j].set_ylabel("neuron id")
-        ax[j].set_xlabel(r"$t$ [us]")
-        ax[j].legend()
-        ax[j].set_title(f"Spike times in {'SW' if mock else 'HW'}")
+        ax[plt_idx].set_ylabel("neuron id")
+        if mock:
+            ax[plt_idx].set_xlabel(r"$t [\tau_s]$")
+        else:
+            ax[plt_idx].set_xlabel(r"$t$ [us]")
+        ax[plt_idx].legend()
+        ax[plt_idx].set_title(f"Spike times in {'SW' if mock else 'HW'}")
 
 
-def plt_loss(ax: Axes, loss: Array):
+def plt_loss(ax: plt.Axes, loss: Array):
     ax.plot(np.arange(len(loss)), loss)
     ax.set_ylabel("test loss")
 
 
-def plt_accuracy(ax: Axes, accuracy: Array):
+def plt_accuracy(ax: plt.Axes, accuracy: Array):
     ax.plot(np.arange(len(accuracy)), accuracy)
     ax.set_ylabel("test accuracy")
 
 
-def plt_no_spike_prob(ax: List[Axes], t_spike, testset):
+def plt_no_spike_prob(ax: List[plt.Axes], t_spike, testset):
     output_size = testset[1].shape[-1]
     for neuron_idx in range(output_size):
         for which_class in range(output_size):
@@ -77,18 +84,27 @@ def plt_no_spike_prob(ax: List[Axes], t_spike, testset):
 
 
 def plt_average_spike_time(
-    ax: Axes, t_spike_correct: Array, t_spike_false: Array, const_target: Array
+    ax: plt.Axes,
+    t_spike_correct: Array,
+    t_spike_false: Array,
+    const_target: Array,
 ):
     t_spike_correct_avg = np.nanmean(t_spike_correct, axis=(1, 2))
     t_spike_false_avg = np.nanmean(t_spike_false, axis=(1, 2))
 
     ax.plot(
-        np.arange(len(t_spike_correct_avg)), t_spike_correct_avg, label="Correct neuron"
+        np.arange(len(t_spike_correct_avg)),
+        t_spike_correct_avg,
+        label="Correct neuron",
     )
     ax.axhline(const_target[0], color="red")
 
     # plot spike time non-correct neuron
-    ax.plot(np.arange(len(t_spike_false_avg)), t_spike_false_avg, label="False neuron")
+    ax.plot(
+        np.arange(len(t_spike_false_avg)),
+        t_spike_false_avg,
+        label="False neuron",
+    )
     ax.axhline(const_target[2], color="red")
 
     ax.set_xlabel("Epoch")
@@ -96,7 +112,7 @@ def plt_average_spike_time(
     ax.legend()
 
 
-def plt_circle(ax: Axes, radius: float, offset: float):
+def plt_circle(ax: plt.Axes, radius: float, offset: float):
     theta = np.linspace(0, 2 * np.pi, 150)
     a = radius * np.cos(theta)
     b = radius * np.sin(theta)
@@ -104,10 +120,10 @@ def plt_circle(ax: Axes, radius: float, offset: float):
 
 
 def plt_prediction(
-    ax: Axes,
+    ax: plt.Axes,
     dataset_in: Dataset,
     t_spike: Array,
-    tau_syn: ArrayLike,
+    tau_syn: float,
     duplication: int = 1,
     duplicate_neurons: bool = False,
 ):
@@ -149,7 +165,9 @@ def plt_prediction(
         radius = np.sqrt(0.5 / np.pi) * t_late
         plt_circle(ax, radius=radius, offset=0.75)
     elif dataset[2] == "linear":
-        ax.plot(np.linspace(0, t_late, 100), np.linspace(0, t_late, 100), c="k")
+        ax.plot(
+            np.linspace(0, t_late, 100), np.linspace(0, t_late, 100), c="k"
+        )
     ax.set_xlabel(r"Input time $t_x [\tau_s]$")
     ax.set_ylabel(r"Input time $t_y [\tau_s]$")
     ax.set_xticks(np.linspace(0.0, t_late, 6))
@@ -160,12 +178,12 @@ def plt_prediction(
 
 def plt_t_spike_neuron(
     fig,
-    axs: List[Axes],
+    axs: List[plt.Axes],
     dataset_in: Dataset,
     t_spike: Array,
-    tau_syn: ArrayLike,
+    tau_syn: float,
     duplication: int = 1,
-    duplicate_neurons: bool = False
+    duplicate_neurons: bool = False,
 ):
     t_late = 2.0
     names = ("First", "Second", "Third")
@@ -196,7 +214,9 @@ def plt_t_spike_neuron(
 
     # normalize all neurons with the same value
     cmap = mpl.colormaps["magma"]
-    normalize = np.nanpercentile(np.where(t_spike == np.inf, np.nan, t_spike), 95)
+    normalize = np.nanpercentile(
+        np.where(t_spike == np.inf, np.nan, t_spike), 95
+    )
     for i in range(n_neurons):
         score = t_spike[:, i]
         score_no_inf = score[score != np.inf]
@@ -212,10 +232,15 @@ def plt_t_spike_neuron(
             linewidths=0.7,
         )
         axs[i].scatter(
-            x[score == np.inf], y[score == np.inf], facecolor=black, edgecolor=black
+            x[score == np.inf],
+            y[score == np.inf],
+            facecolor=black,
+            edgecolor=black,
         )
         if dataset[2] == "linear":
-            axs[i].plot(np.linspace(0, t_late, 100), np.linspace(0, t_late, 100), c="k")
+            axs[i].plot(
+                np.linspace(0, t_late, 100), np.linspace(0, t_late, 100), c="k"
+            )
         elif dataset[2] == "circle":
             radius = np.sqrt(0.5 / np.pi) * t_late
             plt_circle(axs[i], radius=radius, offset=0.75)
@@ -240,9 +265,9 @@ def plt_t_spike_neuron(
 
 
 def plt_dataset(
-    ax: Axes,
+    ax: plt.Axes,
     dataset_in: Dataset,
-    tau_syn: ArrayLike,
+    tau_syn: float,
     observe: Optional[Tuple[Tuple[int, int, str], ...]] = None,
     duplication: int = 1,
     duplicate_neurons: bool = False,
@@ -288,7 +313,9 @@ def plt_dataset(
         radius = np.sqrt(0.5 / np.pi) * t_late
         plt_circle(ax, radius=radius, offset=0.75)
     elif dataset[2] == "linear":
-        ax.plot(np.linspace(0, t_late, 100), np.linspace(0, t_late, 100), c="k")
+        ax.plot(
+            np.linspace(0, t_late, 100), np.linspace(0, t_late, 100), c="k"
+        )
     ax.set_xlabel(r"Input time $t_x [\tau_s]$")
     ax.set_ylabel(r"Input time $t_y [\tau_s]$")
     ax.set_xticks(np.linspace(0.0, t_late, 6))
@@ -298,7 +325,7 @@ def plt_dataset(
 
 
 def plt_2dloss(
-    axs: Axes,
+    axs: plt.Axes,
     t_spike: Array,
     dataset: Array,
     observe: Tuple[Tuple[int, int, str], ...],
@@ -323,10 +350,14 @@ def plt_2dloss(
         t1 = np.linspace(0, 2, n)
         t2 = np.linspace(0, 2, n)
         xx, yy = np.meshgrid(t1, t2)
-        zz = loss_fn_vec(xx * tau_syn, yy * tau_syn, target[0], target[1], tau_syn)
+        zz = loss_fn_vec(
+            xx * tau_syn, yy * tau_syn, target[0], target[1], tau_syn
+        )
 
         clipped = np.clip(trajectory, 0, 2 * tau_syn)
-        axs[0, i].contourf(t1, t2, zz, levels=500, cmap=mpl.colormaps["viridis"])
+        axs[0, i].contourf(
+            t1, t2, zz, levels=500, cmap=mpl.colormaps["viridis"]
+        )
         axs[0, i].scatter(
             clipped[:, 0] / tau_syn,
             clipped[:, 1] / tau_syn,
@@ -345,10 +376,14 @@ def plt_2dloss(
         axs[1, i].scatter(5, 1.8, marker=marker, color="green", s=50)
 
         axs[1, i].plot(
-            np.arange(trajectory.shape[0]), trajectory[:, 0] / tau_syn, label="Neuron 1"
+            np.arange(trajectory.shape[0]),
+            trajectory[:, 0] / tau_syn,
+            label="Neuron 1",
         )
         axs[1, i].plot(
-            np.arange(trajectory.shape[0]), trajectory[:, 1] / tau_syn, label="Neuron 2"
+            np.arange(trajectory.shape[0]),
+            trajectory[:, 1] / tau_syn,
+            label="Neuron 2",
         )
         axs[1, i].set_xlabel("Epoch")
         if i == 0:
@@ -377,13 +412,17 @@ def plt_spikes_per_neuron(
     for neuron_ix in range(hidden_size):
         spikes = np.sum(recording[0].idx == neuron_ix, axis=-1)
         n_spikes = np.mean(spikes, axis=(1, 2))
-        ax[0].plot(np.arange(len(spikes)), n_spikes, label=f"Neuron {neuron_ix}")
+        ax[0].plot(
+            np.arange(len(spikes)), n_spikes, label=f"Neuron {neuron_ix}"
+        )
         for output in range(output_size):
             n_spikes_class = np.nanmean(
                 np.where(correct_class == output, spikes, np.nan), axis=(1, 2)
             )
             ax[output + 1].plot(
-                np.arange(len(spikes)), n_spikes_class, label=f"Neuron {neuron_ix}"
+                np.arange(len(spikes)),
+                n_spikes_class,
+                label=f"Neuron {neuron_ix}",
             )
 
     for i in range(3):
@@ -395,57 +434,69 @@ def plt_spikes_per_neuron(
     fig.tight_layout()
 
 
-def plt_weights(fig, ax, params: List[Weight]):
-    shape = params[0].input.shape
+def plt_weights(fig, ax, weights: List[Weight]):
+    shape = weights[0].input.shape
     for i in range(shape[1]):
         for j in range(shape[2]):
-            ax[0].plot(np.arange(shape[0]), params[0].input[:, i, j], color=f"C{j}")
-            ax[0].set_title("Input params")
+            ax[0].plot(
+                np.arange(shape[0]), weights[0].input[:, i, j], color=f"C{j}"
+            )
+            ax[0].set_title("Input weights")
 
-    if isinstance(params[0], WeightRecurrent):
-        shape = params[0].recurrent.shape
+    if isinstance(weights[0], WeightRecurrent):
+        shape = weights[0].recurrent.shape
         for i in range(shape[1]):
             for j in range(shape[2]):
                 ax[1].plot(
-                    np.arange(shape[0]), params[0].recurrent[:, i, j], color=f"C{j}"
+                    np.arange(shape[0]),
+                    weights[0].recurrent[:, i, j],
+                    color=f"C{j}",
                 )
-                ax[1].set_title("Recursive params")
-    if len(params) > 1:
-        shape = params[1].input.shape
+                ax[1].set_title("Recursive weights")
+    if len(weights) > 1:
+        shape = weights[1].input.shape
         for i in range(shape[1]):
             for j in range(shape[2]):
-                ax[2].plot(np.arange(shape[0]), params[1].input[:, i, j], color=f"C{j}")
-                ax[2].set_title("Output params")
+                ax[2].plot(
+                    np.arange(shape[0]),
+                    weights[1].input[:, i, j],
+                    color=f"C{j}",
+                )
+                ax[2].set_title("Output weights")
 
     for i in range(3):
         ax[i].set_xlabel("Epoch")
-        ax[i].set_ylabel("Magnitude of params")
+        ax[i].set_ylabel("Magnitude of weights")
     fig.tight_layout()
 
 
-def plt_weights_bin(fig, axs, params: List[Weight]):
+def plt_weights_bin(fig, axs, weights: List[Weight]):
     bins = np.arange(-2.0, 2.0, 0.1)
 
     # plot for first and last epoch
     for j, epoch in enumerate((0, -1)):
-        plot_params = [
-            params[0].input[epoch, :, :100].flatten(),
-            params[0].recurrent[epoch, : 100, 100: 103].flatten(),
-        ]
-        # log.INFO(f"Initial params shape: {params[0].input[epoch].shape}, {params[0].recurrent[epoch].shape}")
-        # log.INFO(f"Initial params non zero: {np.count_nonzero(params[0].input[epoch])}, {np.count_nonzero(params[0].recurrent[epoch])}")
+        if isinstance(weights[0], WeightRecurrent):
+            hidden_size = weights[0].recurrent.shape[-1] - 3
+            plot_weights = [
+                weights[0].input[epoch, :, :hidden_size].flatten(),
+                weights[0]
+                .recurrent[epoch, :hidden_size, hidden_size: hidden_size + 3]
+                .flatten(),
+            ]
+        else:
+            plot_weights = [
+                weights[0].input[epoch, :, :].flatten(),
+                weights[1].input[epoch, :, :].flatten(),
+            ]
 
-        # log.INFO(f"Plot params shape: {plot_params[0].shape}, {plot_params[1].shape}")
-        # log.INFO(f"Plot params non zero: {np.count_nonzero(plot_params[0])}, {np.count_nonzero(plot_params[1])}")
-        # log.INFO(f"Mean: {plot_params[1].mean()}, std: {plot_params[1].std()}")
-        for i, param in enumerate(plot_params):
+        for i, param in enumerate(plot_weights):
             axs[j, i].hist(
-                    param,
-                    bins=bins,
-                    rwidth=0.8,
-                    color="orange",
-                    histtype="bar",
-                )
+                param,
+                bins=bins,
+                rwidth=0.8,
+                color="orange",
+                histtype="bar",
+            )
             axs[j, i].set_xlabel("Weight")
             axs[j, i].set_ylabel("Occurence")
             axs[j, i].title.set_text(f"Layer {i}")
@@ -453,7 +504,7 @@ def plt_weights_bin(fig, axs, params: List[Weight]):
 
 
 def plt_spike_time_bins(
-    axs: List[Axes], dataset: Dataset, t_spike: Array, tau_syn: ArrayLike
+    axs: List[plt.Axes], dataset: Dataset, t_spike: Array, tau_syn: float
 ):
     t_late = 2.0
     t_spike = np.where(t_spike == np.inf, t_late, t_spike / tau_syn)
@@ -463,7 +514,7 @@ def plt_spike_time_bins(
     n_epochs = t_spike.shape[0]
     colors = ("orange", "grey")
     title = ("Before training", "After 10 epochs", f"After {n_epochs} epochs")
-    label = ("Correct label neuron", "Wrong label neuron")
+    label = ("Correct Neuron", "Wrong Neuron")
     bins = (
         np.arange(0.4, 0.8, 0.02),
         np.arange(0.4, 1.6, 0.02),
@@ -477,7 +528,6 @@ def plt_spike_time_bins(
         not_truth = np.array([[1, 2], [0, 2], [0, 1]])[truth]
     else:
         raise AssertionError
-    
 
     for i, epoch in enumerate([0, min(9, n_epochs - 1), n_epochs - 1]):
         # plot two vertical lines
@@ -491,9 +541,13 @@ def plt_spike_time_bins(
 
         # but only take every second one for counts to match to correct class
         if dataset[1].shape[-1] == 3:
-            spike_times_wrong_class = spike_times[np.arange(n_samples)[:, None], not_truth][::2].flatten()
+            spike_times_wrong_class = spike_times[
+                np.arange(n_samples)[:, None], not_truth
+            ][::2].flatten()
         else:
-            spike_times_wrong_class = spike_times[np.arange(n_samples), not_truth]
+            spike_times_wrong_class = spike_times[
+                np.arange(n_samples), not_truth
+            ]
 
         combined = [spike_times_correct_class, spike_times_wrong_class]
         axs[i].hist(
@@ -506,6 +560,7 @@ def plt_spike_time_bins(
         )
         axs[i].set_xlabel(r"t $[\tau_s]$")
         axs[i].set_ylabel("Occurence")
+        axs[i].legend()
         # axs[i].set_xticks(np.linspace(0.4, 1.6, 4))
         axs[i].title.set_text(title[i])
 
@@ -513,24 +568,25 @@ def plt_spike_time_bins(
 def plt_and_save(
     folder,
     testset,
-    recording,
-    t_spike,
-    params_over_time,
-    loss,
-    acc,
+    testresult: TestResult,
+    weights_over_time,
     tau_syn: float,
     hidden_size: int,
     epochs: int,
     duplication: int = 1,
     duplicate_neurons: bool = False,
-    mock_hw: bool = False
+    mock_hw: bool = False,
 ):
     output_size = testset[1].shape[-1]
 
     # visualize single sample
-    fig, ax = plt.subplots(5, 1, figsize=(6, 15), sharex=True)
-    input_size = testset[0].time.shape[-1] / (1 if duplicate_neurons else duplication)
-    plt_spikes(ax, recording, (input_size, hidden_size, output_size), mock_hw)
+    fig, ax = plt.subplots(2, 2, figsize=(8, 8), sharex=True, sharey=True)
+    input_size = testset[0].time.shape[-1] / (
+        1 if duplicate_neurons else duplication
+    )
+    plt_spikes(
+        ax, recording, (input_size, hidden_size, output_size), mock_hw, tau_syn
+    )
     fig.tight_layout()
     fig.savefig(f"{folder}/test_sample.png", dpi=300)
 
@@ -553,8 +609,11 @@ def plt_and_save(
 
     # 2d spike times
     n_output: int = testset[1].shape[-1]
-    fig, ax1 = plt.subplots(1, n_output, figsize=(5 * n_output, 4))
-    plt_t_spike_neuron(fig, ax1, testset, t_spike, tau_syn, duplication, duplicate_neurons)
+    fig, ax1 = plt.subplots(1, n_output, figsize=(4 * (n_output + 0.2), 4))
+    plt_t_spike_neuron(
+        fig, ax1, testset, t_spike, tau_syn, duplication, duplicate_neurons
+    )
+    fig.tight_layout()
     fig.savefig(f"{folder}/spike_times.png", dpi=150)
 
     observe = None
@@ -567,8 +626,12 @@ def plt_and_save(
 
     # classification
     fig, axs = plt.subplots(1, 2, figsize=(7.5, 4))
-    plt_dataset(axs[0], testset, tau_syn, observe, duplication, duplicate_neurons)
-    plt_prediction(axs[1], testset, t_spike, tau_syn, duplication, duplicate_neurons)
+    plt_dataset(
+        axs[0], testset, tau_syn, observe, duplication, duplicate_neurons
+    )
+    plt_prediction(
+        axs[1], testset, t_spike, tau_syn, duplication, duplicate_neurons
+    )
     fig.tight_layout()
     fig.savefig(f"{folder}/classification.png", dpi=150)
 
@@ -588,6 +651,6 @@ def plt_and_save(
 
     # weights
     fig, axs = plt.subplots(2, 2, figsize=(7, 7))
-    # plt_weights(fig, axs, params_over_time)
-    plt_weights_bin(fig, axs, params_over_time)
+    # plt_weights(fig, axs, weights_over_time)
+    plt_weights_bin(fig, axs, weights_over_time)
     fig.savefig(f"{folder}/weight_bins.png", dpi=150)

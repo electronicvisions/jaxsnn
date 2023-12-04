@@ -1,17 +1,18 @@
+# pylint: disable=invalid-name
 from functools import partial
 
 import jax
 import jax.numpy as np
 
 
-def solve(f, initial_guess, dt):
+def solve(f, initial_guess, dt):  # pylint: disable=unused-argument
     """Newton's method for root-finding.
 
     Does not need to be differentiable"""
 
     initial_state = initial_guess
 
-    def body(x, it):
+    def body(x, it):  # pylint: disable=unused-argument
         fx, dfx = f(x), jax.grad(f)(x)
         step = fx / dfx
         return x - step, 0
