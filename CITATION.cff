@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+title: jaxsnn
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - name: Electronic Vision(s)
+    address: >-
+      European Institute for Neuromorphic Computing (KIP),
+      INF 225a
+    city: Heidelberg
+    post-code: '69120'
+  - family-names: Althaus
+    given-names: Moritz
+    affiliation: "Kirchhoff-Institut für Physik, Ruprecht-Karls-Universität Heidelberg"
+  - family-names: Pehle
+    given-names: Christian
+    affiliation: "Cold Spring Harbor Laboratory"
+  - family-names: Müller
+    given-names: Eric
+    affiliation: "Kirchhoff-Institut für Physik, Ruprecht-Karls-Universität Heidelberg"
+contact:
+  - affiliation: "Cold Spring Harbor Laboratory"
+    family-names: Pehle
+    given-names: Christian
+  - affiliation: "Kirchhoff-Institut für Physik, Ruprecht-Karls-Universität Heidelberg"
+    family-names: Müller
+    given-names: Eric
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.10254666
+    description: v0.1.0
+repository-code: 'https://github.com/electronicvisions/jaxsnn'
+abstract: >-
+  jaxsnn is an event-based approach to
+  machine-learning-inspired training and simulation of SNNs,
+  including support for neuromorphic backends
+  (BrainScaleS-2). We build upon jax, a Python library
+  providing autograd and XLA functionality for
+  high-performance machine learning research.
+keywords:
+  - spiking neural networks
+  - machine learning
+  - neuromorphic hardware
+license: LGPL-2.1-or-later
+version: 0.1.0
+date-released: '2023-12-04'
