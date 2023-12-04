@@ -124,6 +124,20 @@ If you want to work with the BSS-2 system, a working example is provided:
 python -m jaxsnn.event.tasks.hardware.yinyang
 ```
 
+The operation point calibration script is `src/pyjaxsnn/jaxsnn/event/hardware/calib/neuron_calib.py`.
+Example:
+
+```bash
+srun -p cube --wafer 69 --fpga-without-aout 0 --pty c python ./neuron_calib.py \
+	--wafer           W69F0 \
+	--threshold         150 \
+	--tau-syn          6e-6 \
+	--tau-mem         12e-6 \
+	--refractory-time 30e-6 \
+	--synapse-dac-bias 1000
+	--calib-dir src/pyjaxsnn/jaxsnn/event/hardware/calib
+```
+
 If you want to study the behaviour that different hardware artifacts (noise on the spike times) have on the performance of SNNs, check out this example:
 
 ```bash
