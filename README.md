@@ -9,6 +9,13 @@ We build upon [jax](https://github.com/google/jax), a Python library providing
 autograd and XLA functionality for high-performance machine learning research.
 
 
+## Installation
+
+We provide a pypi build of the software that lacks support for the
+BrainScaleS-2 neuromorphic hardware system. The usual `pip install jaxsnn`
+stuff should work, but YMMV.
+
+
 ## Building the Software
 
 The software builds upon existing libraries, such as
