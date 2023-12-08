@@ -1,7 +1,10 @@
+![/ˈdʒæksən/](doc/logo_256.png)
+
 # jaxsnn
 
-`jaxsnn` is an event-based approach to machine-learning-inspired training and
-simulation of SNNs, including support for neuromorphic backends (BrainScaleS-2).
+`jaxsnn` (pronounced like Jackson /ˈdʒæksən/) is an event-based approach to
+machine-learning-inspired training and simulation of SNNs, including support
+for neuromorphic backends (BrainScaleS-2).
 We build upon [jax](https://github.com/google/jax), a Python library providing
 autograd and XLA functionality for high-performance machine learning research.
 
