@@ -38,7 +38,6 @@ def build(bld):
         use=["hxtorch"],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
-        install_path="${PREFIX}/lib",
         install_from="src/pyjaxsnn",
     )
 
@@ -59,7 +58,7 @@ def build(bld):
         tests=bld.path.ant_glob("tests/sw/**/*.py"),
         features="use pytest",
         use=["jaxsnn"],
-        install_path="${PREFIX}/bin/tests/sw",
+        install_path="${PREFIX}/bin/tests/jaxsnn/sw",
     )
 
     bld(
