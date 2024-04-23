@@ -38,16 +38,14 @@ def build(bld):
         use=["hxtorch"],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
-        install_path="${PREFIX}/lib",
         install_from="src/pyjaxsnn",
     )
 
     bld(
         target="jaxsnn_linting",
-        features="py use pylint pycodestyle",
+        features="use pylint pycodestyle",
         use=["hxtorch", "_hxtorch_core"],
-        relative_trick=True,
-        source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
+        tests=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         pylint_config=os.path.join(
             get_toplevel_path(), "code-format", "pylintrc"),
         pycodestyle_config=os.path.join(
@@ -60,7 +58,7 @@ def build(bld):
         tests=bld.path.ant_glob("tests/sw/**/*.py"),
         features="use pytest",
         use=["jaxsnn"],
-        install_path="${PREFIX}/bin/tests/sw",
+        install_path="${PREFIX}/bin/tests/jaxsnn/sw",
     )
 
     bld(
