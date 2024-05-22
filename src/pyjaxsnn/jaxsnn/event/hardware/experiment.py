@@ -221,7 +221,7 @@ class Experiment:
         self,
         network_graph: grenade.network.NetworkGraph,
         inputs: Spike,
-    ) -> grenade.signal_flow.IODataMap:
+    ) -> grenade.signal_flow.InputData:
         """
         Generate external input events from the routed network graph
         representation.
@@ -230,7 +230,7 @@ class Experiment:
             self.execution_instance].event_input_vertex is not None
         if network_graph.graph_translation.execution_instances[
                 self.execution_instance].event_input_vertex is None:
-            return grenade.signal_flow.IODataMap()
+            return grenade.signal_flow.InputData()
 
         self._batch_size = inputs.time.shape[0]
         input_generator = grenade.network.InputGenerator(
@@ -249,7 +249,7 @@ class Experiment:
     def _get_population_observables(
         self,
         network_graph: grenade.network.NetworkGraph,
-        result_map: grenade.signal_flow.IODataMap,
+        result_map: grenade.signal_flow.OutputData,
         runtime,
         n_spikes: List[int],
     ) -> HardwareSpike:
@@ -350,7 +350,7 @@ class Experiment:
             self._chip,
             network,
             inputs,
-            grenade.signal_flow.ExecutionInstancePlaybackHooks()
+            grenade.signal_flow.ExecutionInstanceHooks()
         )
         time_grenade_run = time.time() - grenade_start
         start_get_observables = time.time()

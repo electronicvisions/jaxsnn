@@ -52,6 +52,7 @@ def build(bld):
             get_toplevel_path(), "code-format", "pylintrc"),
         pycodestyle_config=os.path.join(
             get_toplevel_path(), "code-format", "pycodestyle"),
+        timeout=60,
     )
 
     bld(
