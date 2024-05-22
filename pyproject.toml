@@ -16,8 +16,9 @@ classifiers = [
 dependencies = [
   "jax==0.4.13; python_version=='3.8'",
   "jaxlib==0.4.13; python_version=='3.8'",
-  "jax>=0.4.13; python_version>'3.8'",
-  "jaxlib>=0.4.13; python_version>'3.8'",
+  "jax>=0.4.13,<=0.4.23; python_version>'3.8'",
+  "jaxlib>=0.4.13,<=0.4.23; python_version>'3.8'",
+  "scipy<1.13; python_version>'3.8'",
   "optax>=0.1.4",
   "tree-math>0.1.0",
   "matplotlib",
