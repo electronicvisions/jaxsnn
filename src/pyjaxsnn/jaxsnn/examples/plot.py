@@ -585,15 +585,15 @@ def plt_and_save(
         1 if duplicate_neurons else duplication
     )
     plt_spikes(
-        ax, recording, (input_size, hidden_size, output_size), mock_hw, tau_syn
+        ax, testresult.recording, (input_size, hidden_size, output_size), mock_hw, tau_syn
     )
     fig.tight_layout()
     fig.savefig(f"{folder}/test_sample.png", dpi=300)
 
     # loss and accuracy
     fig, ax1 = plt.subplots(2, 1, figsize=(6, 10), sharex=True)
-    plt_loss(ax1[0], loss)
-    plt_accuracy(ax1[1], acc)
+    plt_loss(ax1[0], testresult.loss)
+    plt_accuracy(ax1[1], testresult.accuracy)
     fig.tight_layout()
     plt.xlabel("Epoch")
     fig.subplots_adjust(bottom=0.15)
@@ -601,7 +601,7 @@ def plt_and_save(
 
     # prob spike
     fig, ax1 = plt.subplots(output_size, 1, figsize=(6, 10), sharex=True)
-    plt_no_spike_prob(ax1, t_spike, testset)
+    plt_no_spike_prob(ax1, testresult.t_first_spike, testset)
     fig.tight_layout()
     plt.xlabel("Epoch")
     fig.subplots_adjust(bottom=0.15)
@@ -611,7 +611,7 @@ def plt_and_save(
     n_output: int = testset[1].shape[-1]
     fig, ax1 = plt.subplots(1, n_output, figsize=(4 * (n_output + 0.2), 4))
     plt_t_spike_neuron(
-        fig, ax1, testset, t_spike, tau_syn, duplication, duplicate_neurons
+        fig, ax1, testset, testresult.t_first_spike, tau_syn, duplication, duplicate_neurons
     )
     fig.tight_layout()
     fig.savefig(f"{folder}/spike_times.png", dpi=150)
@@ -630,22 +630,22 @@ def plt_and_save(
         axs[0], testset, tau_syn, observe, duplication, duplicate_neurons
     )
     plt_prediction(
-        axs[1], testset, t_spike, tau_syn, duplication, duplicate_neurons
+        axs[1], testset, testresult.t_first_spike, tau_syn, duplication, duplicate_neurons
     )
     fig.tight_layout()
     fig.savefig(f"{folder}/classification.png", dpi=150)
 
     # spike time bins
     fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-    plt_spike_time_bins(axs, testset, t_spike, tau_syn)
+    plt_spike_time_bins(axs, testset, testresult.t_first_spike, tau_syn)
     fig.tight_layout()
     fig.savefig(f"{folder}/spike_time_bins.png", dpi=150)
 
-    if recording is not None:
+    if testresult.recording is not None:
         # spikes per neuron
         fig, axs = plt.subplots(output_size + 1, 1, figsize=(7, 7))
         plt_spikes_per_neuron(
-            fig, axs, recording, testset, hidden_size, output_size, epochs
+            fig, axs, testresult.recording, testset, hidden_size, output_size, epochs
         )
         fig.savefig(f"{folder}/spikes_per_neuron.png", dpi=150)
 
