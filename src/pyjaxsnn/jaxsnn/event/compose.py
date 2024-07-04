@@ -18,8 +18,7 @@ def serial(*layers: SingleInitApply) -> InitApply:
     Returns:
         InitApply: Init/apply pair
     """
-    init_fns = [layer[0] for layer in layers]
-    apply_fns = [layer[1] for layer in layers]
+    init_fns, apply_fns = zip(*layers)
 
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
