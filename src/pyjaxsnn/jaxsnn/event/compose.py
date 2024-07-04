@@ -23,12 +23,12 @@ def serial(*layers: SingleInitApply) -> InitApply:
     def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
         weights = []
-        for init_fn in init_fns:
+        for layer_init_fn in init_fns:
             if len(init_fns) > 1:
                 rng, layer_rng = jax.random.split(rng)
             else:
                 layer_rng = rng
-            input_shape, param = init_fn(layer_rng, input_shape)
+            input_shape, param = layer_init_fn(layer_rng, input_shape)
             weights.append(param)
         return weights
 
