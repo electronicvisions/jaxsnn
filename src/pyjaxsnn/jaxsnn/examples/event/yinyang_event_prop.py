@@ -1,13 +1,13 @@
 # pylint: disable=logging-not-lazy,logging-fstring-interpolation
 import datetime as dt
 import json
-import logging
 from functools import partial
 from pathlib import Path
 
 import jax.numpy as np
 import optax
 from jax import random
+import jaxsnn
 from jaxsnn.event import custom_lax
 from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset as dataset
@@ -23,7 +23,8 @@ from jaxsnn.event.types import OptState
 from jaxsnn.event.utils import save_weights as save_weights_fn
 from jaxsnn.examples.plot import plt_and_save
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.examples.event.yinyang_event_prop")
 
 
 def train(  # pylint: disable=too-many-locals

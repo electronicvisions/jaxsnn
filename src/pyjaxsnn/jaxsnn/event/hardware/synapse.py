@@ -2,7 +2,6 @@
 """
 Implementing SNN modules
 """
-import logging
 from typing import Tuple
 
 import _hxtorch_core
@@ -10,10 +9,12 @@ import jax
 import jax.numpy as np
 import numpy as onp
 import pygrenade_vx.network as grenade
+import jaxsnn
 from jaxsnn.event.hardware import utils
 from jaxsnn.event.hardware.module import Module
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.event.hardware.synapse")
 
 
 class Synapse(Module):

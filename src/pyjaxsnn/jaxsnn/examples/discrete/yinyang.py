@@ -1,5 +1,4 @@
 import datetime as dt
-import logging
 import time
 from functools import partial
 
@@ -7,11 +6,13 @@ import jax
 import optax
 from jax import numpy as np
 from jax import random
+import jaxsnn
 from jaxsnn import discrete
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.discrete.dataset.yinyang import YinYangDataset, data_loader
 
-log = logging.getLogger(__name__)
+
+log = jaxsnn.get_logger("jaxsnn.examples.discrete.yinyang")
 
 
 def train_step(optimizer, state, batch, loss_fn):

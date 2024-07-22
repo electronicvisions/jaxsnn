@@ -1,4 +1,3 @@
-import logging
 from typing import Callable, List, Tuple
 
 import jax
@@ -14,8 +13,6 @@ from jaxsnn.event.types import (
     TestResult,
     Weight,
 )
-
-log = logging.getLogger(__name__)
 
 
 def max_over_time(output: LIFState) -> jax.Array:

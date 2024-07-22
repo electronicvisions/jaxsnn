@@ -1,11 +1,8 @@
 """Implement functionality of lax for easier debugging"""
-import logging
 from typing import Callable, Optional
 
 import jax
 from jax.tree_util import tree_flatten, tree_map, tree_unflatten
-
-log = logging.getLogger("root")
 
 
 def scan(

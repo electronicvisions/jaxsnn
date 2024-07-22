@@ -10,7 +10,6 @@ can be emitted.
 
 import datetime as dt
 import json
-import logging
 import time
 from functools import partial
 from pathlib import Path
@@ -21,6 +20,7 @@ import jax
 import jax.numpy as np
 import optax
 from jax import random
+import jaxsnn
 from jaxsnn.event import custom_lax
 from jaxsnn.event.compose import serial_spikes_known
 from jaxsnn.event.dataset import yinyang_dataset
@@ -43,7 +43,8 @@ from jaxsnn.event.loss import (
 from jaxsnn.event.types import Spike, Weight
 from jaxsnn.examples.plot import plt_and_save
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.examples.event.hardware.yinyang")
 
 # select one of multiple saved wafer configs
 wafer_config = W_69_F0_LONG_REFRAC

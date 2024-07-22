@@ -2,17 +2,18 @@
 """
 Implementing SNN modules
 """
-import logging
 from typing import List, Optional
 
 import numpy as np
 import pygrenade_vx.network as grenade
 from dlens_vx_v3 import hal, halco, lola
 from hxtorch.spiking.morphology import SingleCompartmentNeuron
+import jaxsnn
 from jaxsnn.event.hardware.module import Module
 from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.event.hardware.neuron")
 
 
 class Neuron(Module):

@@ -1,5 +1,4 @@
 # pylint: disable=invalid-name,logging-not-lazy,logging-fstring-interpolation
-import logging
 from functools import partial
 from typing import List, Optional
 
@@ -7,9 +6,11 @@ import jax
 import jax.numpy as np
 import numpy as onp
 from jax import random
+import jaxsnn
 from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
 
-log = logging.getLogger(__name__)
+
+log = jaxsnn.get_logger("jaxsnn.event.hardware.utils")
 
 
 def spike_to_grenade_input(spike: Spike, input_neurons: int):

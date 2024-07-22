@@ -1,17 +1,18 @@
 # pylint: disable=logging-fstring-interpolation
-import logging
 from typing import Callable, Tuple
 
 import jax
 import jax.numpy as np
 import optax
+import jaxsnn
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.dataset import Dataset
 from jaxsnn.event.loss import loss_and_acc
 from jaxsnn.event.types import LossFn, OptState, Spike
 from jaxsnn.event.utils import time_it
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.event.training")
 
 
 def update(

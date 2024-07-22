@@ -1,14 +1,14 @@
 # pylint: disable=logging-not-lazy,logging-fstring-interpolation
-import logging
-
 import _hxtorch_core
 import numpy as onp
 import pygrenade_vx.network as grenade
+import jaxsnn
 from jaxsnn.event.hardware.module import Module
 from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
 from jaxsnn.event.types import Spike
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.event.hardware.input_neuron")
 
 
 class InputNeuron(Module):

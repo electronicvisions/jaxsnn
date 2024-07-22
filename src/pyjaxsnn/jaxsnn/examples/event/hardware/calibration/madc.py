@@ -3,13 +3,13 @@ spikes in software against the measured MADC trace. This can be used
 to find the proper weight scaling and cycle offset factor.
 """
 import datetime as dt
-import logging
 
 import hxtorch
 import jax.numpy as np
 import matplotlib.pyplot as plt
 import numpy as onp
 from dlens_vx_v3 import hal
+import jaxsnn
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
@@ -22,7 +22,8 @@ from jaxsnn.event.hardware.utils import (
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.types import EventPropSpike, Spike, WeightInput
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.examples.event.hardware.calibration.madc")
 
 wafer_config = W_69_F0_LONG_REFRAC
 cycles_per_us = int(hal.Timer.Value.fpga_clock_cycles_per_us)

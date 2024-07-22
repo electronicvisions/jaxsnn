@@ -3,7 +3,6 @@
 """
 Defining basic types to create hw-executable instances
 """
-import logging
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -16,6 +15,7 @@ import pygrenade_vx as grenade
 from dlens_vx_v3 import hal, lola
 from hxtorch.spiking.neuron_placement import NeuronPlacement
 from hxtorch.spiking.utils import calib_helper
+import jaxsnn
 from jaxsnn.base.types import Array
 from jaxsnn.event.hardware.calib import WaferConfig
 from jaxsnn.event.hardware.input_neuron import InputNeuron
@@ -23,7 +23,9 @@ from jaxsnn.event.hardware.neuron import Neuron
 from jaxsnn.event.hardware.synapse import Synapse
 from jaxsnn.event.types import Spike, Weight
 
-log = logging.getLogger("root")
+
+log = jaxsnn.get_logger("jaxsnn.event.hardware.experiment")
+
 
 HardwareSpike = Dict[
     grenade.network.PopulationOnNetwork, Tuple[Array, Array]

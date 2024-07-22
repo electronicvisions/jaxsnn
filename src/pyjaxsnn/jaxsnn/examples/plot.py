@@ -1,16 +1,17 @@
 # pylint: disable=invalid-name,line-too-long,too-many-arguments,too-many-locals,unsubscriptable-object,unused-argument,undefined-variable
-import logging
 from typing import List, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import jaxsnn
 from jaxsnn.base.types import Array
 from jaxsnn.event.dataset.utils import Dataset
 from jaxsnn.event.hardware.utils import filter_spikes
 from jaxsnn.event.types import Spike, TestResult, Weight, WeightRecurrent
 
-log = logging.getLogger(__name__)
+
+log = jaxsnn.get_logger("jaxsnn.examples.plot")
 
 blue = np.array([[47, 66, 87, 210]]) / 256
 red = np.array([[103, 43, 40, 210]]) / 256
