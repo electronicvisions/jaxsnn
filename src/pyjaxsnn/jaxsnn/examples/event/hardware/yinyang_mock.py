@@ -44,9 +44,9 @@ from jaxsnn.event.loss import (
     loss_wrapper_known_spikes,
     mse_loss,
 )
-from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.types import Spike, Weight
 from jaxsnn.event.utils import load_weights_recurrent, save_weights_recurrent
+from jaxsnn.examples.plot import plt_and_save
 
 log = logging.getLogger("root")
 

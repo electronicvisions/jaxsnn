@@ -18,10 +18,10 @@ from jaxsnn.event.leaky_integrate_and_fire import (
     RecurrentEventPropLIF,
 )
 from jaxsnn.event.loss import loss_wrapper, mse_loss
-from jaxsnn.event.plot import plt_and_save
 from jaxsnn.event.training import epoch, update
 from jaxsnn.event.types import OptState
 from jaxsnn.event.utils import save_weights as save_weights_fn
+from jaxsnn.examples.plot import plt_and_save
 
 log = logging.getLogger("root")
 
