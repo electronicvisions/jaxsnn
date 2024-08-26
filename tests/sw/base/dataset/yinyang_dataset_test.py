@@ -1,5 +1,5 @@
 from jax import random
-from jaxsnn.event.dataset import yinyang_dataset
+from jaxsnn.base.dataset import yinyang_dataset
 import unittest
 
 

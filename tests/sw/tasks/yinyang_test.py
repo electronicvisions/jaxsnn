@@ -10,7 +10,7 @@ from jaxsnn.discrete.leaky_integrate_and_fire import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.dataset import yinyang_dataset, data_loader
+from jaxsnn.base.dataset import yinyang_dataset, data_loader
 from jaxsnn.discrete.loss import acc_and_loss, nll_loss
 from jaxsnn.discrete.threshold import superspike
 import unittest

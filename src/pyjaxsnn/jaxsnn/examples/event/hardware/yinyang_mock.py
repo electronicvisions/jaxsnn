@@ -18,8 +18,8 @@ import optax
 from jax import random
 import jaxsnn
 from jaxsnn.base.compose import serial
+from jaxsnn.base.dataset import yinyang_dataset, data_loader
 from jaxsnn.event import custom_lax
-from jaxsnn.event.dataset import yinyang_dataset, data_loader
 from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment

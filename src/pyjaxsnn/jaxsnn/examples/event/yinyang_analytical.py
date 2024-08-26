@@ -10,7 +10,7 @@ import optax
 from jax import random
 import jaxsnn
 from jaxsnn.base.compose import serial
-from jaxsnn.event.dataset import yinyang_dataset
+from jaxsnn.base.dataset import yinyang_dataset
 from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
 from jaxsnn.event import custom_lax
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters

@@ -6,7 +6,7 @@ import jax.numpy as np
 import optax
 import jaxsnn
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.dataset import data_loader
+from jaxsnn.base.dataset import data_loader
 from jaxsnn.event.loss import loss_and_acc
 from jaxsnn.event.types import LossFn, OptState, Spike
 from jaxsnn.event.utils import time_it

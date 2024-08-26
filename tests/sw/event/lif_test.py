@@ -6,7 +6,7 @@ import jax.numpy as np
 import optax
 from jax import random
 from jaxsnn.base.compose import serial
-from jaxsnn.event.dataset import yinyang_dataset
+from jaxsnn.base.dataset import yinyang_dataset
 from jaxsnn.event.leaky_integrate_and_fire import (
     LIF,
     LIFParameters,
@@ -238,7 +238,7 @@ def main():
     loss_1, acc_1, _, _ = loss_and_acc(loss_fn_1, state_1[1], trainset[:2])
     loss_2, acc_2, _, _ = loss_and_acc(loss_fn_2, state_2[1], trainset[:2])
     loss_3, acc_3, _, _ = loss_and_acc(loss_fn_3, state_3[1], trainset[:2])
-
+    
     # define new dataset with batch dimension
     trainset = yinyang_dataset(
         random.PRNGKey(42),
@@ -249,7 +249,6 @@ def main():
         t_correct_target=t_correct_target,
         t_wrong_target=t_wrong_target,
     )
-
     testset = yinyang_dataset(
         random.PRNGKey(1),
         [n_test_batches, batch_size],
@@ -259,12 +258,10 @@ def main():
         t_correct_target=t_correct_target,
         t_wrong_target=t_wrong_target,
     )
-
     # now add batching
     batch_loss_fn_1 = batch_wrapper(loss_fn_1)
     batch_loss_fn_2 = batch_wrapper(loss_fn_2)
     batch_loss_fn_3 = batch_wrapper(loss_fn_3)
-
     # try on one sample
     sample = (
         EventPropSpike(
@@ -275,32 +272,26 @@ def main():
     res_1, _ = batch_loss_fn_1(weights_1, sample)
     res_2, _ = batch_loss_fn_2(weights_2, sample)
     res_3, _ = batch_loss_fn_3(weights_3, sample)
-
     batch_update_fn_1 = partial(update, batch_loss_fn_1)
     batch_update_fn_2 = partial(update, batch_loss_fn_2)
     batch_update_fn_3 = partial(update, batch_loss_fn_3)
-
     # set up weights
     weights_1 = init_fn_1(rng, input_size)
     weights_2 = init_fn_2(rng, input_size)
     weights_3 = init_fn_3(rng, input_size)
-
     # set up optimizer
     opt_state_1 = optimizer.init(weights_1)
     opt_state_2 = optimizer.init(weights_2)
     opt_state_3 = optimizer.init(weights_3)
-
     # define initial state
     state_1 = (opt_state_1, weights_1)
     state_2 = (opt_state_2, weights_2)
     state_3 = (opt_state_3, weights_3)
-
     for i in range(5):
         start = time.time()
         state_1, _ = jax.lax.scan(batch_update_fn_1, state_1, trainset[:2])
         state_2, _ = jax.lax.scan(batch_update_fn_2, state_2, trainset[:2])
         state_3, _ = jax.lax.scan(batch_update_fn_3, state_3, trainset[:2])
-
     loss_1, acc_1, _, _ = loss_and_acc(
         batch_loss_fn_1, state_1[1], testset[:2]
     )

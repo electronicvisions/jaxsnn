@@ -1,4 +1,4 @@
-from jaxsnn.event.dataset import constant_dataset
+from jaxsnn.base.dataset import constant_dataset
 import unittest
 
 
