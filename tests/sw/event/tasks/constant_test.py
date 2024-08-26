@@ -2,13 +2,14 @@ from functools import partial
 from typing import Callable, List, Tuple
 
 import jax
+import jax.numpy as np
 from jax import random
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
-from jaxsnn.event.dataset import constant_dataset
+from jaxsnn.event.dataset import constant_dataset, data_loader
 from jaxsnn.event.leaky_integrate_and_fire import LIF
 from jaxsnn.event.loss import loss_wrapper, target_time_loss
-from jaxsnn.event.types import Spike, Weight
+from jaxsnn.event.types import Spike, Weight, EventPropSpike
 import unittest
 
 
@@ -68,8 +69,25 @@ class TestEventTasksContant(unittest.TestCase):
         update_fn = partial(self.update, loss_fn)
 
         # train the net
-        trainset = constant_dataset(t_max, [n_epochs, 1])
-        weights, (loss_value, _) = jax.lax.scan(update_fn, weights, trainset[:2])
+        trainset = constant_dataset(t_max, n_epochs)
+
+        # Create Spikes from input
+        spike_idx = np.array([0, 1, 0])
+        input_spikes = EventPropSpike(
+            trainset[0],
+            np.tile(spike_idx, (n_epochs, 1)),
+            np.zeros_like(trainset[0], dtype=trainset[0].dtype)
+        )
+        trainset_encoded = (input_spikes, trainset[1])
+        trainset_batched = data_loader(trainset_encoded, n_epochs)
+
+
+        weights, (loss_value, _) = jax.lax.scan(
+            update_fn,
+            weights,
+            trainset_batched
+        )
+
         assert loss_value[-1] <= -0.4, loss_value
 
 

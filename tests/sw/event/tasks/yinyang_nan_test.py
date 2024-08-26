@@ -3,7 +3,8 @@ import jax.numpy as np
 from jax import random
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
-from jaxsnn.event.dataset.yinyang import yinyang_dataset
+from jaxsnn.event.dataset import yinyang_dataset, data_loader
+from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
 from jaxsnn.event.leaky_integrate_and_fire import LIF
 from jaxsnn.event.types import EventPropSpike
 from jaxsnn.event.utils import load_weights
@@ -21,7 +22,7 @@ class TestEventTasksYinYangNan(unittest.TestCase):
         train_samples = 6400
         batch_size = 16
         n_train_batches = int(train_samples / batch_size)
-        t_bias = 0.0
+        bias_spike = 0.0
 
         # net
         hidden_size = 60
@@ -31,13 +32,41 @@ class TestEventTasksYinYangNan(unittest.TestCase):
 
         rng = random.PRNGKey(seed)
         param_rng, train_rng, test_rng = random.split(rng, 3)
-        trainset = yinyang_dataset(
-            train_rng,
-            [n_train_batches, batch_size],
+
+        trainset = yinyang_dataset(train_rng, train_samples, True, bias_spike)
+
+        # Encoding
+        correct_target_time = 0.9 * params.tau_syn
+        wrong_target_time = 1.1 * params.tau_syn
+        n_classes = 3
+        target_encoding_params = [
+            correct_target_time,
+            wrong_target_time,
+            n_classes
+        ]
+
+        input_encoder_batched = jax.vmap(
+            spatio_temporal_encode,
+            in_axes=(0, None, None, None)
+        )
+        target_encoder_batched = jax.vmap(
+            target_temporal_encode,
+            in_axes=(0, None, None, None)
+        )
+
+        train_input_encoded = input_encoder_batched(
+            trainset[0],
             t_late,
-            t_bias=t_bias,
-            t_correct_target=0.9 * t_late,
-            t_wrong_target=1.5 * t_late,
+            None,
+            False
+        )
+        train_targets_encoded = target_encoder_batched(
+            trainset[1],
+            *target_encoding_params,
+        )
+
+        trainset = data_loader(
+            (train_input_encoded, train_targets_encoded), 64
         )
 
         bad_idx = 79

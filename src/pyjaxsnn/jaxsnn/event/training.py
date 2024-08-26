@@ -6,7 +6,7 @@ import jax.numpy as np
 import optax
 import jaxsnn
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.dataset import Dataset
+from jaxsnn.event.dataset import data_loader
 from jaxsnn.event.loss import loss_and_acc
 from jaxsnn.event.types import LossFn, OptState, Spike
 from jaxsnn.event.utils import time_it
@@ -35,15 +35,23 @@ def update(
 def epoch(
     update_fn: Callable,
     loss_fn: LossFn,
-    trainset: Dataset,
-    testset: Dataset,
+    trainset,
+    testset,
     opt_state: OptState,
     i: int,
 ):  # pylint: disable=too-many-arguments
-    res, duration = time_it(jax.lax.scan, update_fn, opt_state, trainset[:2])
+    rng = jax.random.PRNGKey(i)
+    trainset_batched = data_loader(trainset, 64, rng)
+    res, duration = time_it(
+        jax.lax.scan,
+        update_fn,
+        opt_state,
+        trainset_batched
+    )
     opt_state, (recording, grad) = res
 
-    test_result = loss_and_acc(loss_fn, opt_state.weights, testset[:2])
+    testset_batched = data_loader(testset, 64)
+    test_result = loss_and_acc(loss_fn, opt_state.weights, testset_batched)
     log.info(
         f"Epoch {i}, "
         f"loss: {test_result[0]:.4f}, "

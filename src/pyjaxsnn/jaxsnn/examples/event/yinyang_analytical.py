@@ -10,9 +10,9 @@ import optax
 from jax import random
 import jaxsnn
 from jaxsnn.base.compose import serial
+from jaxsnn.event.dataset import yinyang_dataset
+from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
 from jaxsnn.event import custom_lax
-from jaxsnn.event.dataset import yinyang_dataset as dataset
-from jaxsnn.event.dataset.yinyang import good_params
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.loss import loss_wrapper, mse_loss
 from jaxsnn.event.training import epoch, update
@@ -24,7 +24,7 @@ from jaxsnn.examples.plot import plt_and_save
 log = jaxsnn.get_logger("jaxsnn.examples.event.yinyang_analytical")
 
 
-def train(  # pylint: disable=too-many-locals
+def train(  # pylint: disable=too-many-locals, too-many-statements
     seed: int,
     folder: str,
     plot: bool = True,
@@ -36,12 +36,13 @@ def train(  # pylint: disable=too-many-locals
     # training params
     step_size = 5e-3
     lr_decay = 0.99
-    train_samples = 5_000
-    test_samples = 3_000
+    # 4992 train_samples and 2944 test_samples
     batch_size = 64
+    n_train_batches = 78
+    n_test_batches = 46
+    train_samples = batch_size * n_train_batches
+    test_samples = batch_size * n_test_batches
     epochs = 50
-    n_train_batches = int(train_samples / batch_size)
-    n_test_batches = int(test_samples / batch_size)
     t_max = 4.0 * params.tau_syn
 
     # net
@@ -55,12 +56,57 @@ def train(  # pylint: disable=too-many-locals
 
     # define trainset and testset
     rng = random.PRNGKey(seed)
-    yinyang_params = good_params(params)
     param_rng, train_rng, test_rng = random.split(rng, 3)
-    trainset = dataset(
-        train_rng, [n_train_batches, batch_size], **yinyang_params
+
+    trainset = yinyang_dataset(train_rng, train_samples, True, 0.0)
+    testset = yinyang_dataset(test_rng, test_samples, True, 0.0)
+
+    # Encoding
+    t_late = 2.0 * params.tau_syn
+    correct_target_time = 0.9 * params.tau_syn
+    wrong_target_time = 1.1 * params.tau_syn
+    n_classes = 3
+    target_encoding_params = [
+        correct_target_time,
+        wrong_target_time,
+        n_classes
+    ]
+
+    input_encoder_batched = jax.vmap(
+        spatio_temporal_encode,
+        in_axes=(0, None, None, None)
     )
-    testset = dataset(test_rng, [n_test_batches, batch_size], **yinyang_params)
+    target_encoder_batched = jax.vmap(
+        target_temporal_encode,
+        in_axes=(0, None, None, None)
+    )
+
+    train_input_encoded = input_encoder_batched(
+        trainset[0],
+        t_late,
+        None,
+        False
+    )
+    train_targets_encoded = target_encoder_batched(
+        trainset[1],
+        *target_encoding_params,
+    )
+
+    test_input_encoded = input_encoder_batched(
+        testset[0],
+        2.0 * params.tau_syn,
+        None,
+        False
+    )
+    test_targets_encoded = target_encoder_batched(
+        testset[1],
+        correct_target_time,
+        wrong_target_time,
+        n_classes,
+    )
+
+    trainset = (train_input_encoded, train_targets_encoded)
+    testset = (test_input_encoded, test_targets_encoded)
 
     # define net
     weight_mean = [3.0, 0.5]
@@ -137,7 +183,8 @@ def train(  # pylint: disable=too-many-locals
     )
     experiment = {
         **params.as_dict(),
-        **yinyang_params,
+        "correct_target_time": correct_target_time,
+        "wrong_target_time": wrong_target_time,
         "max_accuracy": max_acc,
         "seed": seed,
         "epochs": epochs,

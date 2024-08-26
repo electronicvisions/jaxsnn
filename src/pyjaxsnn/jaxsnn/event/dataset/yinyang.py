@@ -1,110 +1,71 @@
-from typing import Dict, List, Optional
+from typing import Optional, Tuple
 
 import jax
 import jax.numpy as np
 from jax import random
-from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.dataset.yinyang import get_class_batched
-from jaxsnn.event.dataset.utils import Dataset, add_current
-from jaxsnn.event.types import Spike
 
 
-def good_params(params: LIFParameters) -> Dict:
-    return {
-        "mirror": True,
-        "t_bias": 0.0,
-        "t_correct_target": 0.9 * params.tau_syn,
-        "t_wrong_target": 1.1 * params.tau_syn,
-        "t_late": 2.0 * params.tau_syn,
-    }
+def outside_circle(x_coord: float, y_coord: float, r_big) -> bool:
+    return np.sqrt((x_coord - r_big) ** 2 + (y_coord - r_big) ** 2) >= r_big
 
 
-def good_params_for_hw(params: LIFParameters) -> Dict:
-    return {
-        "mirror": True,
-        "t_bias": 0.0,
-        "t_correct_target": 0.9 * params.tau_syn,
-        "t_wrong_target": 1.1 * params.tau_syn,
-        "t_late": 2.0 * params.tau_syn,
-        "duplication": 5,
-        "duplicate_neurons": True,
-    }
+def dist_to_right_dot(x_coord: int, y_coord: int, r_big) -> float:
+    return np.sqrt((x_coord - 1.5 * r_big) ** 2 + (y_coord - r_big) ** 2)
 
 
-def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
-    rng: jax.Array,
-    shape: List[int],
-    t_late: float,
-    t_correct_target: float,
-    t_wrong_target: float,
-    mirror: bool = True,
-    t_bias: Optional[float] = 0.0,
-    duplication: Optional[int] = None,
-    duplicate_neurons: bool = False,
-) -> Dataset:
-    '''
-    Instantiate the YinYang dataset for a SNN. This dataset provides data
-    points on a 2-dimensional plane within a yin-yang sign. The data points are
-    encoded into spike times. Each data point is assigned to one of three
-    classes: The eyes, the yin or the yang.
-    All time parameters are expected to be in the same unit, e.g. seconds.
-    '''
+def dist_to_left_dot(x_coord: int, y_coord: int, r_big) -> float:
+    return np.sqrt((x_coord - 0.5 * r_big) ** 2 + (y_coord - r_big) ** 2)
+
+
+def get_class(coords, r_big: float, r_small: float):
+    # equations inspired by
+    # https://link.springer.com/content/pdf/10.1007/11564126_19.pdf
+    # outside of circle is a different class
+    x_coord, y_coord = coords
+    d_right = dist_to_right_dot(x_coord, y_coord, r_big)
+    d_left = dist_to_left_dot(x_coord, y_coord, r_big)
+    criterion1 = d_right <= r_small
+    criterion2 = np.logical_and(d_left > r_small, d_left <= 0.5 * r_big)
+    criterion3 = np.logical_and(y_coord > r_big, d_right > 0.5 * r_big)
+    is_yin = np.logical_or(np.logical_or(criterion1, criterion2), criterion3)
+    is_circles = np.logical_or(d_right < r_small, d_left < r_small)
+    return (
+        is_circles.astype(int) * 2
+        + np.invert(is_circles).astype(int) * is_yin.astype(int)
+        + outside_circle(x_coord, y_coord, r_big) * 10
+    )
+
+
+def yinyang_dataset(
+    rng: random.KeyArray,
+    size: int,
+    mirror: bool,
+    bias_spike: Optional[float],
+) -> Tuple[jax.Array, jax.Array]:
     rng, subkey = random.split(rng)
     r_big = 0.5
     r_small = 0.1
-    size = np.prod(np.array(shape))
-    max_val = 2 * r_big
 
-    encoding = np.array(
-        [
-            [t_correct_target, t_wrong_target, t_wrong_target],
-            [t_wrong_target, t_correct_target, t_wrong_target],
-            [t_wrong_target, t_wrong_target, t_correct_target],
-        ]
-    )
+    # On average around 7 tries needed for one sample
+    coords = random.uniform(rng, (size * 10 + 100, 2)) * 2.0 * r_big
+    get_class_batched = jax.vmap(get_class, in_axes=(0, None, None))
+    classes = get_class_batched(coords, r_big, r_small)
 
-    inputs = random.uniform(rng, (size * 10 + 100, 2)) * 2.0 * r_big
-    which_class = get_class_batched(inputs, r_big, r_small)
-
+    # Evenly distribute classes
     n_per_class = [size // 3, size // 3, size - 2 * (size // 3)]
     idx = np.concatenate(
-        [np.where(which_class == i)[0][:n] for i, n in enumerate(n_per_class)]
+        [np.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)]
     )
+
     idx = random.permutation(subkey, idx, axis=0)
-    inputs = inputs[idx]
-    which_class = which_class[idx]
-    target = encoding[which_class]
+    coords = coords[idx]
+    classes = classes[idx]
 
-    spike_idx = np.array([0, 1])
     if mirror:
-        spike_idx = np.concatenate((spike_idx, np.array([2, 3])))
-        inputs = np.hstack((inputs, max_val - inputs))
+        coords = np.hstack((coords, 1 - coords))
 
-    if t_bias is not None:
-        spike_idx = np.concatenate((spike_idx, np.array([spike_idx[-1] + 1])))
-        column = np.full(size, t_bias / t_late)[:, None]
-        inputs = np.hstack((inputs, column))
+    if bias_spike is not None:
+        bias = np.full((len(coords), 1), bias_spike)
+        coords = np.hstack((coords, bias))
 
-    if duplication is not None:
-        inputs = np.repeat(inputs, duplication, axis=-1)
-        if duplicate_neurons:
-            # duplicate over multiple neurons
-            spike_idx = np.arange(spike_idx.shape[0] * duplication)
-        else:
-            spike_idx = np.repeat(spike_idx, duplication, axis=-1)
-
-    spike_idx = np.tile(spike_idx, (np.prod(np.array(shape)), 1))
-    assert spike_idx.shape == inputs.shape
-
-    # sort spikes
-    sort_idx = np.argsort(inputs, axis=-1)
-    inputs = inputs[np.arange(inputs.shape[0])[:, None], sort_idx]
-    spike_idx = spike_idx[np.arange(spike_idx.shape[0])[:, None], sort_idx]
-
-    inputs = inputs / max_val * t_late  # scale s.t. max(inputs) == t_late
-    input_spikes = Spike(
-        inputs.reshape(*(shape + [-1])), spike_idx.reshape(*(shape) + [-1])
-    )
-
-    target = target.reshape(*(shape + [3]))
-    return (add_current(input_spikes), target, "yinyang")
+    return coords, classes, "yinyang"

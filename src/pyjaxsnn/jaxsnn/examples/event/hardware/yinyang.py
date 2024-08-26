@@ -23,8 +23,8 @@ from jax import random
 import jaxsnn
 from jaxsnn.base.compose import serial
 from jaxsnn.event import custom_lax
-from jaxsnn.event.dataset import yinyang_dataset
-from jaxsnn.event.dataset.yinyang import good_params_for_hw
+from jaxsnn.event.dataset import yinyang_dataset, data_loader
+from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
@@ -71,27 +71,28 @@ def train(
     # training params
     step_size = 5e-3
     lr_decay = 0.99
-    train_samples = 4_800
-    test_samples = 3_000
+    # 4992 train_samples and 2944 test_samples
     batch_size = 64
     epochs = 300
-    n_train_batches = int(train_samples / batch_size)
-    n_test_batches = int(test_samples / batch_size)
+    n_train_batches = 78
+    n_test_batches = 46
+    train_samples = batch_size * n_train_batches
+    test_samples = batch_size * n_test_batches
     t_max = 4.0 * params.tau_syn
 
     # at least 50 us because otherwise we get jitter
     t_max_us = int(max(t_max / 1e-6, 50))
 
-    yinyang_params = good_params_for_hw(params)
-
     # input is duplicated because of dynamic range of hw
-    duplication = yinyang_params["duplication"]
+    duplication = 5
+    duplicate_neurons = True
+    bias_spike = 0.0
     weight_mean = [3.0 / duplication, 0.5]
     weight_std = [1.6 / duplication, 0.8]
 
     # how many input neurons do we have?
     input_size = 5
-    if yinyang_params["duplicate_neurons"]:
+    if duplicate_neurons:
         input_size *= duplication
 
     # network size
@@ -108,16 +109,56 @@ def train(
     # define trainset and testset
     rng = random.PRNGKey(seed)
     param_rng, train_rng, test_rng = random.split(rng, 3)
-    trainset = yinyang_dataset(
-        train_rng,
-        [n_train_batches, batch_size],
-        **yinyang_params,
+
+    trainset = yinyang_dataset(train_rng, train_samples, True, bias_spike)
+    testset = yinyang_dataset(test_rng, test_samples, True, bias_spike)
+
+    # Encoding
+    t_late = 2.0 * params.tau_syn
+    correct_target_time = 0.9 * params.tau_syn
+    wrong_target_time = 1.1 * params.tau_syn
+    n_classes = 3
+    target_encoding_params = [
+        correct_target_time,
+        wrong_target_time,
+        n_classes
+    ]
+
+    input_encoder_batched = jax.vmap(
+        spatio_temporal_encode,
+        in_axes=(0, None, None, None)
     )
-    testset = yinyang_dataset(
-        test_rng,
-        [n_test_batches, batch_size],
-        **yinyang_params,
+    target_encoder_batched = jax.vmap(
+        target_temporal_encode,
+        in_axes=(0, None, None, None)
     )
+
+    train_input_encoded = input_encoder_batched(
+        trainset[0],
+        t_late,
+        duplication,
+        duplicate_neurons
+    )
+    train_targets_encoded = target_encoder_batched(
+        trainset[1],
+        *target_encoding_params,
+    )
+
+    test_input_encoded = input_encoder_batched(
+        testset[0],
+        2.0 * params.tau_syn,
+        duplication,
+        duplicate_neurons
+    )
+
+    test_targets_encoded = target_encoder_batched(
+        testset[1],
+        correct_target_time,
+        wrong_target_time,
+        n_classes,
+    )
+    trainset = (train_input_encoded, train_targets_encoded)
+    testset = (test_input_encoded, test_targets_encoded)
 
     # software net which adds the current in a second pass
     # and calculates the gradients with EventProp
@@ -130,7 +171,7 @@ def train(
             mean=weight_mean,
             std=weight_std,
             duplication=duplication
-            if yinyang_params["duplicate_neurons"]
+            if duplicate_neurons
             else None,
         )
     )
@@ -262,15 +303,17 @@ def train(
         weights = state[1]
 
         rng = jax.random.PRNGKey(i)
-        test_rng, train_rng = jax.random.split(rng, 2)
+        test_rng, train_rng, shuffle_rng = jax.random.split(rng, 3)
+        testset_batched = data_loader(testset, 64)
         test_result = loss_and_acc_scan(
-            test_loss_fn, (weights, test_rng), testset[:2]
+            test_loss_fn, (weights, test_rng), testset_batched
         )
         loss, acc, t_first_spike, recording = test_result
 
         start = time.time()
+        trainset_batched = data_loader(trainset, 64, shuffle_rng)
         (state, rng), (_, grad) = custom_lax.scan(
-            update, (state, train_rng), trainset[:2]
+            update, (state, train_rng), trainset_batched
         )
 
         duration = time.time() - start
@@ -305,7 +348,7 @@ def train(
             hidden_size,
             epochs,
             duplication,
-            yinyang_params["duplicate_neurons"],
+            duplicate_neurons,
         )
 
     # find best epoch
@@ -317,7 +360,11 @@ def train(
     experiment = {
         **params.as_dict(),
         **wafer_config._asdict(),
-        **yinyang_params,
+        "correct_target_time": correct_target_time,
+        "wrong_target_time": wrong_target_time,
+        "bias_spike": bias_spike,
+        "duplication": duplication,
+        "duplicate_neurons": duplicate_neurons,
         "max_accuracy": max_acc,
         "seed": seed,
         "epochs": epochs,

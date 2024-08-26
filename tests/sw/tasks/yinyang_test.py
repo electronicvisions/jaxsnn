@@ -1,6 +1,7 @@
 from functools import partial
 
 import jax
+import jax.numpy as np
 import optax
 from jax import random
 from jaxsnn.base.compose import serial
@@ -9,7 +10,7 @@ from jaxsnn.discrete.leaky_integrate_and_fire import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.dataset.yinyang import YinYangDataset, data_loader
+from jaxsnn.event.dataset import yinyang_dataset, data_loader
 from jaxsnn.discrete.loss import acc_and_loss, nll_loss
 from jaxsnn.discrete.threshold import superspike
 import unittest
@@ -31,8 +32,13 @@ class TestTasksYinYang(unittest.TestCase):
         n_classes = 3
         input_size = 5
         batch_size = 64
-        epochs = 3
+        epochs = 4
+        n_train_batches = 78
+        train_samples = batch_size * n_train_batches
+        test_samples = 1000
+
         bias_spike = 0.0
+        mirror = True
 
         hidden_features = 70
         expected_spikes = 0.5
@@ -44,33 +50,34 @@ class TestTasksYinYang(unittest.TestCase):
         )
         time_steps = int(2 * t_late / DT)
 
-        # define train and test data
+        # Define random keys
         rng = random.PRNGKey(42)
-        rng, train_key, test_key, init_key = random.split(rng, 4)
-        trainset = YinYangDataset(train_key, 4992, bias_spike=bias_spike)
-        test_dataset = YinYangDataset(test_key, 1000, bias_spike=bias_spike)
+        init_key, train_key, test_key, shuffle_key = random.split(rng, 4)
+        
+        # Setting up trainset and testset
+        trainset = yinyang_dataset(train_key, train_samples, mirror, bias_spike)
+        testset = yinyang_dataset(test_key, test_samples, mirror, bias_spike)
 
-        trainset_batches = data_loader(trainset, batch_size, None)
         # Encoding the inputs
         input_encoder_batched = jax.vmap(
             spatio_temporal_encode,
             in_axes=(0, None, None, None)
-            )
+        )
         train_input_encoded = input_encoder_batched(
-            trainset_batches[0],
+            trainset[0],
             time_steps,
             t_late,
             DT,
         )
-        trainset = (train_input_encoded, trainset_batches[1])
+        trainset = (train_input_encoded, trainset[1])
 
-        test_input_encoded = spatio_temporal_encode(
-            test_dataset.vals,
+        test_input_encoded = input_encoder_batched(
+            testset[0],
             time_steps,
             t_late,
             DT,
         )
-        test_dataset.vals = test_input_encoded
+        testset = (test_input_encoded, testset[1])
 
         # define the network
         snn_init, snn_apply = serial(
@@ -88,14 +95,29 @@ class TestTasksYinYang(unittest.TestCase):
         train_step_fn = partial(partial(self.update, optimizer), loss_fn=loss_fn)
 
         for _ in range(epochs):
-            (opt_state, weights, _), _ = jax.lax.scan(
-                train_step_fn, (opt_state, weights, 0), trainset
+            # Generate randomly shuffled batches
+            this_shuffle_key, shuffle_key = random.split(shuffle_key)
+            trainset_batched = data_loader(trainset, 64, this_shuffle_key)
+
+            # Swap axes because time axis needs to come before batch axis
+            trainset_batched = (
+                np.swapaxes(trainset_batched[0], 1, 2),
+                trainset_batched[1]
             )
+            (opt_state, weights, _), _ = jax.lax.scan(
+                train_step_fn, (opt_state, weights, 0), trainset_batched
+            )
+
+        # Implementation requires time axis to come before batch axis
+        testset = (
+            np.swapaxes(testset[0], 0, 1),
+            testset[1]
+        )
 
         accuracy, _ = acc_and_loss(
             snn_apply,
             weights,
-            (test_dataset.vals, test_dataset.classes),
+            (testset[0], testset[1]),
             max_over_time_decode
         )
         assert accuracy > 0.70

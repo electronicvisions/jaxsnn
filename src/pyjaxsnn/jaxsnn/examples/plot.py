@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import jaxsnn
 from jaxsnn.base.types import Array
-from jaxsnn.event.dataset.utils import Dataset
 from jaxsnn.event.hardware.utils import filter_spikes
-from jaxsnn.event.types import Spike, TestResult, Weight, WeightRecurrent
+from jaxsnn.event.types import Spike, TestResult, Weight, WeightRecurrent, Dataset
 
 
 log = jaxsnn.get_logger("jaxsnn.examples.plot")

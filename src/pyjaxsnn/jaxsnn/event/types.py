@@ -63,6 +63,9 @@ class EventPropSpike:
         )
 
 
+Dataset = Tuple[EventPropSpike, jax.Array]
+
+
 @dataclasses.dataclass
 @tree_math.struct
 class InputQueue:
