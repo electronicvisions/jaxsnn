@@ -8,8 +8,8 @@ import jax.numpy as np
 import optax
 from jax import random
 import jaxsnn
+from jaxsnn.base.compose import serial
 from jaxsnn.event import custom_lax
-from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset as dataset
 from jaxsnn.event.dataset.yinyang import good_params
 from jaxsnn.event.functional import batch_wrapper

@@ -2,7 +2,7 @@ import jax
 import jax.numpy as np
 from jax import random
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.compose import serial
+from jaxsnn.base.compose import serial
 from jaxsnn.event.dataset.yinyang import yinyang_dataset
 from jaxsnn.event.leaky_integrate_and_fire import LIF
 from jaxsnn.event.types import EventPropSpike

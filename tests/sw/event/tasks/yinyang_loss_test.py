@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.compose import serial
+from jaxsnn.base.compose import serial
 from jaxsnn.event.leaky_integrate_and_fire import LIF
 from jaxsnn.event.types import EventPropSpike
 from jaxsnn.event.utils import load_weights

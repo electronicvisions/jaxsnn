@@ -3,7 +3,7 @@ from functools import partial
 import jax
 import optax
 from jax import random
-from jaxsnn.discrete.compose import serial
+from jaxsnn.base.compose import serial
 from jaxsnn.discrete.leaky_integrate import LI
 from jaxsnn.discrete.leaky_integrate_and_fire import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
@@ -29,7 +29,7 @@ class TestTasksYinYang(unittest.TestCase):
 
     def test_train(self):
         n_classes = 3
-        input_shape = 5
+        input_size = 5
         batch_size = 64
         epochs = 3
         bias_spike = 0.0
@@ -78,13 +78,12 @@ class TestTasksYinYang(unittest.TestCase):
             LI(n_classes),
         )
 
-        _, weights = snn_init(init_key, input_shape=input_shape)
+        _, weights = snn_init(init_key, input_size)
 
         optimizer = optax.adam(step_size)
         opt_state = optimizer.init(weights)
 
         # define functions
-        snn_apply = partial(snn_apply, recording=True)
         loss_fn = partial(nll_loss, snn_apply, expected_spikes=expected_spikes)
         train_step_fn = partial(partial(self.update, optimizer), loss_fn=loss_fn)
 

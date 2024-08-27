@@ -9,7 +9,7 @@ def nll_loss(  # pylint: disable=too-many-arguments
     snn_apply, weights, batch, decoder, expected_spikes=0.5, rho=1e-4,
 ) -> Tuple[float, jax.Array]:
     inputs, targets = batch
-    preds, recording = snn_apply(weights, inputs)
+    _, _, preds, recording = snn_apply(weights, inputs, None, None)
     preds_decoded = decoder(preds)
     targets = one_hot(targets, preds_decoded.shape[1])
     loss = -np.mean(np.sum(targets * preds_decoded, axis=1))
@@ -21,7 +21,7 @@ def nll_loss(  # pylint: disable=too-many-arguments
 
 def acc_and_loss(snn_apply, weights, batch, decoder):
     inputs, targets = batch
-    preds, _ = snn_apply(weights, inputs)
+    _, _, preds, _ = snn_apply(weights, inputs, None, None)
     preds_decoded = decoder(preds)
     correct = (np.argmax(preds_decoded, axis=1) == targets).sum()
     accuracy = correct / len(targets)

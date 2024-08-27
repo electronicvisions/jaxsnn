@@ -49,17 +49,24 @@ def LI(out_dim, scale_in=0.2):
     """Layer constructor function for a li (leaky-integrated) layer."""
 
     def init_fn(rng, input_shape):
-        rng, i_key = random.split(rng)
-        input_weights = scale_in * random.normal(i_key, (input_shape, out_dim))
-        return out_dim, input_weights, rng
+        rng, layer_rng = jax.random.split(rng)
+        input_weights = scale_in * random.normal(
+            layer_rng, (input_shape, out_dim))
+        return rng, out_dim, input_weights
 
-    def apply_fn(weights, inputs, **kwargs):  # pylint: disable=unused-argument
+    def apply_fn(weights, inputs, external, state):  # pylint: disable=unused-argument
+        if state is None:
+            layer_index = 0
+        else:
+            layer_index = state
+        this_layer_weights = weights[layer_index]
         batch = inputs.shape[1]
         shape = (batch, out_dim)
-        state = LIState(np.zeros(shape), np.zeros(shape))
+        s = LIState(np.zeros(shape), np.zeros(shape))
         _, (voltages, recording) = jax.lax.scan(
-            li_feed_forward_step, (state, weights), inputs
+            li_feed_forward_step, (s, this_layer_weights), inputs
         )
-        return voltages, recording
+        layer_index += 1
+        return layer_index, this_layer_weights, voltages, recording
 
     return init_fn, apply_fn

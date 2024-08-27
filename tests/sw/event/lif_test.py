@@ -5,7 +5,7 @@ import jax
 import jax.numpy as np
 import optax
 from jax import random
-from jaxsnn.event.compose import serial
+from jaxsnn.base.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset
 from jaxsnn.event.functional import batch_wrapper
 from jaxsnn.event.leaky_integrate_and_fire import (

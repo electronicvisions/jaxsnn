@@ -82,17 +82,23 @@ def LIF(out_dim, method=superspike, scale_in=0.7, scale_rec=0.2):
         recurrent_weights = scale_rec * random.normal(
             r_key, (out_dim, out_dim)
         )
-        return out_dim, (input_weights, recurrent_weights), rng
+        return rng, out_dim, (input_weights, recurrent_weights)
 
     lif_step_fn = partial(lif_step, method=method)
 
-    def apply_fn(weights, inputs, **kwargs):  # pylint: disable=unused-argument
+    def apply_fn(weights, inputs, external, state):  # pylint: disable=unused-argument
         batch = inputs.shape[1]
         shape = (batch, out_dim)
-        state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
+        if state is None:
+            layer_index = 0
+        else:
+            layer_index = state
+        this_layer_weights = weights[layer_index]
+        s = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
         _, (output, recording) = jax.lax.scan(
-            lif_step_fn, (state, weights), inputs
+            lif_step_fn, (s, this_layer_weights), inputs
         )
-        return output, recording
+        layer_index += 1
+        return layer_index, this_layer_weights, output, recording
 
     return init_fn, apply_fn

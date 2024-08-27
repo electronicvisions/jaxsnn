@@ -6,14 +6,13 @@ import optax
 from jax import numpy as np
 from jax import random
 import jaxsnn
-from jaxsnn.discrete.compose import serial
+from jaxsnn.base.compose import serial
+from jaxsnn.base.params import LIFParameters
 from jaxsnn.discrete.leaky_integrate import LI
 from jaxsnn.discrete.leaky_integrate_and_fire import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
 from jaxsnn.discrete.loss import nll_loss, acc_and_loss
-from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.dataset.yinyang import YinYangDataset, data_loader
 
 
 log = jaxsnn.get_logger("jaxsnn.examples.discrete.yinyang")
@@ -42,7 +41,7 @@ def train_step(optimizer, state, batch, loss_fn):
 
 def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     n_classes = 3
-    input_shape = 5
+    input_size = 5
     dataset_size = 5000
     batch_size = 64
     n_train_batches = dataset_size / batch_size
@@ -99,7 +98,6 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     optimizer = optimizer_fn(scheduler)
 
     # define loss and train function
-    snn_apply = partial(snn_apply, recording=True)
     loss_fn = partial(
         nll_loss, snn_apply, expected_spikes=expected_spikes, rho=1e-5
     )
@@ -107,7 +105,7 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
 
     overall_time = time.time()
     init_key = random.PRNGKey(seed)
-    _, weights = snn_init(init_key, input_shape=input_shape)
+    _, weights = snn_init(init_key, input_size=input_size)
     opt_state = optimizer.init(weights)
 
     accuracies = []
