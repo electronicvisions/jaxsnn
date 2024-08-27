@@ -1,6 +1,6 @@
 import jax.numpy as np
 from jaxsnn.event.flow import exponential_flow
-from jaxsnn.event.leaky_integrate_and_fire import LIFState
+from jaxsnn.event.types import LIFState
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 import unittest
 

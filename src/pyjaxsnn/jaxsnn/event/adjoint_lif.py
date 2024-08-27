@@ -1,10 +1,12 @@
 # pylint: disable=invalid-name
-from typing import Callable
+from functools import partial
+from typing import Callable, Any, Tuple
 
 import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
+from jaxsnn.event.functional import StepInput, trajectory
 from jaxsnn.event.types import (
     EventPropSpike,
     LIFState,
@@ -12,7 +14,9 @@ from jaxsnn.event.types import (
     Weight,
     WeightInput,
     WeightRecurrent,
+    InputQueue
 )
+from jaxsnn.event.root.next import next_queue
 
 
 def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
@@ -264,3 +268,112 @@ def step_bwd(  # pylint: disable=too-many-locals
         ),
     )
     return (tr_state, new_grads, layer_start), 1
+
+
+def construct_adjoint_apply_fn(
+    step_fn,
+    step_fn_bwd,
+    n_hidden,
+    n_spikes,
+    wrap_only_step=False,
+):
+
+    # TODO
+    # for defining a custom backward, one can either define the custom vjp
+    # only for the step function, or define the custom vjp for the whole
+    # trajectory / scan (like done below).
+    # Only doing it for the step function shoud be equivalent but throws NaNs
+    if wrap_only_step:
+        # define custom forward to save data of forward pass
+        def step_fn_fwd(*args):
+            res = step_fn(*args)
+            return res, res
+
+        # define custom vjp
+        step_fn_event_prop = jax.custom_vjp(step_fn)
+        step_fn_event_prop.defvjp(step_fn_fwd, step_fn_bwd)
+
+        forward = trajectory(step_fn_event_prop, n_hidden, n_spikes)
+        return forward
+
+    # wrap step bwd so it is compliant with scan syntax
+    def step_bwd_wrapper(
+        weights: Weight,
+        init: StepInput,
+        xs: Tuple[EventPropSpike, EventPropSpike],
+    ):
+        adjoint_state, grads, layer_start = init
+        spike, adjoint_spike = xs
+        res = (None, weights, layer_start), spike
+        g = (adjoint_state, grads, 0), adjoint_spike
+        return step_fn_bwd(res, g)
+
+    def custom_trajectory(
+        s: StepState,
+        weights: Weight,
+        layer_start: int,
+        known_spikes: Any,
+    ):
+        # Attach known spikes to the root solver if necessary
+        if known_spikes is not None:
+            solver = partial(next_queue, known_spikes, layer_start)
+            step_fn_bound = partial(step_fn, solver)
+        else:
+            step_fn_bound = step_fn
+        return jax.lax.scan(
+            step_fn_bound, (s, weights, layer_start), np.arange(n_spikes)
+        )
+
+    def custom_trajectory_fwd(*args):
+        # save res for backward
+        res = custom_trajectory(*args)
+        return res, res
+
+    def custom_trajectory_bwd(res, g):
+        (_, weights, layer_start), spikes = res
+        (adjoint_state, grads, _), adjoint_spikes = g
+
+        (adjoint_state, grads, layer_start), _ = jax.lax.scan(
+            partial(step_bwd_wrapper, weights),
+            (adjoint_state, grads, layer_start),
+            (spikes, adjoint_spikes),
+            reverse=True,
+        )
+        return adjoint_state, grads, 0, _
+
+    custom_trajectory = jax.custom_vjp(custom_trajectory)
+    custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
+
+    def apply_fn(  # pylint: disable=unused-argument
+        weights: Weight,
+        input_spikes: EventPropSpike,
+        external: Any,
+        carry: int,
+    ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
+        initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
+        s = StepState(
+            neuron_state=initial_state,
+            time=0.0,
+            input_queue=InputQueue(input_spikes),
+        )
+        if carry is None:
+            layer_index = 0
+            layer_start = 0
+        else:
+            layer_index, layer_start = carry
+
+        # Pass in known spikes of current layer
+        if external is not None:
+            layer_external = external[layer_index]
+        else:
+            layer_external = None
+
+        this_layer_weights = weights[layer_index]
+        layer_start = layer_start + this_layer_weights.input.shape[0]
+        _, spikes = custom_trajectory(
+            s, this_layer_weights, layer_start, layer_external
+        )
+        layer_index += 1
+        return (layer_index, layer_start), this_layer_weights, spikes, spikes
+
+    return apply_fn

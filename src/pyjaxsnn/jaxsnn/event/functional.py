@@ -60,8 +60,8 @@ StepInput = Tuple[StepState, Weight, int]
 def step(  # pylint: disable=unused-argument,too-many-locals
     dynamics: Callable,
     tr_dynamics: Callable,
-    solver: Solver,
     t_max: float,
+    solver: Solver,
     step_input: StepInput,
     *args: int,
 ) -> Tuple[StepInput, EventPropSpike]:

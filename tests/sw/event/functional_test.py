@@ -6,12 +6,12 @@ from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
 from jaxsnn.event.functional import step
 from jaxsnn.event.leaky_integrate_and_fire import (
-    LIFState,
     transition_without_recurrence,
 )
 from jaxsnn.event.root.next import next_event
 from jaxsnn.event.root.ttfs import ttfs_solver
 from jaxsnn.event.types import (
+    LIFState,
     EventPropSpike,
     InputQueue,
     StepState,
@@ -39,7 +39,7 @@ class TestEventFunctional(unittest.TestCase):
         batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
 
         transition = partial(transition_without_recurrence, params)
-        step_fn = partial(step, dynamics, transition, batched_solver, t_max)
+        step_fn = partial(step, dynamics, transition, t_max, batched_solver)
         weights = WeightInput(np.zeros((n_input, n_hidden)))
         neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
@@ -81,7 +81,7 @@ class TestEventFunctional(unittest.TestCase):
         batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
 
         transition = partial(transition_without_recurrence, params)
-        step_fn = partial(step, dynamics, transition, batched_solver, t_max)
+        step_fn = partial(step, dynamics, transition, t_max, batched_solver)
         weights = WeightInput(np.ones((n_input, n_hidden)))
         neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
