@@ -7,7 +7,7 @@ Once the information about the synaptic current is also returned with the
 event-based observations from BSS-2, this second forward pass in software
 can be emitted.
 """
-
+from typing import Dict
 import datetime as dt
 import json
 import time
@@ -24,7 +24,11 @@ import jaxsnn
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset, data_loader
 from jaxsnn.event import custom_lax
-from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
+from jaxsnn.event.encode import (
+    spatio_temporal_encode,
+    target_temporal_encode,
+    encode,
+)
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
@@ -58,6 +62,24 @@ HW_CYCLE_CORRECTION = -50
 MAX_GRAD = [0.01, 0.01]
 
 
+def generate_yinyang_params(lif_params: LIFParameters) -> Dict:
+    return {
+        "dataset": {
+            "mirror": True,
+            "bias_spike": 0.0
+        },
+        "input_encoding": {
+            "t_late": 2.0 * lif_params.tau_syn,
+            "duplication": 5,
+            "duplicate_neurons": True
+        },
+        "target_encoding": {
+            "correct_target_time": 0.9 * lif_params.tau_syn,
+            "wrong_target_time": 1.1 * lif_params.tau_syn
+        }
+    }
+
+
 def train(
     seed: int,
     folder: str,
@@ -67,6 +89,8 @@ def train(
     params = LIFParameters(
         v_reset=-1000.0, v_th=1.0, tau_syn_inv=1 / 6e-6, tau_mem_inv=1 / 12e-6
     )
+    # params for dataset, encoding and decoding
+    yinyang_params = generate_yinyang_params(params)
 
     # training params
     step_size = 5e-3
@@ -84,9 +108,9 @@ def train(
     t_max_us = int(max(t_max / 1e-6, 50))
 
     # input is duplicated because of dynamic range of hw
-    duplication = 5
-    duplicate_neurons = True
-    bias_spike = 0.0
+    duplication = yinyang_params["input_encoding"]["duplication"]
+    duplicate_neurons = yinyang_params["input_encoding"]["duplicate_neurons"]
+    bias_spike = yinyang_params["dataset"]["bias_spike"]
     weight_mean = [3.0 / duplication, 0.5]
     weight_std = [1.6 / duplication, 0.8]
 
@@ -110,55 +134,35 @@ def train(
     rng = random.PRNGKey(seed)
     param_rng, train_rng, test_rng = random.split(rng, 3)
 
-    trainset = yinyang_dataset(train_rng, train_samples, True, bias_spike)
-    testset = yinyang_dataset(test_rng, test_samples, True, bias_spike)
+    trainset = yinyang_dataset(
+        train_rng, train_samples, **yinyang_params["dataset"]
+    )
+    testset = yinyang_dataset(
+        test_rng, test_samples, **yinyang_params["dataset"]
+    )
 
     # Encoding
-    t_late = 2.0 * params.tau_syn
-    correct_target_time = 0.9 * params.tau_syn
-    wrong_target_time = 1.1 * params.tau_syn
-    n_classes = 3
-    target_encoding_params = [
-        correct_target_time,
-        wrong_target_time,
-        n_classes
-    ]
-
-    input_encoder_batched = jax.vmap(
+    input_encoder_batched = jax.jit(jax.vmap(partial(
         spatio_temporal_encode,
-        in_axes=(0, None, None, None)
-    )
-    target_encoder_batched = jax.vmap(
+        **yinyang_params["input_encoding"]
+    )))
+
+    target_encoder_batched = jax.jit(jax.vmap(partial(
         target_temporal_encode,
-        in_axes=(0, None, None, None)
-    )
+        n_classes=output_size,
+        **yinyang_params["target_encoding"],
+    )))
 
-    train_input_encoded = input_encoder_batched(
-        trainset[0],
-        t_late,
-        duplication,
-        duplicate_neurons
+    trainset = encode(
+        trainset,
+        input_encoder_batched,
+        target_encoder_batched
     )
-    train_targets_encoded = target_encoder_batched(
-        trainset[1],
-        *target_encoding_params,
+    testset = encode(
+        testset,
+        input_encoder_batched,
+        target_encoder_batched
     )
-
-    test_input_encoded = input_encoder_batched(
-        testset[0],
-        2.0 * params.tau_syn,
-        duplication,
-        duplicate_neurons
-    )
-
-    test_targets_encoded = target_encoder_batched(
-        testset[1],
-        correct_target_time,
-        wrong_target_time,
-        n_classes,
-    )
-    trainset = (train_input_encoded, train_targets_encoded)
-    testset = (test_input_encoded, test_targets_encoded)
 
     # software net which adds the current in a second pass
     # and calculates the gradients with EventProp
@@ -360,11 +364,7 @@ def train(
     experiment = {
         **params.as_dict(),
         **wafer_config._asdict(),
-        "correct_target_time": correct_target_time,
-        "wrong_target_time": wrong_target_time,
-        "bias_spike": bias_spike,
-        "duplication": duplication,
-        "duplicate_neurons": duplicate_neurons,
+        **yinyang_params,
         "max_accuracy": max_acc,
         "seed": seed,
         "epochs": epochs,

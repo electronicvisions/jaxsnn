@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple, Callable
 
 import jax
 import jax.numpy as np
@@ -50,3 +50,19 @@ def target_temporal_encode(
     target_spike_times = encoding[targets]
 
     return target_spike_times
+
+
+def encode(
+    dataset: Tuple[jax.Array, jax.Array],
+    input_encoder: Optional[Callable] = None,
+    target_encoder: Optional[Callable] = None
+):
+    inputs = dataset[0]
+    targets = dataset[1]
+    if input_encoder is not None:
+        inputs = input_encoder(inputs)
+
+    if target_encoder is not None:
+        targets = target_encoder(targets)
+
+    return (inputs, targets)

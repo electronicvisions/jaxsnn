@@ -1,4 +1,5 @@
 # pylint: disable=logging-not-lazy,logging-fstring-interpolation
+from typing import Dict
 import datetime as dt
 import json
 from functools import partial
@@ -11,7 +12,11 @@ from jax import random
 import jaxsnn
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset
-from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
+from jaxsnn.event.encode import (
+    spatio_temporal_encode,
+    target_temporal_encode,
+    encode
+)
 from jaxsnn.event import custom_lax
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.loss import loss_wrapper, mse_loss
@@ -24,6 +29,24 @@ from jaxsnn.examples.plot import plt_and_save
 log = jaxsnn.get_logger("jaxsnn.examples.event.yinyang_analytical")
 
 
+def generate_yinyang_params(lif_params: LIFParameters) -> Dict:
+    return {
+        "dataset": {
+            "mirror": True,
+            "bias_spike": 0.0
+        },
+        "input_encoding": {
+            "t_late": 2.0 * lif_params.tau_syn,
+            "duplication": None,
+            "duplicate_neurons": False
+        },
+        "target_encoding": {
+            "correct_target_time": 0.9 * lif_params.tau_syn,
+            "wrong_target_time": 1.1 * lif_params.tau_syn
+        }
+    }
+
+
 def train(  # pylint: disable=too-many-locals, too-many-statements
     seed: int,
     folder: str,
@@ -32,6 +55,8 @@ def train(  # pylint: disable=too-many-locals, too-many-statements
 ):
     # neuron params, low v_reset only allows one spike per neuron
     params = LIFParameters(v_reset=-1_000.0, v_th=1.0)
+    # params for dataset, encoding and decoding
+    yinyang_params = generate_yinyang_params(params)
 
     # training params
     step_size = 5e-3
@@ -58,55 +83,35 @@ def train(  # pylint: disable=too-many-locals, too-many-statements
     rng = random.PRNGKey(seed)
     param_rng, train_rng, test_rng = random.split(rng, 3)
 
-    trainset = yinyang_dataset(train_rng, train_samples, True, 0.0)
-    testset = yinyang_dataset(test_rng, test_samples, True, 0.0)
+    trainset = yinyang_dataset(
+        train_rng, train_samples, **yinyang_params["dataset"]
+    )
+    testset = yinyang_dataset(
+        test_rng, test_samples, **yinyang_params["dataset"]
+    )
 
     # Encoding
-    t_late = 2.0 * params.tau_syn
-    correct_target_time = 0.9 * params.tau_syn
-    wrong_target_time = 1.1 * params.tau_syn
-    n_classes = 3
-    target_encoding_params = [
-        correct_target_time,
-        wrong_target_time,
-        n_classes
-    ]
-
-    input_encoder_batched = jax.vmap(
+    input_encoder_batched = jax.jit(jax.vmap(partial(
         spatio_temporal_encode,
-        in_axes=(0, None, None, None)
-    )
-    target_encoder_batched = jax.vmap(
+        **yinyang_params["input_encoding"]
+    )))
+
+    target_encoder_batched = jax.jit(jax.vmap(partial(
         target_temporal_encode,
-        in_axes=(0, None, None, None)
-    )
+        n_classes=output_size,
+        **yinyang_params["target_encoding"],
+    )))
 
-    train_input_encoded = input_encoder_batched(
-        trainset[0],
-        t_late,
-        None,
-        False
+    trainset = encode(
+        trainset,
+        input_encoder_batched,
+        target_encoder_batched
     )
-    train_targets_encoded = target_encoder_batched(
-        trainset[1],
-        *target_encoding_params,
+    testset = encode(
+        testset,
+        input_encoder_batched,
+        target_encoder_batched
     )
-
-    test_input_encoded = input_encoder_batched(
-        testset[0],
-        2.0 * params.tau_syn,
-        None,
-        False
-    )
-    test_targets_encoded = target_encoder_batched(
-        testset[1],
-        correct_target_time,
-        wrong_target_time,
-        n_classes,
-    )
-
-    trainset = (train_input_encoded, train_targets_encoded)
-    testset = (test_input_encoded, test_targets_encoded)
 
     # define net
     weight_mean = [3.0, 0.5]
@@ -132,6 +137,7 @@ def train(  # pylint: disable=too-many-locals, too-many-statements
 
     # init weights
     _, weights = init_fn(param_rng, input_size)
+
     n_neurons = input_size + hidden_size + output_size
 
     # define and init optimizer
@@ -183,8 +189,7 @@ def train(  # pylint: disable=too-many-locals, too-many-statements
     )
     experiment = {
         **params.as_dict(),
-        "correct_target_time": correct_target_time,
-        "wrong_target_time": wrong_target_time,
+        **yinyang_params,
         "max_accuracy": max_acc,
         "seed": seed,
         "epochs": epochs,
