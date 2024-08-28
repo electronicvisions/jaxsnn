@@ -52,7 +52,7 @@ def test_nans():
         weights,
         input_spikes,
     ):
-        recording = apply_fn(weights, input_spikes)
+        _, _, _, recording = apply_fn(weights, input_spikes, None, None)
         first_spikes = first_spike(recording[1], 3)
         loss = -np.log(
             np.sum(

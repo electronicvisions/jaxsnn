@@ -18,7 +18,7 @@ import optax
 from jax import random
 import jaxsnn
 from jaxsnn.event import custom_lax
-from jaxsnn.event.compose import serial, serial_spikes_known
+from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset
 from jaxsnn.event.dataset.yinyang import good_params_for_hw
 from jaxsnn.event.functional import batch_wrapper
@@ -41,7 +41,7 @@ from jaxsnn.event.leaky_integrate_and_fire import (
 )
 from jaxsnn.event.loss import (
     loss_and_acc_scan,
-    loss_wrapper_known_spikes,
+    loss_wrapper,
     mse_loss,
 )
 from jaxsnn.event.types import Spike, Weight
@@ -167,7 +167,7 @@ def train(
 
     # software net which adds the current in a second pass
     # and calculates the gradients with EventProp
-    init_fn, apply_fn = serial_spikes_known(
+    init_fn, apply_fn = serial(
         HardwareRecurrentLIF(
             layers=[hidden_size, output_size],
             n_spikes=n_spikes,
@@ -183,7 +183,7 @@ def train(
 
     # init weights
     if LOAD_FOLDER is None:
-        weights = init_fn(param_rng, input_size)
+        _, weights = init_fn(param_rng, input_size)
     else:
         log.info(f"Loading weights from folder: {LOAD_FOLDER}")
         weights = [load_weights_recurrent(LOAD_FOLDER)]
@@ -197,14 +197,14 @@ def train(
     loss_fn = jax.jit(
         batch_wrapper(
             partial(
-                loss_wrapper_known_spikes,
+                loss_wrapper,
                 apply_fn,
                 mse_loss,
                 params.tau_mem,
                 n_neurons,
                 output_size,
             ),
-            in_axes=(None, 0, 0),
+            in_axes=(None, 0, 0, None),
             pmap=False,
         )
     )
@@ -222,14 +222,14 @@ def train(
 
         if MOCK_HW:
             if SIM_HW_WEIGHTS_INT:
-                hw_spikes = hw_mock_batched(
+                _, _, _, hw_spikes = hw_mock_batched(
                     simulate_hw_weights(
                         weights, wafer_config.weight_scaling, as_int=True
                     ),
-                    input_spikes,
+                    input_spikes
                 )
             else:
-                hw_spikes = hw_mock_batched(weights, input_spikes)
+                _, _, _, hw_spikes = hw_mock_batched(weights, input_spikes)
         else:
             hw_spikes, time_data = experiment.get_hw_results(
                 input_spikes,
@@ -278,14 +278,14 @@ def train(
 
         if MOCK_HW:
             if SIM_HW_WEIGHTS_INT:
-                hw_spikes = hw_mock_batched(
+                _, _, _, hw_spikes = hw_mock_batched(
                     simulate_hw_weights(
                         weights, wafer_config.weight_scaling, as_int=True
                     ),
                     input_spikes,
                 )
             else:
-                hw_spikes = hw_mock_batched(weights, input_spikes)
+                _, _, _, hw_spikes = hw_mock_batched(weights, input_spikes)
             hw_spikes = [
                 cut_spikes_batch(
                     filter_spikes_batch(hw_spikes[0], input_size),
@@ -333,10 +333,10 @@ def train(
                     weights, wafer_config.weight_scaling, as_int=True
                 ),
                 batch,
-                hw_spikes,
+                external=hw_spikes,
             )
         else:
-            loss_result = loss_fn(weights, batch, hw_spikes)
+            loss_result = loss_fn(weights, batch, external=hw_spikes)
         return (weights, rng), loss_result
 
     @jax.jit
@@ -347,7 +347,7 @@ def train(
     ):
         opt_state, weights, hw_time = input
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
-            weights, batch, hw_spikes
+            weights, batch, external=hw_spikes
         )
 
         grad = jax.tree_util.tree_map(

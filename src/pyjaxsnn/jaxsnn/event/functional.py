@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Union
+from typing import Callable, Tuple, Union, Any, List, Optional
 
 import jax
 import jax.numpy as np
@@ -17,21 +17,36 @@ from jaxsnn.event.types import (
 
 def batch_wrapper(
     loss_fn: Union[LossFn, HWLossFn],
-    in_axes: tuple = (None, 0),
+    in_axes: tuple = (None, 0, None, None),
     pmap: bool = False,
 ):
     """Add an outer batch dimension to `loss_fn`.
 
     The loss function returns the actual loss value, and some more information.
     When adding the batch dimension, the average of the loss value is taken,
-    bu the information is stacked.
+    but the information is stacked.
     """
 
-    def wrapped_fn(*args, **kwargs):
+    def wrapped_fn(
+        weights: List[Weight],
+        batch: Tuple[EventPropSpike, jax.Array],
+        external: Any = None,
+        carry: Any = None,
+    ):
         if pmap:
-            res = jax.pmap(loss_fn, in_axes=in_axes)(*args, **kwargs)
+            res = jax.pmap(loss_fn, in_axes=in_axes)(
+                weights,
+                batch,
+                external,
+                carry
+            )
         else:
-            res = jax.vmap(loss_fn, in_axes=in_axes)(*args, **kwargs)
+            res = jax.vmap(loss_fn, in_axes=in_axes)(
+                weights,
+                batch,
+                external,
+                carry
+            )
         return np.mean(res[0]), res[1]
 
     return wrapped_fn
@@ -121,11 +136,15 @@ def trajectory(
     Uses a scan over the `step_fn` to return an apply function
     """
 
-    def fun(
-        layer_start: int,
+    def apply_fn(  # pylint: disable=unused-argument
         weights: Weight,
         input_spikes: EventPropSpike,
-    ) -> EventPropSpike:
+        external: Any,
+        carry: Optional[int],
+    ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
+        if carry is None:
+            carry = 0
+        layer_start = carry + weights.input.shape[0]
         initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
         step_state = StepState(
             neuron_state=initial_state,
@@ -135,6 +154,6 @@ def trajectory(
         _, spikes = jax.lax.scan(
             step_fn, (step_state, weights, layer_start), np.arange(n_spikes)
         )
-        return spikes
+        return layer_start, weights, spikes, spikes
 
-    return fun
+    return apply_fn

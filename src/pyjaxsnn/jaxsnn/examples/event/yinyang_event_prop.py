@@ -81,9 +81,8 @@ def train(  # pylint: disable=too-many-locals
     )
 
     # init weights
-    input_size = trainset[0].idx.shape[-1]  # pylint: disable=no-member
-    weights = init_fn(param_rng, input_size)
-    n_neurons = weights[0].input.shape[0] + hidden_size + output_size
+    _, weights = init_fn(param_rng, input_size)
+    n_neurons = input_size + hidden_size + output_size
 
     # define and init optimizer
     optimizer_fn = optax.adam

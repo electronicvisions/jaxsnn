@@ -53,7 +53,7 @@ class TestEventTasksContant(unittest.TestCase):
 
         # init weights
         rng = random.PRNGKey(42)
-        weights = init_fn(rng, input_shape)
+        _, weights = init_fn(rng, input_shape)
 
         loss_fn = partial(
             loss_wrapper,
@@ -62,6 +62,8 @@ class TestEventTasksContant(unittest.TestCase):
             params.tau_mem,
             n_neurons,
             n_output,
+            external=None,
+            carry=None
         )
         update_fn = partial(self.update, loss_fn)
 

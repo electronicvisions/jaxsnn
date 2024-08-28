@@ -22,7 +22,7 @@ import optax
 from jax import random
 import jaxsnn
 from jaxsnn.event import custom_lax
-from jaxsnn.event.compose import serial_spikes_known
+from jaxsnn.event.compose import serial
 from jaxsnn.event.dataset import yinyang_dataset
 from jaxsnn.event.dataset.yinyang import good_params_for_hw
 from jaxsnn.event.functional import batch_wrapper
@@ -37,7 +37,7 @@ from jaxsnn.event.leaky_integrate_and_fire import (
 )
 from jaxsnn.event.loss import (
     loss_and_acc_scan,
-    loss_wrapper_known_spikes,
+    loss_wrapper,
     mse_loss,
 )
 from jaxsnn.event.types import Spike, Weight
@@ -122,7 +122,7 @@ def train(
 
     # software net which adds the current in a second pass
     # and calculates the gradients with EventProp
-    init_fn, apply_fn = serial_spikes_known(
+    init_fn, apply_fn = serial(
         HardwareRecurrentLIF(
             layers=[hidden_size, output_size],
             n_spikes=n_spikes,
@@ -136,7 +136,7 @@ def train(
         )
     )
 
-    weights = init_fn(param_rng, input_size)
+    _, weights = init_fn(param_rng, input_size)
 
     # define and init optimizer
     optimizer_fn = optax.adam
@@ -148,14 +148,14 @@ def train(
     loss_fn = jax.jit(
         batch_wrapper(
             partial(
-                loss_wrapper_known_spikes,
+                loss_wrapper,
                 apply_fn,
                 mse_loss,
                 params.tau_mem,
                 n_neurons,
                 output_size,
             ),
-            in_axes=(None, 0, 0),
+            in_axes=(None, 0, 0, None),
             pmap=False,
         )
     )
@@ -231,7 +231,7 @@ def train(
 
         # add time noise to not have multiple spikes at the same time
         hw_spikes = [add_linear_noise(hw_spikes[0])]
-        loss_result = loss_fn(weights, batch, hw_spikes)
+        loss_result = loss_fn(weights, batch, external=hw_spikes)
 
         return (weights, rng), loss_result
 
@@ -243,7 +243,7 @@ def train(
     ):
         opt_state, weights, hw_time = input
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
-            weights, batch, hw_spikes
+            weights, batch, external=hw_spikes
         )
 
         grad = jax.tree_util.tree_map(

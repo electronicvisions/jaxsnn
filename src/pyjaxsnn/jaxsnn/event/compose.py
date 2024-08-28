@@ -1,13 +1,10 @@
-from typing import List
+from typing import List, Tuple, Optional, Any
 
 import jax
 from jaxsnn.event.types import (
     EventPropSpike,
     InitApply,
-    InitApplyHW,
     SingleInitApply,
-    SingleInitApplyHW,
-    Spike,
     Weight,
 )
 
@@ -20,94 +17,58 @@ def serial(*layers: SingleInitApply) -> InitApply:
     """
     init_fns, apply_fns = zip(*layers)
 
-    def init_fn(rng: jax.Array, input_shape: int) -> List[Weight]:
+    def init_fn(
+        rng: jax.random.KeyArray,
+        input_size: int,
+    ) -> Tuple[int, List[Weight]]:
         """Iterate and call the individual init functions"""
         weights = []
+
         for layer_init_fn in init_fns:
-            rng, input_shape, param = layer_init_fn(rng, input_shape)
-            weights.append(param)
-        return weights
+            rng, input_size, layer_params = layer_init_fn(rng, input_size)
+            weights.append(layer_params)
+
+        return input_size, weights
 
     def apply_fn(
-        weights: List[Weight], spikes: EventPropSpike
-    ) -> List[EventPropSpike]:
+        weights: List[Weight],
+        spikes: EventPropSpike,
+        external: Optional[Any] = None,
+        carry: Optional[Any] = None,
+    ) -> Tuple[Any, List[Weight], EventPropSpike, List[EventPropSpike]]:
         """Forward function of the network.
 
         Take parameters of the network and the input spikes and return the
         output spikes of each layer.
 
         Args:
+            layer_start (int): Index of first neuron from layer
             weights (List[Weight]): Parameters of the network
             spikes (EventPropSpike): Input spikes
+            recording (List[EventPropSpike]): Spikes of each layer
 
         Returns:
             List[EventPropSpike]: Spikes of each layer
         """
+        if external is None:
+            external = [None] * len(weights)
+
         recording = []
-        layer_start = 0
-        for layer_apply_fn, param in zip(apply_fns, weights):
-            layer_start += param.input.shape[0]
-            spikes = layer_apply_fn(layer_start, param, spikes)
-            recording.append(spikes)
-        return recording
+        future_weights = []
 
-    return init_fn, apply_fn
+        for layer_apply_fn, layer_params, layer_external in zip(
+            apply_fns,
+            weights,
+            external
+        ):
+            layer_result = layer_apply_fn(
+                layer_params, spikes, layer_external, carry
+            )
+            carry, layer_future_params, spikes, layer_recording = layer_result
 
+            future_weights.append(layer_future_params)
+            recording.append(layer_recording)
 
-def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
-    """Concatenate multiple layers of init/apply functions.
-
-    For a special case of hardware-in-the-loop training it is necessary to
-    do a forward run in software (after already having the observations from
-    software) in order to add information about the synaptic current at spike
-    time. This information is not returned from the hardware but needed for
-    the EventProp algorithm. As there is one more input, a different
-    concatenation functino is needed.
-
-    Returns:
-        InitApply: Init/apply pair
-    """
-    init_fns = [layer[0] for layer in layers]
-    apply_fns = [layer[1] for layer in layers]
-
-    def init_fn(rng: jax.Array, input_shape: int) -> List[Weight]:
-        """Iterate and call the individual init functions"""
-        weights = []
-        for init_fn in init_fns:
-            if len(init_fns) > 1:
-                rng, layer_rng = jax.random.split(rng)
-            else:
-                layer_rng = rng
-            input_shape, param = init_fn(layer_rng, input_shape)
-            weights.append(param)
-        return weights
-
-    def apply_fn(
-        known_spikes: List[Spike],
-        weights: List[Weight],
-        spikes: EventPropSpike,
-    ) -> List[EventPropSpike]:
-        """Forward function of the network.
-
-        Take parameters of the network and the input spikes and return the
-        output spikes of each layer
-
-        Args:
-            known_spikes(List[EventPropSpike]): The spikes that
-                happened on hardware in each layer
-            weights (List[Weight]): Parameters of the network
-            spikes (EventPropSpike): Input spikes
-
-        Returns:
-            List[EventPropSpike]: Spikes of each layer
-        """
-        recording = []
-        layer_start = 0
-        for item in zip(apply_fns, weights, known_spikes):
-            layer_apply_fn, param, known = item
-            layer_start += param.input.shape[0]
-            spikes = layer_apply_fn(layer_start, param, spikes, known)
-            recording.append(spikes)
-        return recording
+        return carry, future_weights, spikes, recording
 
     return init_fn, apply_fn

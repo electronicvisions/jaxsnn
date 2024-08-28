@@ -1,4 +1,4 @@
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Any
 
 import jax
 import jax.numpy as np
@@ -6,12 +6,12 @@ from jaxsnn.base.types import ArrayLike
 from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
     Apply,
-    ApplyHW,
     EventPropSpike,
     LIFState,
     LossAndRecording,
     TestResult,
     Weight,
+    Spike,
 )
 
 
@@ -45,7 +45,7 @@ def max_over_time_loss(
     return loss_value, (-max_voltage, recording)
 
 
-def loss_wrapper(  # pylint: disable=too-many-arguments
+def loss_wrapper(  # pylint: disable=too-many-arguments,too-many-locals
     apply_fn: Apply,
     loss_fn: Callable[[jax.Array, jax.Array, float], float],
     tau_mem: float,
@@ -53,29 +53,16 @@ def loss_wrapper(  # pylint: disable=too-many-arguments
     n_outputs: int,
     weights: List[Weight],
     batch: Tuple[EventPropSpike, jax.Array],
+    external: List[Spike],
+    carry: Any,
 ) -> LossAndRecording:
     input_spikes, target = batch
-    recording = apply_fn(weights, input_spikes)
-    output = recording[-1]
-    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
-    loss_value = loss_fn(t_first_spike, target, tau_mem)
-
-    return loss_value, (t_first_spike, recording)
-
-
-def loss_wrapper_known_spikes(  # pylint: disable=too-many-arguments
-    apply_fn: ApplyHW,
-    loss_fn: Callable[[jax.Array, jax.Array, float], float],
-    tau_mem: float,
-    n_neurons: int,
-    n_outputs: int,
-    weights: List[Weight],
-    batch: Tuple[EventPropSpike, jax.Array],
-    spikes: List[EventPropSpike],
-) -> LossAndRecording:
-    input_spikes, target = batch
-    recording = apply_fn(spikes, weights, input_spikes)
-    output = recording[-1]
+    _, _, output, recording = apply_fn(
+        weights,
+        input_spikes,
+        external,
+        carry,
+    )
     t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
     loss_value = loss_fn(t_first_spike, target, tau_mem)
 

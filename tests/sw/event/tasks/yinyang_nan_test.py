@@ -57,7 +57,7 @@ class TestEventTasksYinYangNan(unittest.TestCase):
         _, apply_fn = serial(LIF(hidden_size, n_spikes_hidden, t_max, params))
 
         def loss_fn(weights, input_spikes):
-            recording = apply_fn(weights, input_spikes)
+            _, _, _, recording = apply_fn(weights, input_spikes, None, None)
             return recording[0].time[3], recording
 
         loss_fn(weights, batch[0])

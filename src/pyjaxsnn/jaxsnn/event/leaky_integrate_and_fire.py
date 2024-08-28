@@ -24,7 +24,7 @@ Vector-Jacobian-Product (VJP).
 """
 
 from functools import partial
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 
 import jax
 import jax.numpy as np
@@ -228,17 +228,23 @@ def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     custom_trajectory = jax.custom_vjp(custom_trajectory)
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
-    def apply_fn(
-        layer_start: int, weights: Weight, input_spikes: EventPropSpike
-    ):
+    def apply_fn(  # pylint: disable=unused-argument
+        weights: Weight,
+        input_spikes: EventPropSpike,
+        external: Any,
+        carry: int,
+    ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
         s = StepState(
             neuron_state=initial_state,
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
+        if carry is None:
+            carry = 0
+        layer_start = carry + weights.input.shape[0]
         _, spikes = custom_trajectory(s, weights, layer_start)
-        return spikes
+        return layer_start, weights, spikes, spikes
 
     return init_fn, apply_fn
 
@@ -355,16 +361,22 @@ def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     custom_trajectory = jax.custom_vjp(custom_trajectory)
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
-    def apply_fn(
-        layer_start: int, weights: Weight, input_spikes: EventPropSpike
-    ):
+    def apply_fn(  # pylint: disable=unused-argument
+        weights: Weight,
+        input_spikes: EventPropSpike,
+        external: Any,
+        carry: int,
+    ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         s = StepState(
             neuron_state=initial_state,
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
+        if carry is None:
+            carry = 0
+        layer_start = carry + weights.input.shape[0]
         _, spikes = custom_trajectory(s, weights, layer_start)
-        return spikes
+        return layer_start, weights, spikes, spikes
 
     return init_fn, apply_fn
 
@@ -445,18 +457,21 @@ def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
     def apply_fn(
-        layer_start: int,
         weights: Weight,
         input_spikes: EventPropSpike,
-        known_spikes: Spike,
-    ):
+        external: Spike,
+        carry: int,
+    ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         s = StepState(
             neuron_state=initial_state,
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
-        _, spikes = custom_trajectory(s, weights, layer_start, known_spikes)
-        return spikes
+        if carry is None:
+            carry = 0
+        layer_start = carry + weights.input.shape[0]
+        _, spikes = custom_trajectory(s, weights, layer_start, external)
+        return layer_start, weights, spikes, spikes
 
     return init_fn, apply_fn
 
@@ -539,17 +554,20 @@ def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
 
     def apply_fn(
-        layer_start: int,
         weights: Weight,
         input_spikes: EventPropSpike,
-        known_spikes: Spike,
-    ):
+        external: Spike,
+        carry: int,
+    ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         s = StepState(
             neuron_state=initial_state,
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
-        _, spikes = custom_trajectory(s, weights, layer_start, known_spikes)
-        return spikes
+        if carry is None:
+            carry = 0
+        layer_start = carry + weights.input.shape[0]
+        _, spikes = custom_trajectory(s, weights, layer_start, external)
+        return layer_start, weights, spikes, spikes
 
     return init_fn, apply_fn
