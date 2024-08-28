@@ -21,9 +21,9 @@ def test_nans():
     # class 1
     input_spikes = EventPropSpike(
         time=np.array(
-            [0.0000000e00, 4.4690369e-05, 4.4967532e-03, 5.5032466e-03]
+            [0.0000000e00, 0.00195968, 0.00479668, 0.00520332, 0.00804032]
         ),
-        idx=np.array([4, 2, 3, 1, 0]),
+        idx=np.array([4, 0, 3, 1, 2]),
         current=np.zeros(5),
     )
 
@@ -67,7 +67,7 @@ def test_nans():
         weights, input_spikes
     )
     assert not np.isnan(np.mean(grad[0].input))
-    assert_almost_equal(loss, -1.1499, 4)
+    assert_almost_equal(loss, -1.0986, 4)
 
 
 if __name__ == "__main__":

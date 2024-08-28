@@ -148,8 +148,13 @@ def trajectory(
         else:
             layer_index, layer_start = carry
         this_layer_weights = weights[layer_index]
-        layer_start = layer_start + this_layer_weights.input.shape[0]
+        input_size = this_layer_weights.input.shape[0]
+        layer_start = layer_start + input_size
         initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
+
+        # Filter out input spikes which are not from previous layer
+        input_spikes = filter_spikes(input_spikes, layer_start - input_size)
+
         step_state = StepState(
             neuron_state=initial_state,
             time=0.0,
@@ -165,3 +170,18 @@ def trajectory(
         return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return apply_fn
+
+
+def filter_spikes(
+    input_spikes: EventPropSpike,
+    prev_layer_start: int
+) -> EventPropSpike:
+    """Filters the input spikes by ensuring only the spikes from the previous
+    layer are kept.
+    """
+    # Filter out input spikes that are not from the previous layer
+    idx = input_spikes.idx >= prev_layer_start
+    input_spikes.time = np.where(idx, input_spikes.time, np.inf)
+    idx = np.argsort(input_spikes.time)
+    input_spikes = jax.tree_map(lambda x: x[idx], input_spikes)
+    return input_spikes

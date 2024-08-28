@@ -6,7 +6,7 @@ import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
-from jaxsnn.event.functional import StepInput, trajectory
+from jaxsnn.event.functional import StepInput, trajectory, filter_spikes
 from jaxsnn.event.types import (
     EventPropSpike,
     LIFState,
@@ -369,7 +369,19 @@ def construct_adjoint_apply_fn(
             layer_external = None
 
         this_layer_weights = weights[layer_index]
-        layer_start = layer_start + this_layer_weights.input.shape[0]
+        input_size = this_layer_weights.input.shape[0]
+        layer_start = layer_start + input_size
+
+        initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
+
+        input_spikes = filter_spikes(input_spikes, layer_start - input_size)
+
+        s = StepState(
+            neuron_state=initial_state,
+            time=0.0,
+            input_queue=InputQueue(input_spikes),
+        )
+
         _, spikes = custom_trajectory(
             s, this_layer_weights, layer_start, layer_external
         )
