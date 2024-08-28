@@ -1,4 +1,3 @@
-import datetime as dt
 import time
 from functools import partial
 
@@ -7,7 +6,12 @@ import optax
 from jax import numpy as np
 from jax import random
 import jaxsnn
-from jaxsnn import discrete
+from jaxsnn.discrete.compose import serial
+from jaxsnn.discrete.leaky_integrate import LI
+from jaxsnn.discrete.leaky_integrate_and_fire import LIF
+from jaxsnn.discrete.decode import max_over_time_decode
+from jaxsnn.discrete.encode import spatio_temporal_encode
+from jaxsnn.discrete.loss import nll_loss, acc_and_loss
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.discrete.dataset.yinyang import YinYangDataset, data_loader
 
@@ -29,7 +33,7 @@ def train_step(optimizer, state, batch, loss_fn):
     inputs, output = batch
 
     (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        weights, (inputs, output)
+        weights, (inputs, output), max_over_time_decode
     )
     updates, opt_state = optimizer.update(grads, opt_state)
     weights = optax.apply_updates(weights, updates)
@@ -61,12 +65,32 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     trainset = YinYangDataset(train_key, 4992, bias_spike=bias_spike)
     test_dataset = YinYangDataset(test_key, 1000, bias_spike=bias_spike)
 
+    trainset_batches = data_loader(trainset, batch_size, None)
+    # Encoding the inputs
+    input_encoder_batched = jax.vmap(
+        spatio_temporal_encode,
+        in_axes=(0, None, None, None)
+    )
+    train_input_encoded = input_encoder_batched(
+        trainset_batches[0],
+        time_steps,
+        t_late,
+        DT,
+    )
+    trainset = (train_input_encoded, trainset_batches[1])
+
+    test_input_encoded = spatio_temporal_encode(
+        test_dataset.vals,
+        time_steps,
+        t_late,
+        DT,
+    )
+    test_dataset.vals = test_input_encoded
+
     # define the network
-    snn_init, snn_apply = discrete.serial(
-        discrete.spatio_temporal_encode(time_steps, t_late, DT),
-        discrete.LIF(hidden_features),
-        discrete.LI(n_classes),
-        discrete.max_over_time_decode(),
+    snn_init, snn_apply = serial(
+        LIF(hidden_features),
+        LI(n_classes),
     )
 
     # define optimizer
@@ -77,7 +101,7 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     # define loss and train function
     snn_apply = partial(snn_apply, recording=True)
     loss_fn = partial(
-        discrete.nll_loss, snn_apply, expected_spikes=expected_spikes, rho=1e-5
+        nll_loss, snn_apply, expected_spikes=expected_spikes, rho=1e-5
     )
     train_step_fn = partial(train_step, optimizer, loss_fn=loss_fn)
 
@@ -89,16 +113,17 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     accuracies = []
     loss = []
     for epoch in range(epochs):
-        trainloader = data_loader(trainset, batch_size, rng=None)
         start = time.time()
         (opt_state, weights, i), recording = jax.lax.scan(
-            train_step_fn, (opt_state, weights, 0), trainloader
+            train_step_fn, (opt_state, weights, 0), trainset
         )
         end = time.time() - start
 
-        spikes_per_item = np.count_nonzero(recording[1].z) / len(trainset)
-        accuracy, test_loss = discrete.acc_and_loss(
-            snn_apply, weights, (test_dataset.vals, test_dataset.classes)
+        spikes_per_item = np.count_nonzero(recording[0].z) / dataset_size
+        accuracy, test_loss = acc_and_loss(
+            snn_apply, weights,
+            (test_dataset.vals, test_dataset.classes),
+            max_over_time_decode
         )
         accuracies.append(accuracy)
         loss.append(test_loss)

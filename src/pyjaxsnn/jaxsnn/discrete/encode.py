@@ -75,8 +75,7 @@ def constant_current_lif_encode(
     return jax.lax.scan(lif_current_encoder, init, input_current)
 
 
-@partial(jax.jit, static_argnames=["seq_length"])
-def spatio_temporal_encode_inner(
+def spatio_temporal_encode(
     input_values: jax.Array,
     seq_length: int,
     t_late: float,
@@ -114,13 +113,3 @@ def spatio_temporal_encode_inner(
     idx = np.clip(idx, 0, seq_length)
     encoded = np.eye(seq_length)[:, idx]
     return encoded
-
-
-def spatio_temporal_encode(T, t_late, DT):
-    def init_fn(rng, input_shape):
-        return (input_shape, None, rng)
-
-    def apply_fn(params, inputs, **kwargs):  # pylint: disable=unused-argument
-        return spatio_temporal_encode_inner(inputs, T, t_late, DT), None
-
-    return init_fn, apply_fn
