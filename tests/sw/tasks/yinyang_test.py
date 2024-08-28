@@ -46,10 +46,8 @@ class TestTasksYinYang(unittest.TestCase):
 
         snn_init, snn_apply = discrete.serial(
             discrete.spatio_temporal_encode(T, t_late, DT),
-            discrete.euler_integrate(
-                discrete.LIFStep(hidden_features, superspike),
-                discrete.LIStep(n_classes),
-            ),
+            discrete.LIF(hidden_features, superspike),
+            discrete.LI(n_classes),
             discrete.max_over_time_decode(),
         )
 

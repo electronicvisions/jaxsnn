@@ -68,17 +68,16 @@ def lif_step(
     i_new = i_decayed + np.matmul(z, recurrent_weights)
     i_new = i_new + np.matmul(spikes, input_weights)
 
-    return (
-        LIFState(z_new, v_new, i_new),
-        (input_weights, recurrent_weights),
-    ), z_new
+    new_state = LIFState(z_new, v_new, i_new)
+
+    return (new_state, weights), (z_new, new_state)
 
 
 def lif_integrate(init, spikes):
     return jax.lax.scan(lif_step, init, spikes)
 
 
-def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
+def LIF(out_dim, method=superspike, scale_in=0.7, scale_rec=0.2):
     """Layer constructor function for a lif (leaky-integrated-fire) layer."""
 
     def init_fn(rng, input_shape):
@@ -87,15 +86,18 @@ def LIF(out_dim, scale_in=0.7, scale_rec=0.2):
         recurrent_weights = scale_rec * random.normal(
             r_key, (out_dim, out_dim)
         )
-        return out_dim, (input_weights, recurrent_weights)
+        return out_dim, (input_weights, recurrent_weights), rng
+
+    lif_step_fn = partial(lif_step, method=method)
 
     def apply_fn(weights, inputs, **kwargs):  # pylint: disable=unused-argument
         batch = inputs.shape[1]
         shape = (batch, out_dim)
         state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
-        (state, _), spikes = jax.lax.scan(lif_step, (state, weights), inputs)
-
-        return spikes
+        _, (output, recording) = jax.lax.scan(
+            lif_step_fn, (state, weights), inputs
+        )
+        return output, recording
 
     return init_fn, apply_fn
 

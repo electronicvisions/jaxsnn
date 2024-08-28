@@ -64,10 +64,8 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     # define the network
     snn_init, snn_apply = discrete.serial(
         discrete.spatio_temporal_encode(time_steps, t_late, DT),
-        discrete.euler_integrate(
-            discrete.LIFStep(hidden_features, discrete.superspike),
-            discrete.LIStep(n_classes),
-        ),
+        discrete.LIF(hidden_features),
+        discrete.LI(n_classes),
         discrete.max_over_time_decode(),
     )
 

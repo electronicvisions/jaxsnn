@@ -40,7 +40,9 @@ def li_feed_forward_step(
     di = -dt * params.tau_syn_inv * i_jump
     i_decayed = i_jump + di
 
-    return (LIState(v_new, i_decayed), input_weights), v_new
+    new_state = LIState(v_new, i_decayed)
+
+    return (new_state, input_weights), (v_new, new_state)
 
 
 def li_integrate(init, spikes):
@@ -59,10 +61,10 @@ def LI(out_dim, scale_in=0.2):
         batch = inputs.shape[1]
         shape = (batch, out_dim)
         state = LIState(np.zeros(shape), np.zeros(shape))
-        _, voltages = jax.lax.scan(
+        _, (voltages, recording) = jax.lax.scan(
             li_feed_forward_step, (state, weights), inputs
         )
-        return voltages
+        return voltages, recording
 
     return init_fn, apply_fn
 
