@@ -241,10 +241,15 @@ def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
             input_queue=InputQueue(input_spikes),
         )
         if carry is None:
-            carry = 0
-        layer_start = carry + weights.input.shape[0]
-        _, spikes = custom_trajectory(s, weights, layer_start)
-        return layer_start, weights, spikes, spikes
+            layer_index = 0
+            layer_start = 0
+        else:
+            layer_index, layer_start = carry
+        this_layer_weights = weights[layer_index]
+        layer_start = layer_start + this_layer_weights.input.shape[0]
+        _, spikes = custom_trajectory(s, this_layer_weights, layer_start)
+        layer_index += 1
+        return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return init_fn, apply_fn
 
@@ -373,10 +378,15 @@ def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
             input_queue=InputQueue(input_spikes),
         )
         if carry is None:
-            carry = 0
-        layer_start = carry + weights.input.shape[0]
-        _, spikes = custom_trajectory(s, weights, layer_start)
-        return layer_start, weights, spikes, spikes
+            layer_index = 0
+            layer_start = 0
+        else:
+            layer_index, layer_start = carry
+        this_layer_weights = weights[layer_index]
+        layer_start = layer_start + this_layer_weights.input.shape[0]
+        _, spikes = custom_trajectory(s, this_layer_weights, layer_start)
+        layer_index += 1
+        return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return init_fn, apply_fn
 
@@ -459,7 +469,7 @@ def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     def apply_fn(
         weights: Weight,
         input_spikes: EventPropSpike,
-        external: Spike,
+        external: List[Spike],
         carry: int,
     ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         s = StepState(
@@ -468,10 +478,20 @@ def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
             input_queue=InputQueue(input_spikes),
         )
         if carry is None:
-            carry = 0
-        layer_start = carry + weights.input.shape[0]
-        _, spikes = custom_trajectory(s, weights, layer_start, external)
-        return layer_start, weights, spikes, spikes
+            layer_index = 0
+            layer_start = 0
+        else:
+            layer_index, layer_start = carry
+        this_layer_weights = weights[layer_index]
+        layer_start = layer_start + this_layer_weights.input.shape[0]
+        _, spikes = custom_trajectory(
+            s,
+            this_layer_weights,
+            layer_start,
+            external[layer_index]
+        )
+        layer_index += 1
+        return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return init_fn, apply_fn
 
@@ -556,7 +576,7 @@ def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
     def apply_fn(
         weights: Weight,
         input_spikes: EventPropSpike,
-        external: Spike,
+        external: List[Spike],
         carry: int,
     ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         s = StepState(
@@ -565,9 +585,19 @@ def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
             input_queue=InputQueue(input_spikes),
         )
         if carry is None:
-            carry = 0
-        layer_start = carry + weights.input.shape[0]
-        _, spikes = custom_trajectory(s, weights, layer_start, external)
-        return layer_start, weights, spikes, spikes
+            layer_index = 0
+            layer_start = 0
+        else:
+            layer_index, layer_start = carry
+        this_layer_weights = weights[layer_index]
+        layer_start = layer_start + this_layer_weights.input.shape[0]
+        _, spikes = custom_trajectory(
+            s,
+            this_layer_weights,
+            layer_start,
+            external[layer_index]
+        )
+        layer_index += 1
+        return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return init_fn, apply_fn

@@ -143,8 +143,12 @@ def trajectory(
         carry: Optional[int],
     ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         if carry is None:
-            carry = 0
-        layer_start = carry + weights.input.shape[0]
+            layer_index = 0
+            layer_start = 0
+        else:
+            layer_index, layer_start = carry
+        this_layer_weights = weights[layer_index]
+        layer_start = layer_start + this_layer_weights.input.shape[0]
         initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
         step_state = StepState(
             neuron_state=initial_state,
@@ -152,8 +156,12 @@ def trajectory(
             input_queue=InputQueue(input_spikes),
         )
         _, spikes = jax.lax.scan(
-            step_fn, (step_state, weights, layer_start), np.arange(n_spikes)
+            step_fn,
+            (step_state, this_layer_weights, layer_start),
+            np.arange(n_spikes)
         )
-        return layer_start, weights, spikes, spikes
+
+        layer_index += 1
+        return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return apply_fn

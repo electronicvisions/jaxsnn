@@ -26,8 +26,11 @@ def serial(*layers: SingleInitApply) -> InitApply:
 
         for layer_init_fn in init_fns:
             rng, input_size, layer_params = layer_init_fn(rng, input_size)
-            weights.append(layer_params)
-
+            # Ensure that list of weights stays flat
+            if isinstance(layer_params, List):
+                weights.extend(layer_params)
+            else:
+                weights.append(layer_params)
         return input_size, weights
 
     def apply_fn(
@@ -50,25 +53,21 @@ def serial(*layers: SingleInitApply) -> InitApply:
         Returns:
             List[EventPropSpike]: Spikes of each layer
         """
-        if external is None:
-            external = [None] * len(weights)
 
         recording = []
         future_weights = []
-
-        for layer_apply_fn, layer_params, layer_external in zip(
-            apply_fns,
-            weights,
-            external
-        ):
+        for layer_apply_fn in apply_fns:
             layer_result = layer_apply_fn(
-                layer_params, spikes, layer_external, carry
+                weights, spikes, external, carry
             )
             carry, layer_future_params, spikes, layer_recording = layer_result
-
-            future_weights.append(layer_future_params)
-            recording.append(layer_recording)
-
+            # Ensure that weights and recording stay flat
+            if isinstance(layer_recording, list):
+                future_weights.extend(layer_future_params)
+                recording.extend(layer_recording)
+            else:
+                future_weights.append(layer_future_params)
+                recording.append(layer_recording)
         return carry, future_weights, spikes, recording
 
     return init_fn, apply_fn
