@@ -1,4 +1,4 @@
-from .compose import euler_integrate, serial
+from .compose import serial
 from .decode import max_over_time_decode
 from .encode import spatio_temporal_encode
 from .leaky_integrate import LI

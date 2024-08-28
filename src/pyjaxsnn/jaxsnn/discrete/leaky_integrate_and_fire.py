@@ -73,10 +73,6 @@ def lif_step(
     return (new_state, weights), (z_new, new_state)
 
 
-def lif_integrate(init, spikes):
-    return jax.lax.scan(lif_step, init, spikes)
-
-
 def LIF(out_dim, method=superspike, scale_in=0.7, scale_rec=0.2):
     """Layer constructor function for a lif (leaky-integrated-fire) layer."""
 
@@ -100,33 +96,3 @@ def LIF(out_dim, method=superspike, scale_in=0.7, scale_rec=0.2):
         return output, recording
 
     return init_fn, apply_fn
-
-
-def LIFStep(
-    out_dim, method, scale_in=0.7, scale_rec=0.2, **kwargs
-):  # pylint: disable=unused-argument
-    """Layer constructor function for a lif (leaky-integrated-fire) layer."""
-
-    def init_fn(rng, input_shape):
-        rng, i_key, r_key = random.split(rng, 3)
-        input_weights = (
-            scale_in * random.normal(i_key, (input_shape, out_dim)) + 0.3
-        )
-        recurrent_weights = scale_rec * random.normal(
-            r_key, (out_dim, out_dim)
-        )
-        return out_dim, (input_weights, recurrent_weights), rng
-
-    def state_fn(batch_size, **kwargs):  # pylint: disable=unused-argument
-        shape = (batch_size, out_dim)
-        state = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
-        return state
-
-    lif_step_fn = jax.jit(partial(lif_step, method=method))
-
-    def apply_fn(
-        state, weights, inputs, **kwargs
-    ):  # pylint: disable=unused-argument
-        return lif_step_fn((state, weights), inputs)
-
-    return init_fn, apply_fn, state_fn
