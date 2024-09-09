@@ -43,7 +43,7 @@ from jaxsnn.event.construct import (
 from jaxsnn.event.flow import lif_exponential_flow
 from jaxsnn.event.functional import step, trajectory
 from jaxsnn.event.root import ttfs_solver
-from jaxsnn.event.root.next import next_event
+from jaxsnn.event.root.next_finder import next_event
 from jaxsnn.event.transition import (
     transition_with_recurrence,
     transition_without_recurrence,

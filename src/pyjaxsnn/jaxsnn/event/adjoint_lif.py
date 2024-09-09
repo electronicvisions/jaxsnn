@@ -16,7 +16,7 @@ from jaxsnn.event.types import (
     WeightRecurrent,
     InputQueue
 )
-from jaxsnn.event.root.next import next_queue
+from jaxsnn.event.root.next_finder import next_queue
 
 
 def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments

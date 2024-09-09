@@ -8,7 +8,7 @@ from jaxsnn.event.functional import step
 from jaxsnn.event.leaky_integrate_and_fire import (
     transition_without_recurrence,
 )
-from jaxsnn.event.root.next import next_event
+from jaxsnn.event.root.next_finder import next_event
 from jaxsnn.event.root.ttfs import ttfs_solver
 from jaxsnn.event.types import (
     LIFState,

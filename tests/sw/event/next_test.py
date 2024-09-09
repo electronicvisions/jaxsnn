@@ -2,7 +2,7 @@ from functools import partial
 
 import unittest
 import jax.numpy as np
-from jaxsnn.event.root.next import next_queue
+from jaxsnn.event.root.next_finder import next_queue
 from jaxsnn.event.types import Spike
 
 
