@@ -1,4 +1,4 @@
-from typing import Callable, List, Tuple, Any
+from typing import Callable, List, Tuple, Any, Optional
 
 import jax
 import jax.numpy as np
@@ -53,18 +53,47 @@ def loss_wrapper(  # pylint: disable=too-many-arguments,too-many-locals
     n_outputs: int,
     weights: List[Weight],
     batch: Tuple[EventPropSpike, jax.Array],
-    external: List[Spike],
-    carry: Any,
+    vmap: bool = True,
+    external: Optional[List[Spike]] = None,
+    carry: Optional[Any] = None,
 ) -> LossAndRecording:
     input_spikes, target = batch
+
+    if vmap:
+        # Check if run with known spikes
+        if external is None:
+            in_axes = (None, 0, None, None)
+        else:
+            in_axes = (None, 0, 0, None)
+        # Create batched functions
+        apply_fn = jax.vmap(
+            apply_fn, in_axes=in_axes
+        )
+
+        first_spike_function = jax.vmap(
+            first_spike, in_axes=(0, None, None)
+        )
+
+        loss_function = jax.vmap(
+            loss_fn, in_axes=(0, 0, None)
+        )
+    else:
+        first_spike_function = first_spike
+        loss_function = loss_fn
+
     _, _, output, recording = apply_fn(
         weights,
         input_spikes,
         external,
-        carry,
+        carry
     )
-    t_first_spike = first_spike(output, n_neurons)[n_neurons - n_outputs:]
-    loss_value = loss_fn(t_first_spike, target, tau_mem)
+
+    t_first_spike = first_spike_function(output, n_neurons, n_outputs)
+
+    loss_value = loss_function(t_first_spike, target, tau_mem)
+
+    if vmap:
+        loss_value = np.mean(loss_value)
 
     return loss_value, (t_first_spike, recording)
 
@@ -96,12 +125,16 @@ def mse_loss(
     )
 
 
-def first_spike(spikes: EventPropSpike, size: int) -> jax.Array:
+def first_spike(
+    spikes: EventPropSpike,
+    size: int,
+    n_outputs: int
+) -> jax.Array:
     return np.array(
         [
             np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
             for idx in range(size)
-        ]
+        ][size - n_outputs:]
     )
 
 

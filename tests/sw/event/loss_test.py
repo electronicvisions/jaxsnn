@@ -8,13 +8,13 @@ import unittest
 class TestEventLoss(unittest.TestCase):
     def test_first_spikes(self):
         spikes = Spike(np.array([0.1, 0.3]), np.array([-1, -1]))
-        assert_array_equal(first_spike(spikes, 2), np.array([np.inf, np.inf]))
+        assert_array_equal(first_spike(spikes, 2, 2), np.array([np.inf, np.inf]))
 
         spikes = Spike(np.array([0.1, 0.3]), np.array([1, -1]))
-        assert_array_equal(first_spike(spikes, 2), np.array([np.inf, 0.1]))
+        assert_array_equal(first_spike(spikes, 2, 2), np.array([np.inf, 0.1]))
 
         spikes = Spike(np.array([0.3, 0.1]), np.array([0, 0]))
-        assert_array_equal(first_spike(spikes, 2), np.array([0.1, np.inf]))
+        assert_array_equal(first_spike(spikes, 2, 2), np.array([0.1, np.inf]))
 
     def test_custom_exp_loss(self):
         t_max = 3e-2

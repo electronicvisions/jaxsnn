@@ -25,7 +25,6 @@ from jaxsnn.base.compose import serial
 from jaxsnn.event import custom_lax
 from jaxsnn.event.dataset import yinyang_dataset
 from jaxsnn.event.dataset.yinyang import good_params_for_hw
-from jaxsnn.event.functional import batch_wrapper
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
@@ -145,20 +144,15 @@ def train(
     optimizer = optimizer_fn(scheduler)
     opt_state = optimizer.init(weights)
 
-    loss_fn = jax.jit(
-        batch_wrapper(
-            partial(
-                loss_wrapper,
-                apply_fn,
-                mse_loss,
-                params.tau_mem,
-                n_neurons,
-                output_size,
-            ),
-            in_axes=(None, 0, 0, None),
-            pmap=False,
-        )
-    )
+    # define loss and update function
+    loss_fn = jax.jit(partial(
+        loss_wrapper,
+        apply_fn,
+        mse_loss,
+        params.tau_mem,
+        n_neurons,
+        output_size,
+    ))
 
     # set up neurons on BSS-2
     experiment = Experiment(wafer_config)

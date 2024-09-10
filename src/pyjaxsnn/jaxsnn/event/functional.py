@@ -1,56 +1,16 @@
-from typing import Callable, Tuple, Union, Any, List, Optional
+from typing import Callable, Tuple, Any, Optional
 
 import jax
 import jax.numpy as np
 from jaxsnn.event.types import (
     EventPropSpike,
-    HWLossFn,
     InputQueue,
     LIFState,
-    LossFn,
     SingleApply,
     Solver,
     StepState,
     Weight,
 )
-
-
-def batch_wrapper(
-    loss_fn: Union[LossFn, HWLossFn],
-    in_axes: tuple = (None, 0, None, None),
-    pmap: bool = False,
-):
-    """Add an outer batch dimension to `loss_fn`.
-
-    The loss function returns the actual loss value, and some more information.
-    When adding the batch dimension, the average of the loss value is taken,
-    but the information is stacked.
-    """
-
-    def wrapped_fn(
-        weights: List[Weight],
-        batch: Tuple[EventPropSpike, jax.Array],
-        external: Any = None,
-        carry: Any = None,
-    ):
-        if pmap:
-            res = jax.pmap(loss_fn, in_axes=in_axes)(
-                weights,
-                batch,
-                external,
-                carry
-            )
-        else:
-            res = jax.vmap(loss_fn, in_axes=in_axes)(
-                weights,
-                batch,
-                external,
-                carry
-            )
-        return np.mean(res[0]), res[1]
-
-    return wrapped_fn
-
 
 # Input to step function.
 # Consists of StepState, weights of the network and start index of the layer

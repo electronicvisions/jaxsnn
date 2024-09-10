@@ -68,7 +68,7 @@ class TestEventTasksContant(unittest.TestCase):
         update_fn = partial(self.update, loss_fn)
 
         # train the net
-        trainset = constant_dataset(t_max, [n_epochs])
+        trainset = constant_dataset(t_max, [n_epochs, 1])
         weights, (loss_value, _) = jax.lax.scan(update_fn, weights, trainset[:2])
         assert loss_value[-1] <= -0.4, loss_value
 

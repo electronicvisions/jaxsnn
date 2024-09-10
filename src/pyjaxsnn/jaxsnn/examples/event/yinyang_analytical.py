@@ -4,6 +4,7 @@ import json
 from functools import partial
 from pathlib import Path
 
+import jax
 import jax.numpy as np
 import optax
 from jax import random
@@ -12,7 +13,6 @@ from jaxsnn.base.compose import serial
 from jaxsnn.event import custom_lax
 from jaxsnn.event.dataset import yinyang_dataset as dataset
 from jaxsnn.event.dataset.yinyang import good_params
-from jaxsnn.event.functional import batch_wrapper
 from jaxsnn.event.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.loss import loss_wrapper, mse_loss
 from jaxsnn.event.training import epoch, update
@@ -95,17 +95,16 @@ def train(  # pylint: disable=too-many-locals
     opt_state = optimizer.init(weights)
 
     # define loss and update function
-    loss_fn = batch_wrapper(
-        partial(
-            loss_wrapper,
-            apply_fn,
-            mse_loss,
-            params.tau_mem,
-            n_neurons,
-            output_size,
-        )
+    loss_fn = partial(
+        loss_wrapper,
+        apply_fn,
+        mse_loss,
+        params.tau_mem,
+        n_neurons,
+        output_size,
     )
-    update_fn = partial(update, optimizer, loss_fn, params)
+
+    update_fn = jax.jit(partial(update, optimizer, loss_fn, params))
     epoch_fn = partial(epoch, update_fn, loss_fn, trainset, testset)
 
     # iterate over epochs
