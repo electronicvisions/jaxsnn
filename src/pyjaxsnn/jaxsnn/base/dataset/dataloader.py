@@ -27,8 +27,9 @@ def data_loader(
     num_batches = total_length // batch_size
 
     # Split dataset up into batches
+    # NOTE: shortens the dataset to num_batches * batch_size
     dataset = jax.tree_map(
-        lambda x: x.reshape((num_batches, batch_size) + x.shape[1:]), dataset
-    )
+        lambda x: x[:num_batches * batch_size].reshape(
+            (num_batches, batch_size) + x.shape[1:]), dataset)
 
     return dataset
