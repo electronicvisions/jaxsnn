@@ -53,11 +53,11 @@ def lif_step(
     z, v, i = state
 
     # compute voltage updates
-    dv = dt * params.tau_mem_inv * ((params.v_leak - v) + i)
+    dv = dt / params.tau_mem * ((params.v_leak - v) + i)
     v_decayed = v + dv
 
     # compute current updates
-    di = -dt * params.tau_syn_inv * i
+    di = -dt / params.tau_syn * i
     i_decayed = i + di
 
     # compute new spikes

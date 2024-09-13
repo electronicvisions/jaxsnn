@@ -56,9 +56,7 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
     lr_decay = 0.98
     step_size = 5e-4
 
-    t_late = (
-        1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
-    )
+    t_late = LIFParameters().tau_syn + LIFParameters().tau_mem
     time_steps = int(2 * t_late / DT)
     log.info(f"DT: {DT}, {time_steps} time steps, t_late: {t_late}")
 

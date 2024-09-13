@@ -24,8 +24,8 @@ class TestEventFunctional(unittest.TestCase):
     def test_step(self):
         params = LIFParameters()
         kernel = np.array(
-            [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
-        )
+            [[-1. / params.tau_mem, 1. / params.tau_mem],
+             [0, -1. / params.tau_syn]])
         flow = exponential_flow(kernel)
         dynamics = jax.vmap(flow, in_axes=(0, None))
 
@@ -66,8 +66,8 @@ class TestEventFunctional(unittest.TestCase):
     def test_step_no_transition(self):
         params = LIFParameters()
         kernel = np.array(
-            [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
-        )
+            [[-1. / params.tau_mem, 1. / params.tau_mem],
+             [0, -1. / params.tau_syn]])
         flow = exponential_flow(kernel)
         dynamics = jax.vmap(flow, in_axes=(0, None))
 

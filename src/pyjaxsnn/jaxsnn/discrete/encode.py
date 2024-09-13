@@ -35,7 +35,7 @@ def lif_current_encoder(
         p (LIFParameters): parameters of a leaky integrate and fire neuron
         dt (float): Integration timestep to use
     """
-    dv = dt * params.tau_mem_inv * ((params.v_leak - voltage) + input_current)
+    dv = dt / params.tau_mem * ((params.v_leak - voltage) + input_current)
     voltage = voltage + dv
     z = superspike(voltage - params.v_th)
 

@@ -45,9 +45,7 @@ class TestTasksYinYang(unittest.TestCase):
         step_size = 1e-3
         DT = 5e-4
 
-        t_late = (
-            1.0 / LIFParameters().tau_syn_inv + 1.0 / LIFParameters().tau_mem_inv
-        )
+        t_late = LIFParameters().tau_syn + LIFParameters().tau_mem
         time_steps = int(2 * t_late / DT)
 
         # Define random keys

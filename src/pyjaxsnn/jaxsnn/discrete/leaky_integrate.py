@@ -33,11 +33,11 @@ def li_feed_forward_step(
     # compute current jumps
     i_jump = state.i + np.matmul(spikes, input_weights)
     # compute voltage updates
-    dv = dt * params.tau_mem_inv * ((params.v_leak - state.v) + i_jump)
+    dv = dt / params.tau_mem * ((params.v_leak - state.v) + i_jump)
     v_new = state.v + dv
 
     # compute current updates
-    di = -dt * params.tau_syn_inv * i_jump
+    di = -dt / params.tau_syn * i_jump
     i_decayed = i_jump + di
 
     new_state = LIState(v_new, i_decayed)

@@ -13,8 +13,8 @@ class TestEventRootNewton(unittest.TestCase):
     def get_lif_dynamics(self):
         params = LIFParameters()
         kernel = np.array(
-            [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
-        )
+            [[-1. / params.tau_mem, 1. / params.tau_mem],
+             [0, -1. / params.tau_syn]])
 
         def f(state, t):
             x0 = np.array([state.V, state.I])

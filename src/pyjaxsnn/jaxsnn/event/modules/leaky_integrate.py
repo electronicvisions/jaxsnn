@@ -58,7 +58,8 @@ def LeakyIntegrator(  # pylint: disable=invalid-name
         )
 
     kernel = np.array(
-        [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
+        [[-1. / params.tau_mem, 1. / params.tau_mem],
+         [0, -1. / params.tau_syn]]
     )
     return init_fn, partial(
         leaky_integrator, kernel, np.linspace(0, t_max, time_steps)

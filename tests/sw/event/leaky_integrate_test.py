@@ -13,7 +13,8 @@ class TestEventLif(unittest.TestCase):
         time_steps = np.linspace(0, t_max, 100)
         n_input = 3
         kernel = np.array(
-            [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
+            [[-1. / params.tau_mem, 1. / params.tau_mem],
+             [0, -1. / params.tau_syn]]
         )
 
         spikes = Spike(time=np.array([0]), idx=np.array([0]))

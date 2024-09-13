@@ -23,6 +23,6 @@ def exponential_flow(kernel: jax.Array):
 
 def lif_exponential_flow(params: LIFParameters):
     kernel = np.array(
-        [[-params.tau_mem_inv, params.tau_mem_inv], [0, -params.tau_syn_inv]]
-    )
+        [[-1. / params.tau_mem, 1. / params.tau_mem],
+         [0, -1. / params.tau_syn]])
     return exponential_flow(kernel)

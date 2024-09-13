@@ -209,8 +209,8 @@ def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
 
 def adjoint_lif_exponential_flow(params: LIFParameters):
     A = np.array(
-        [[-params.tau_mem_inv, 0.0], [params.tau_syn_inv, -params.tau_syn_inv]]
-    )
+        [[- 1. / params.tau_mem, 0.0],
+         [1. / params.tau_syn, -1. / params.tau_syn]])
     return exponential_flow(A)
 
 

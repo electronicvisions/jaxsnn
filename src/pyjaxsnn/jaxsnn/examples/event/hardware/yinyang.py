@@ -87,7 +87,7 @@ def train(
 ):
     # neuron params, low v_reset only allows one spike per neuron
     params = LIFParameters(
-        v_reset=-1000.0, v_th=1.0, tau_syn_inv=1 / 6e-6, tau_mem_inv=1 / 12e-6
+        v_reset=-1000.0, v_th=1.0, tau_syn=6e-6, tau_mem=12e-6
     )
     # params for dataset, encoding and decoding
     yinyang_params = generate_yinyang_params(params)

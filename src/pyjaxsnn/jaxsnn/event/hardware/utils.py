@@ -157,13 +157,13 @@ def simulate_hw_weights(
 
 
 def simulate_madc(
-    tau_mem_inv: float,
-    tau_syn_inv: float,
+    tau_mem: float,
+    tau_syn: float,
     inputs: Spike,
     weight: float,
     ts: jax.Array,
 ):
-    A = np.array([[-tau_mem_inv, tau_mem_inv], [0, -tau_syn_inv]])
+    A = np.array([[-1. / tau_mem, 1. / tau_mem], [0, -1. / tau_syn]])
     tk = inputs.time
     xk = np.array([[0.0, weight]])
 
