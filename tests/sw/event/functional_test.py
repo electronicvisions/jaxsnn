@@ -5,7 +5,7 @@ import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
 from jaxsnn.event.functional import step
-from jaxsnn.event.leaky_integrate_and_fire import (
+from jaxsnn.event.modules.leaky_integrate_and_fire import (
     transition_without_recurrence,
 )
 from jaxsnn.event.root.next_finder import next_event

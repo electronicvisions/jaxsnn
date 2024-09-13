@@ -18,7 +18,7 @@ from jaxsnn.event.encode import (
     encode
 )
 from jaxsnn.event import custom_lax
-from jaxsnn.event.leaky_integrate_and_fire import (
+from jaxsnn.event.modules.leaky_integrate_and_fire import (
     LIFParameters,
     RecurrentEventPropLIF,
 )

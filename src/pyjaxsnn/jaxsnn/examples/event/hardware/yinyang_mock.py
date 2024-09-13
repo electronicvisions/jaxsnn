@@ -37,7 +37,7 @@ from jaxsnn.event.hardware.utils import (
     simulate_hw_weights,
     sort_batch,
 )
-from jaxsnn.event.leaky_integrate_and_fire import (
+from jaxsnn.event.modules.leaky_integrate_and_fire import (
     HardwareRecurrentLIF,
     LIFParameters,
     RecurrentEventPropLIF,

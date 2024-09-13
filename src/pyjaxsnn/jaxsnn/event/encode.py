@@ -52,6 +52,16 @@ def target_temporal_encode(
     return target_spike_times
 
 
+def target_one_hot_encode(
+    target: jax.Array,
+    scale: float,
+    n_classes: int
+) -> jax.Array:
+    encoding = np.zeros((n_classes))
+    encoding = encoding.at[target].set(scale)
+    return encoding
+
+
 def encode(
     dataset: Tuple[jax.Array, jax.Array],
     input_encoder: Optional[Callable] = None,

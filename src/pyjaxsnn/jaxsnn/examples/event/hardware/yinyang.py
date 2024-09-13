@@ -34,7 +34,7 @@ from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.input_neuron import InputNeuron
 from jaxsnn.event.hardware.neuron import Neuron
 from jaxsnn.event.hardware.utils import add_linear_noise, sort_batch
-from jaxsnn.event.leaky_integrate_and_fire import (
+from jaxsnn.event.modules.leaky_integrate_and_fire import (
     HardwareRecurrentLIF,
     LIFParameters,
 )

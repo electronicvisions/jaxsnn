@@ -5,7 +5,7 @@ from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset, data_loader
 from jaxsnn.event.encode import spatio_temporal_encode, target_temporal_encode
-from jaxsnn.event.leaky_integrate_and_fire import LIF
+from jaxsnn.event.modules.leaky_integrate_and_fire import LIF
 from jaxsnn.event.types import EventPropSpike
 from jaxsnn.event.utils import load_weights
 import unittest

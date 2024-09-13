@@ -4,7 +4,7 @@ import numpy as onp
 import pygrenade_vx.network as grenade
 import jaxsnn
 from jaxsnn.event.hardware.module import Module
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
+from jaxsnn.event.modules.leaky_integrate_and_fire import LIFParameters
 from jaxsnn.event.types import Spike
 
 

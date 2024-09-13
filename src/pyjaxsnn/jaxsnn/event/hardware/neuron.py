@@ -10,7 +10,7 @@ from dlens_vx_v3 import hal, halco, lola
 from hxtorch.spiking.morphology import SingleCompartmentNeuron
 import jaxsnn
 from jaxsnn.event.hardware.module import Module
-from jaxsnn.event.leaky_integrate_and_fire import LIFParameters
+from jaxsnn.event.modules.leaky_integrate_and_fire import LIFParameters
 
 
 log = jaxsnn.get_logger("jaxsnn.event.hardware.neuron")

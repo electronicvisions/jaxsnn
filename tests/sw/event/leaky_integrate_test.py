@@ -1,6 +1,6 @@
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.leaky_integrate import LeakyIntegrator, li_cell
+from jaxsnn.event.modules.leaky_integrate import LeakyIntegrator, li_cell
 from jaxsnn.event.types import Spike
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 import unittest

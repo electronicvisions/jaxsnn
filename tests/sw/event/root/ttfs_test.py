@@ -3,7 +3,7 @@ from functools import partial
 import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.leaky_integrate import LIFState
+from jaxsnn.event.modules.leaky_integrate import LIFState
 from jaxsnn.event.root.ttfs import ttfs_solver
 from numpy.testing import assert_almost_equal
 import unittest

@@ -7,7 +7,7 @@ import optax
 from jax import random
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset
-from jaxsnn.event.leaky_integrate_and_fire import (
+from jaxsnn.event.modules.leaky_integrate_and_fire import (
     LIF,
     LIFParameters,
     RecurrentEventPropLIF,

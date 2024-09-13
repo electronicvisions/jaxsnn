@@ -7,7 +7,7 @@ from jax import random
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import constant_dataset, data_loader
-from jaxsnn.event.leaky_integrate_and_fire import LIF
+from jaxsnn.event.modules.leaky_integrate_and_fire import LIF
 from jaxsnn.event.loss import loss_wrapper, target_time_loss
 from jaxsnn.event.types import Spike, Weight, EventPropSpike
 import unittest
