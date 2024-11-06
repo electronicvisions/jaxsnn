@@ -11,9 +11,9 @@ from jaxsnn.event.types import Spike
 def good_params(params: LIFParameters) -> Dict:
     return {
         "mirror": True,
-        "bias_spike": 0.0,
-        "correct_target_time": 0.9 * params.tau_syn,
-        "wrong_target_time": 1.1 * params.tau_syn,
+        "t_bias": 0.0,
+        "t_correct_target": 0.9 * params.tau_syn,
+        "t_wrong_target": 1.1 * params.tau_syn,
         "t_late": 2.0 * params.tau_syn,
     }
 
@@ -21,9 +21,9 @@ def good_params(params: LIFParameters) -> Dict:
 def good_params_for_hw(params: LIFParameters) -> Dict:
     return {
         "mirror": True,
-        "bias_spike": 0.0,
-        "correct_target_time": 0.9 * params.tau_syn,
-        "wrong_target_time": 1.1 * params.tau_syn,
+        "t_bias": 0.0,
+        "t_correct_target": 0.9 * params.tau_syn,
+        "t_wrong_target": 1.1 * params.tau_syn,
         "t_late": 2.0 * params.tau_syn,
         "duplication": 5,
         "duplicate_neurons": True,
@@ -34,23 +34,31 @@ def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
     rng: random.KeyArray,
     shape: List[int],
     t_late: float,
-    correct_target_time: float,
-    wrong_target_time: float,
+    t_correct_target: float,
+    t_wrong_target: float,
     mirror: bool = True,
-    bias_spike: Optional[float] = 0.0,
+    t_bias: Optional[float] = 0.0,
     duplication: Optional[int] = None,
     duplicate_neurons: bool = False,
 ) -> Dataset:
+    '''
+    Instantiate the YinYang dataset for a SNN. This dataset provides data
+    points on a 2-dimensional plane within a yin-yang sign. The data points are
+    encoded into spike times. Each data point is assigned to one of three
+    classes: The eyes, the yin or the yang.
+    All time parameters are expected to be in the same unit, e.g. seconds.
+    '''
     rng, subkey = random.split(rng)
     r_big = 0.5
     r_small = 0.1
     size = np.prod(np.array(shape))
+    max_val = 2 * r_big
 
     encoding = np.array(
         [
-            [correct_target_time, wrong_target_time, wrong_target_time],
-            [wrong_target_time, correct_target_time, wrong_target_time],
-            [wrong_target_time, wrong_target_time, correct_target_time],
+            [t_correct_target, t_wrong_target, t_wrong_target],
+            [t_wrong_target, t_correct_target, t_wrong_target],
+            [t_wrong_target, t_wrong_target, t_correct_target],
         ]
     )
 
@@ -69,11 +77,11 @@ def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
     spike_idx = np.array([0, 1])
     if mirror:
         spike_idx = np.concatenate((spike_idx, np.array([2, 3])))
-        inputs = np.hstack((inputs, 1 - inputs))
+        inputs = np.hstack((inputs, max_val - inputs))
 
-    if bias_spike is not None:
+    if t_bias is not None:
         spike_idx = np.concatenate((spike_idx, np.array([spike_idx[-1] + 1])))
-        column = np.full(size, bias_spike)[:, None]
+        column = np.full(size, t_bias / t_late)[:, None]
         inputs = np.hstack((inputs, column))
 
     if duplication is not None:
@@ -92,7 +100,7 @@ def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
     inputs = inputs[np.arange(inputs.shape[0])[:, None], sort_idx]
     spike_idx = spike_idx[np.arange(spike_idx.shape[0])[:, None], sort_idx]
 
-    inputs = inputs * t_late
+    inputs = inputs / max_val * t_late  # scale s.t. max(inputs) == t_late
     input_spikes = Spike(
         inputs.reshape(*(shape + [-1])), spike_idx.reshape(*(shape) + [-1])
     )

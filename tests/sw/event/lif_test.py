@@ -36,10 +36,10 @@ def main():
     t_max = 4.0 * params.tau_syn
     weight_mean = [3.0, 0.5]
     weight_std = [1.6, 0.8]
-    bias_spike = 0.9 * params.tau_syn
+    t_bias = 0.9 * params.tau_syn
 
-    correct_target_time = 0.9 * params.tau_syn
-    wrong_target_time = 1.5 * params.tau_syn
+    t_correct_target = 0.9 * params.tau_syn
+    t_wrong_target = 1.5 * params.tau_syn
 
     # net
     input_size = 5
@@ -54,9 +54,9 @@ def main():
         [train_samples],
         t_late,
         mirror=True,
-        bias_spike=bias_spike,
-        correct_target_time=correct_target_time,
-        wrong_target_time=wrong_target_time,
+        t_bias=t_bias,
+        t_correct_target=t_correct_target,
+        t_wrong_target=t_wrong_target,
     )
 
     input_size = trainset[0].idx.shape[-1]
@@ -246,9 +246,9 @@ def main():
         [n_train_batches, batch_size],
         t_late,
         mirror=True,
-        bias_spike=bias_spike,
-        correct_target_time=correct_target_time,
-        wrong_target_time=wrong_target_time,
+        t_bias=t_bias,
+        t_correct_target=t_correct_target,
+        t_wrong_target=t_wrong_target,
     )
 
     testset = yinyang_dataset(
@@ -256,9 +256,9 @@ def main():
         [n_test_batches, batch_size],
         t_late,
         mirror=True,
-        bias_spike=bias_spike,
-        correct_target_time=correct_target_time,
-        wrong_target_time=wrong_target_time,
+        t_bias=t_bias,
+        t_correct_target=t_correct_target,
+        t_wrong_target=t_wrong_target,
     )
 
     # now add batching

@@ -21,7 +21,7 @@ class TestEventTasksYinYangNan(unittest.TestCase):
         train_samples = 6400
         batch_size = 16
         n_train_batches = int(train_samples / batch_size)
-        bias_spike = 0.0
+        t_bias = 0.0
 
         # net
         hidden_size = 60
@@ -35,9 +35,9 @@ class TestEventTasksYinYangNan(unittest.TestCase):
             train_rng,
             [n_train_batches, batch_size],
             t_late,
-            bias_spike=bias_spike,
-            correct_target_time=0.9 * t_late,
-            wrong_target_time=1.5 * t_late,
+            t_bias=t_bias,
+            t_correct_target=0.9 * t_late,
+            t_wrong_target=1.5 * t_late,
         )
 
         bad_idx = 79
