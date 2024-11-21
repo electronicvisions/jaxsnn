@@ -136,7 +136,7 @@ class OptState(NamedTuple):
 
 
 # define the interface that a root solver has
-# take the LIFState, current time and t_mxa and return a Spike
+# take the LIFState, current time and t_max and return a Spike
 Solver = Callable[[LIFState, float, float], Spike]
 
 

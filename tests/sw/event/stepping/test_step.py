@@ -40,7 +40,8 @@ class TestStep(unittest.TestCase):
             idx=jnp.array([0, 1]),
             current=jnp.array([0.0, 0.0]))
 
-        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                         params.v_th)
         batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
         transition = partial(transition_without_recurrence, params)
 
@@ -85,7 +86,8 @@ class TestStep(unittest.TestCase):
             idx=jnp.array([0]),
             current=jnp.array([0.0]))
 
-        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                         params.v_th)
         batched_solver = partial(
             next_event, jax.vmap(solver, in_axes=(0, None)))
         transition = partial(transition_without_recurrence, params)

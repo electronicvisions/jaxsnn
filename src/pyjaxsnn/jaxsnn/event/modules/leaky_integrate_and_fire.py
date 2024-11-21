@@ -69,7 +69,7 @@ def LIF(  # pylint: disable=too-many-arguments
     Args:
         size (int): Number of hidden neurons
         n_spikes (int): Number of spikes which are simulated in this layer
-        t_max (float): Maxium simulation time
+        t_max (float): Maximum simulation time
         p (LIFParameters): Parameters of the LIF neurons
         mean (float, optional): Mean of initial weights. Defaults to 0.5.
         std (float, optional): Standard deviation of initial weights.
@@ -82,7 +82,8 @@ def LIF(  # pylint: disable=too-many-arguments
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # construct step function
-    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                     params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
     transition = partial(transition_without_recurrence, params)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
@@ -106,7 +107,8 @@ def RecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # construct step function
-    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                     params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
     transition = partial(transition_with_recurrence, params)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
@@ -151,7 +153,8 @@ def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # define step function
-    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                     params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
     transition = partial(transition_without_recurrence, params)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
@@ -213,7 +216,8 @@ def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # define step function
-    solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+    solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                     params.v_th)
     batched_solver = partial(next_event, jax.vmap(solver, in_axes=(0, None)))
     transition = partial(transition_with_recurrence, params)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)

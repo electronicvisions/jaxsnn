@@ -17,7 +17,8 @@ class TestEventRootTTFS(unittest.TestCase):
         expected_time = 0.003235072
         # Single neuron
         population_size = 10
-        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                         params.v_th)
         state = LIFState(V=0.0, I=3.0)
         event = solver(state, t_max)
 
@@ -26,7 +27,8 @@ class TestEventRootTTFS(unittest.TestCase):
 
         # Map over a population
         population_size = 10
-        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                         params.v_th)
         pop_solver = jax.vmap(solver, in_axes=(0, None))
         state = LIFState(
             V=jnp.zeros(population_size), I=3.0 * jnp.ones(population_size))
@@ -58,7 +60,8 @@ class TestEventRootTTFSGrads(unittest.TestCase):
         def loss(weight):
             state = LIFState(V=-551.6683959960938, I=0.0006204545497894287)
             state.V = state.V * weight
-            return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
+            return ttfs_solver(params.tau_mem, params.tau_syn, params.v_th,
+                               state, t_max)
 
         weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
@@ -66,12 +69,25 @@ class TestEventRootTTFSGrads(unittest.TestCase):
         self.assertEqual(grad, 0)
 
     def test_ttfs_solver_no_spike(self):
+        # case tau_mem = 2*tau_syn
         def loss(weight):
             state = LIFState(V=0.0, I=2.0)
             state.I = state.I * weight
-            return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
+            return ttfs_solver(params.tau_mem, params.tau_syn, params.v_th,
+                               state, t_max)
 
         weight = jnp.array(1.0)
+        value, grad = jax.value_and_grad(loss)(weight)
+        self.assertEqual(value, t_max)
+        self.assertEqual(grad, 0)
+
+        # case tau_mem = tau_syn
+        def loss(weight):
+            state = LIFState(V=0.0, I=1.0)
+            state.I = state.I * weight
+            return ttfs_solver(params.tau_syn, params.tau_syn, params.v_th,
+                               state, t_max)
+
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertEqual(value, t_max)
         self.assertEqual(grad, 0)
@@ -80,12 +96,23 @@ class TestEventRootTTFSGrads(unittest.TestCase):
         def loss(weight):
             state = LIFState(V=0.0, I=3.0)
             state.I = state.I * weight
-            return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
+            return ttfs_solver(params.tau_mem, params.tau_syn, params.v_th,
+                               state, t_max)
 
         weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertAlmostEqual(value, 0.00323507, 8)
         self.assertAlmostEqual(grad, -0.00618034, 8)
+
+        def loss(weight):
+            state = LIFState(V=0.0, I=3.0)
+            state.I = state.I * weight
+            return ttfs_solver(params.tau_syn, params.tau_syn, params.v_th,
+                               state, t_max)
+
+        value, grad = jax.value_and_grad(loss)(weight)
+        self.assertAlmostEqual(value, 0.00129586, 8)
+        self.assertAlmostEqual(grad, -0.0017492, 8)
 
     def test_nan(self):
         t_max = 4.0 * params.tau_syn
@@ -157,7 +184,8 @@ class TestEventRootTTFSGrads(unittest.TestCase):
             ),
         )
 
-        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
+                         params.v_th)
         batched_solver = jax.jit(jax.vmap(solver, in_axes=(0, None)))
 
         def loss_fn(weight):
