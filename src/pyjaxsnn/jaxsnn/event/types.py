@@ -43,6 +43,10 @@ class Spike:
 @dataclasses.dataclass
 @tree_math.struct
 class EventPropSpike:
+    '''
+    Event-based data representation for spikes in jaxsnn. The arrays are sorted
+    in ascending order of spike times
+    '''
     time: jax.Array
     idx: jax.Array
     current: jax.Array
