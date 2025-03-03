@@ -104,11 +104,11 @@ class WeightRecurrent(NamedTuple):
 
 
 Weight = Union[WeightInput, WeightRecurrent]
-SingleInit = Callable[[jax.random.KeyArray, int], Tuple[int, Weight]]
+SingleInit = Callable[[jax.Array, int], Tuple[int, Weight]]
 SingleApply = Callable[[int, Weight, EventPropSpike], EventPropSpike]
 SingleInitApply = Tuple[SingleInit, SingleApply]
 
-Init = Callable[[jax.random.KeyArray, int], List[Weight]]
+Init = Callable[[jax.Array, int], List[Weight]]
 Apply = Callable[[List[Weight], EventPropSpike], List[EventPropSpike]]
 InitApply = Tuple[Init, Apply]
 

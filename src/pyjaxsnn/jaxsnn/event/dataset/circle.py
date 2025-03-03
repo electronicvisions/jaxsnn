@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+import jax
 import jax.numpy as np
 from jax import random
 from jaxsnn.event.dataset.utils import Dataset, add_current
@@ -7,7 +8,7 @@ from jaxsnn.event.types import Spike
 
 
 def circle_dataset(  # pylint: disable=too-many-arguments,too-many-locals
-    rng: random.KeyArray,
+    rng: jax.Array,
     tau_syn: float,
     shape: List[int],
     mirror: bool = True,

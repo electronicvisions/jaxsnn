@@ -12,7 +12,7 @@ def construct_recurrent_init_fn(
     duplication: Optional[float] = None,
 ) -> SingleInit:
     def init_fn(
-        rng: jax.random.KeyArray, input_size: int
+        rng: jax.Array, input_size: int
     ) -> Tuple[int, WeightRecurrent]:
         assert len(layers) >= 1
         hidden_size = np.sum(np.array(layers))
@@ -57,7 +57,7 @@ def construct_init_fn(
     n_hidden: int, mean: float, std: float, duplication: Optional[int] = None
 ) -> SingleInit:
     def init_fn(
-        rng: jax.random.KeyArray, input_shape: int
+        rng: jax.Array, input_shape: int
     ) -> Tuple[int, WeightInput]:
         if duplication is not None:
             weights = jax.random.normal(

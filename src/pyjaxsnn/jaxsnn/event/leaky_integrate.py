@@ -49,7 +49,7 @@ def LeakyIntegrator(  # pylint: disable=invalid-name
     std: float = 2.0,
     time_steps: int = 20,
 ):  # pylint: disable=too-many-arguments
-    def init_fn(rng: jax.random.KeyArray, input_shape: int):
+    def init_fn(rng: jax.Array, input_shape: int):
         return (
             n_hidden,
             jax.random.normal(rng, (input_shape, n_hidden)) * std + mean,

@@ -20,7 +20,7 @@ def serial(*layers: SingleInitApply) -> InitApply:
     """
     init_fns, apply_fns = zip(*layers)
 
-    def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
+    def init_fn(rng: jax.Array, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
         weights = []
         for layer_init_fn in init_fns:
@@ -74,7 +74,7 @@ def serial_spikes_known(*layers: SingleInitApplyHW) -> InitApplyHW:
     init_fns = [layer[0] for layer in layers]
     apply_fns = [layer[1] for layer in layers]
 
-    def init_fn(rng: jax.random.KeyArray, input_shape: int) -> List[Weight]:
+    def init_fn(rng: jax.Array, input_shape: int) -> List[Weight]:
         """Iterate and call the individual init functions"""
         weights = []
         for init_fn in init_fns:

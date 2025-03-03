@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional
 
+import jax
 import jax.numpy as np
 from jax import random
 from jaxsnn.base.params import LIFParameters
@@ -31,7 +32,7 @@ def good_params_for_hw(params: LIFParameters) -> Dict:
 
 
 def yinyang_dataset(  # pylint: disable=too-many-arguments,too-many-locals
-    rng: random.KeyArray,
+    rng: jax.Array,
     shape: List[int],
     t_late: float,
     t_correct_target: float,
