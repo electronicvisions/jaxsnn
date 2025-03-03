@@ -15,7 +15,7 @@ get_class_batched = jax.vmap(get_class)
 class LinearDataset:
     def __init__(
         self,
-        rng: random.KeyArray,
+        rng: jax.Array,
         size: int = 1000,
     ):
         """
@@ -58,7 +58,7 @@ class LinearDataset:
         return len(self.classes)
 
 
-def data_loader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
+def data_loader(dataset, batch_size: int, rng: Optional[jax.Array]):
     permutation = (
         random.permutation(rng, len(dataset))
         if rng is not None

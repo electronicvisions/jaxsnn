@@ -44,7 +44,7 @@ get_class_batched = jax.vmap(get_class, in_axes=(0, None, None))
 class YinYangDataset:
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        rng: random.KeyArray,
+        rng: jax.Array,
         size: int = 1000,
         r_small: float = 0.1,
         r_big: float = 0.5,
@@ -97,7 +97,7 @@ class YinYangDataset:
         return len(self.classes)
 
 
-def data_loader(dataset, batch_size: int, rng: Optional[random.KeyArray]):
+def data_loader(dataset, batch_size: int, rng: Optional[jax.Array]):
     permutation = (
         random.permutation(rng, len(dataset))
         if rng is not None
