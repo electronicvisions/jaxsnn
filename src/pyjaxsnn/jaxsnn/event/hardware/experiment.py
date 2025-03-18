@@ -14,7 +14,7 @@ import hxtorch
 import jax.numpy as np
 import pygrenade_vx as grenade
 from dlens_vx_v3 import hal, lola
-from hxtorch.spiking.experiment import NeuronPlacement
+from hxtorch.spiking.neuron_placement import NeuronPlacement
 from hxtorch.spiking.utils import calib_helper
 from jaxsnn.base.types import Array
 from jaxsnn.event.hardware.calib import WaferConfig

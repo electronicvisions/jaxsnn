@@ -8,7 +8,7 @@ class WaferConfig(NamedTuple):
     weight_scaling: float
 
 
-folder = "jaxsnn/event/hardware/calib/"
+folder = "jax-snn/src/pyjaxsnn/jaxsnn/event/hardware/calib/"
 
 
 W_69_F0 = WaferConfig(
@@ -41,6 +41,13 @@ W_69_F0_LONG_REFRAC = WaferConfig(
     folder
     + "calibration_W69F0_leak80_th150_reset80_taus-6us_taum-12us_trefrac-30.0us_isyningm-500_sdbias-1000.pbin",
     "W69 F0 long refrac",
+    56.0,
+)
+
+W_68_F0_LONG_REFRAC = WaferConfig(
+    folder
+    + "calibration_W68F0_leak80_th150_reset80_taus-6us_taum-12us_trefrac-30.0us_isyningm-500_sdbias-1000.pbin",
+    "W68 F0 long refrac",
     56.0,
 )
 W_63_F3_LONG_REFRAC = WaferConfig(
