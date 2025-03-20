@@ -16,11 +16,10 @@ def construct_recurrent_init_fn(
     ) -> Tuple[int, WeightRecurrent]:
         assert len(layers) >= 1
         hidden_size = np.sum(np.array(layers))
-
         rng, layer_rng = jax.random.split(rng)
         if duplication is not None:
             input_weights = jax.random.normal(
-                rng, (int(input_size / duplication), layers[0])
+                layer_rng, (int(input_size / duplication), layers[0])
             )
             input_weights = np.repeat(input_weights, duplication, axis=0)
         else:
