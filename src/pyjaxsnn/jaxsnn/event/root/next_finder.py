@@ -1,12 +1,13 @@
 from typing import Callable
 
+import jax
 import jax.numpy as np
 from jaxsnn.event.types import LIFState, Spike
 
 
 def next_event(
     solver: Callable, neuron_state: LIFState, time: float, t_max: float
-) -> Spike:
+) -> jax.Array:
     """Wrapper a root solver to provide a cleaner API for returning next event
 
     Args:
@@ -19,8 +20,7 @@ def next_event(
         Spike: Spike which will occur next
     """
     pred_spikes = solver(neuron_state, t_max) + time
-    idx = np.argmin(pred_spikes)
-    return Spike(pred_spikes[idx], idx=idx)
+    return pred_spikes
 
 
 def next_queue(

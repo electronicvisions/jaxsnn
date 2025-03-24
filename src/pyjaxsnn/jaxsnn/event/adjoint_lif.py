@@ -46,8 +46,11 @@ def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
             epsilon,
         )
         adjoint_state.neuron_state.V = adjoint_state.neuron_state.V.at[
-            spike.idx - layer_start
-        ].add(adjoint_spike.time / safe_denominator)
+            spike.idx - layer_start].add(
+            (adjoint_spike.time + (
+                params.v_th
+                * adjoint_state.neuron_state.V[spike.idx - layer_start]))
+                / safe_denominator)
         return adjoint_state, grads
 
     def adjoint_input_transition(  # pylint: disable=too-many-arguments,unused-argument
@@ -83,7 +86,7 @@ def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
             lambda: (grads, 0.0),
         )
         adjoint_state.input_queue.spikes.time = (
-            adjoint_state.input_queue.spikes.time.at[input_queue_head - 1].set(
+            adjoint_state.input_queue.spikes.time.at[input_queue_head].set(
                 dt
             )
         )
@@ -140,10 +143,15 @@ def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
             (adjoint_state.neuron_state.V - adjoint_state.neuron_state.I),
         )
         voltage = adjoint_state.neuron_state.V.at[index_for_layer].add(
-            (adjoint_spike.time + new_term) / safe_denominator
-        )
+            (adjoint_spike.time
+             + new_term
+             + params.v_th * adjoint_state.neuron_state.V[
+                 spike.idx - layer_start])
+            / safe_denominator)
         updated_state = StepState(
             LIFState(voltage, adjoint_state.neuron_state.I),
+            adjoint_state.spike_times,
+            adjoint_state.spike_mask,
             adjoint_state.time,
             adjoint_state.input_queue,
         )
@@ -180,10 +188,7 @@ def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
         )
 
         adjoint_state.input_queue.spikes.time = (
-            adjoint_state.input_queue.spikes.time.at[input_queue_head - 1].set(
-                dt
-            )
-        )
+            adjoint_state.input_queue.spikes.time.at[input_queue_head].set(dt))
         adjoint_state.input_queue.head += 1
         return adjoint_state, grads
 
@@ -251,10 +256,14 @@ def step_bwd(  # pylint: disable=too-many-locals
     )
     adjoint_state.time = reversed_time
 
+    def no_event_func(adjoint_state, *args):  # pylint: disable=unused-argument
+        adjoint_state.input_queue.head += 1
+        return adjoint_state, grads
+
     no_event = spike.idx == -1
     tr_state, new_grads = jax.lax.cond(
         no_event,
-        lambda *args: (adjoint_state, grads),
+        no_event_func,
         adjoint_tr_dynamics,
         *(
             adjoint_state,
@@ -263,10 +272,10 @@ def step_bwd(  # pylint: disable=too-many-locals
             adjoint_spike,
             grads,
             weights,
-            len(adjoint_state.input_queue.spikes.time)
-            - adjoint_state.input_queue.head,
+            adjoint_state.input_queue.head,
         ),
     )
+
     return (tr_state, new_grads, layer_start), 1
 
 
@@ -339,6 +348,19 @@ def construct_adjoint_apply_fn(
             (spikes, adjoint_spikes),
             reverse=True,
         )
+
+        # revert adjoint spike times
+        # We need to flip, because we insert the gradients for spikes from the
+        # beginning but scan from backward in time.
+        # We need to roll in case we process fewer spikes than we have as
+        # input, e.g., not all input spikes are returned because n_spikes is
+        # too small
+        n_spikes = len(adjoint_state.input_queue.spikes.time)
+        adjoint_state.input_queue.spikes.time = np.roll(
+            np.flip(adjoint_state.input_queue.spikes.time),
+            -(n_spikes - (adjoint_state.input_queue.head % n_spikes)),
+        )
+
         return adjoint_state, grads, 0, _
 
     custom_trajectory = jax.custom_vjp(custom_trajectory)
@@ -350,12 +372,6 @@ def construct_adjoint_apply_fn(
         external: Any,
         carry: int,
     ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
-        initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
-        s = StepState(
-            neuron_state=initial_state,
-            time=0.0,
-            input_queue=InputQueue(input_spikes),
-        )
         if carry is None:
             layer_index = 0
             layer_start = 0
@@ -372,12 +388,12 @@ def construct_adjoint_apply_fn(
         input_size = this_layer_weights.input.shape[0]
         layer_start = layer_start + input_size
 
-        initial_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
-
         input_spikes = filter_spikes(input_spikes, layer_start - input_size)
 
         s = StepState(
-            neuron_state=initial_state,
+            neuron_state=LIFState(np.zeros(n_hidden), np.zeros(n_hidden)),
+            spike_times=-1 * np.ones(n_hidden),
+            spike_mask=np.zeros(n_hidden, dtype=bool),
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
@@ -386,6 +402,7 @@ def construct_adjoint_apply_fn(
             s, this_layer_weights, layer_start, layer_external
         )
         layer_index += 1
+
         return (layer_index, layer_start), this_layer_weights, spikes, spikes
 
     return apply_fn

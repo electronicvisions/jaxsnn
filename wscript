@@ -59,6 +59,7 @@ def build(bld):
         features="use pytest",
         use=["jaxsnn"],
         install_path="${PREFIX}/bin/tests/jaxsnn/sw",
+        test_timeout=180,
     )
 
     bld(

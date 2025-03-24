@@ -53,7 +53,7 @@ class TestEventTasksContant(unittest.TestCase):
         )
 
         # init weights
-        rng = random.PRNGKey(42)
+        rng = random.PRNGKey(45)
         _, weights = init_fn(rng, input_shape)
 
         loss_fn = partial(

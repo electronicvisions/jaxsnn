@@ -41,14 +41,21 @@ class TestEventFunctional(unittest.TestCase):
         transition = partial(transition_without_recurrence, params)
         step_fn = partial(step, dynamics, transition, t_max, batched_solver)
         weights = WeightInput(np.zeros((n_input, n_hidden)))
-        neuron_state = LIFState(np.zeros(n_hidden), np.zeros(n_hidden))
 
         spikes = EventPropSpike(
             time=np.array([1.0, 2.0]),
             idx=np.array([0, 1]),
             current=np.array([0.0, 0.0]),
         )
-        state = StepState(neuron_state, start_time, InputQueue(spikes))
+
+        state = StepState(
+            neuron_state=LIFState(
+                np.zeros(n_hidden), np.zeros(n_hidden)),
+            spike_times=-1 * np.ones(n_hidden),
+            spike_mask=np.zeros(n_hidden, dtype=bool),
+            time=0.0,
+            input_queue=InputQueue(spikes),
+        )
         step_state = (state, weights, layer_start)
 
         step_state, spike = step_fn(step_state)
@@ -89,7 +96,14 @@ class TestEventFunctional(unittest.TestCase):
         spikes = EventPropSpike(
             time=np.array([1.0]), idx=np.array([0]), current=np.array([0.0])
         )
-        state = StepState(neuron_state, start_time, InputQueue(spikes))
+        state = StepState(
+            neuron_state=LIFState(
+                np.zeros(n_hidden), np.zeros(n_hidden)),
+            spike_times=-1 * np.ones(n_hidden),
+            spike_mask=np.zeros(n_hidden, dtype=bool),
+            time=0.0,
+            input_queue=InputQueue(spikes),
+        )
         step_state = (state, weights, layer_start)
 
         (step_state, weights, _), spike = step_fn(step_state)
@@ -102,7 +116,14 @@ class TestEventFunctional(unittest.TestCase):
         spikes = EventPropSpike(
             time=np.array([1.0]), idx=np.array([0]), current=np.array([0.0])
         )
-        state = StepState(neuron_state, start_time, InputQueue(spikes))
+        state = StepState(
+            neuron_state=LIFState(
+                np.zeros(n_hidden), np.zeros(n_hidden)),
+            spike_times=-1 * np.ones(n_hidden),
+            spike_mask=np.zeros(n_hidden, dtype=bool),
+            time=0.0,
+            input_queue=InputQueue(spikes),
+        )
         layer_start = 5
         step_state = (state, weights, layer_start)
 

@@ -29,7 +29,7 @@ def ttfs_inner(
     tau_mem: float,
     t_max: float,
 ):
-    epsilon = 1e-7
+    epsilon = 1e-6
     denominator = a_2 + np.sqrt(np.maximum(second_term, epsilon))
     save_denominator = np.where(
         np.abs(denominator) > epsilon, denominator, epsilon
@@ -70,5 +70,5 @@ def ttfs_solver(tau_mem: float, v_th: float, state: LIFState, t_max: float):
         a_2,
         second_term,
         tau_mem,
-        t_max,
+        t_max
     )

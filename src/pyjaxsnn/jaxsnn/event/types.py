@@ -97,6 +97,8 @@ State = TypeVar("State")
 @tree_math.struct
 class StepState(Generic[State]):
     neuron_state: State
+    spike_times: jax.Array
+    spike_mask: jax.Array
     time: float
     input_queue: InputQueue
 

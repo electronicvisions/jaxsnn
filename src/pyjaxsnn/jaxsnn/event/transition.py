@@ -1,4 +1,5 @@
 import jax
+import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.types import StepState, Weight, WeightInput, WeightRecurrent
 
@@ -7,7 +8,7 @@ def transition_with_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
     state: StepState,
     weights: Weight,
-    spike_idx: int,
+    spike_mask: jax.Array,
     recurrent_spike: bool,
     prev_layer_start: int,
 ) -> StepState:
@@ -15,22 +16,22 @@ def transition_with_recurrence(  # pylint: disable=too-many-arguments
         params: LIFParameters,
         state: StepState,
         weights: WeightRecurrent,
-        spike_idx: int,
+        spike_mask: int,
         prev_layer_start: int,  # pylint: disable=unused-argument
     ):
-        tr_row = weights.recurrent[spike_idx]
-
+        mask = np.tile(spike_mask, (weights.recurrent.shape[0], 1))
+        masked_w = np.where(mask.T, weights.recurrent, 0.)
+        tr_row = masked_w.sum(0)
         state.neuron_state.I = state.neuron_state.I + tr_row
-        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(
-            params.v_reset
-        )
+        state.neuron_state.V = np.where(
+            spike_mask, params.v_reset, state.neuron_state.V)
         return state
 
     def input_transition(
         params: LIFParameters,  # pylint: disable=unused-argument
         state: StepState,
         weights: WeightRecurrent,
-        spike_idx: int,  # pylint: disable=unused-argument
+        spike_mask: int,  # pylint: disable=unused-argument
         prev_layer_start: int,
     ):
         spike = state.input_queue.pop()
@@ -50,7 +51,7 @@ def transition_with_recurrence(  # pylint: disable=too-many-arguments
         params,
         state,
         weights,
-        spike_idx,
+        spike_mask,
         prev_layer_start,
     )
 
@@ -59,14 +60,14 @@ def transition_without_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
     state: StepState,
     weights: WeightInput,
-    spike_idx: int,
+    spike_mask: jax.Array,
     recurrent_spike: bool,
     prev_layer_start: int,
 ) -> StepState:
     def input_transition(
         state: StepState,
         weights: WeightInput,
-        spike_idx: int,  # pylint: disable=unused-argument
+        spike_mask: int,  # pylint: disable=unused-argument
         prev_layer_start: int,
     ):
         spike = state.input_queue.pop()
@@ -75,16 +76,17 @@ def transition_without_recurrence(  # pylint: disable=too-many-arguments
         state.neuron_state.I = jax.lax.cond(
             input_previous_layer,
             lambda: state.neuron_state.I + weights.input[index_for_layer],
-            lambda: state.neuron_state.I,
-        )
+            lambda: state.neuron_state.I)
         return state
 
     def no_transition(
-        state: StepState, *args
-    ):  # pylint: disable=unused-argument
-        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(
-            params.v_reset
-        )
+        state: StepState,
+        weights: WeightInput,  # pylint: disable=unused-argument
+        spike_mask: int,
+        prev_layer_start: int,  # pylint: disable=unused-argument
+    ):
+        state.neuron_state.V = np.where(
+            spike_mask, params.v_reset, state.neuron_state.V)
         return state
 
     return jax.lax.cond(
@@ -93,6 +95,6 @@ def transition_without_recurrence(  # pylint: disable=too-many-arguments
         input_transition,
         state,
         weights,
-        spike_idx,
+        spike_mask,
         prev_layer_start,
     )
