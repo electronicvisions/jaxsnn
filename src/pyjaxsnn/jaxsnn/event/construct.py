@@ -20,7 +20,7 @@ def construct_recurrent_init_fn(
         rng, layer_rng = jax.random.split(rng)
         if duplication is not None:
             input_weights = jax.random.normal(
-                layer_rng, (int(input_size / duplication), layers[0])
+                rng, (int(input_size / duplication), layers[0])
             )
             input_weights = np.repeat(input_weights, duplication, axis=0)
         else:
@@ -48,7 +48,7 @@ def construct_recurrent_init_fn(
             l_sum += layer_1
 
         weights = WeightRecurrent(input_weights, recurrent_weights)
-        return hidden_size, weights
+        return rng, hidden_size, weights
 
     return init_fn
 
@@ -59,13 +59,14 @@ def construct_init_fn(
     def init_fn(
         rng: jax.Array, input_shape: int
     ) -> Tuple[int, WeightInput]:
+        rng, layer_rng = jax.random.split(rng)
         if duplication is not None:
             weights = jax.random.normal(
-                rng, (int(input_shape / duplication), n_hidden)
+                layer_rng, (int(input_shape / duplication), n_hidden)
             )
             weights = np.repeat(weights, duplication, axis=0)
         else:
-            weights = jax.random.normal(rng, (input_shape, n_hidden))
-        return n_hidden, WeightInput(weights * std + mean)
+            weights = jax.random.normal(layer_rng, (input_shape, n_hidden))
+        return rng, n_hidden, WeightInput(weights * std + mean)
 
     return init_fn
