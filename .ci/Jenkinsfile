@@ -3,6 +3,8 @@
 withCcache() {
 	wafDefaultPipeline(projects: ["jax-snn"],
 	                   container: [app: "dls-core"],
+	                   testSlurmResource: getHxTestResource(3),
+	                   preTestHook: { configureHxCubeBitfile() },
 	                   configureInstallOptions: "--build-profile=ci",
 	                   notificationChannel: "#softies")
 }
