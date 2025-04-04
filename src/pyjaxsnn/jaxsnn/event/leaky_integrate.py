@@ -50,9 +50,11 @@ def LeakyIntegrator(  # pylint: disable=invalid-name
     time_steps: int = 20,
 ):  # pylint: disable=too-many-arguments
     def init_fn(rng: jax.Array, input_shape: int):
+        rng, layer_rng = jax.random.split(rng)
         return (
+            rng,
             n_hidden,
-            jax.random.normal(rng, (input_shape, n_hidden)) * std + mean,
+            jax.random.normal(layer_rng, (input_shape, n_hidden)) * std + mean
         )
 
     kernel = np.array(
