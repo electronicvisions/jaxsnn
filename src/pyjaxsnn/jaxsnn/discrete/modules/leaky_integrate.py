@@ -1,25 +1,9 @@
 # pylint: disable=invalid-name
-import dataclasses
-
 import jax
 import jax.numpy as jnp
-import tree_math
 from jax import random
+from jaxsnn.base.types import LIState
 from jaxsnn.base.params import LIParameters
-
-
-@dataclasses.dataclass
-@tree_math.struct
-class LIState:
-    """State of a leaky-integrator
-
-    Parameters:
-        v (jax.Array): membrane voltage
-        i (jax.Array): input current
-    """
-
-    v: jax.Array
-    i: jax.Array
 
 
 @jax.jit
@@ -30,11 +14,12 @@ def li_feed_forward_step(
     dt: float = 0.001,
 ):
     state, input_weights = init
+
     # compute current jumps
-    i_jump = state.i + jnp.matmul(spikes, input_weights)
+    i_jump = state.I + jnp.matmul(spikes, input_weights)
     # compute voltage updates
-    dv = dt / params.tau_mem * ((params.v_leak - state.v) + i_jump)
-    v_new = state.v + dv
+    dv = dt / params.tau_mem * ((params.v_leak - state.V) + i_jump)
+    v_new = state.V + dv
 
     # compute current updates
     di = -dt / params.tau_syn * i_jump

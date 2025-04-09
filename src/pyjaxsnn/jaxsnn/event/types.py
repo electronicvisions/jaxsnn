@@ -8,19 +8,7 @@ import jax
 import optax
 import tree_math
 
-
-@dataclasses.dataclass
-@tree_math.struct
-class LIFState:
-    """State of a LIF neuron
-
-    Parameters:
-        V (jax.Array): membrane potential
-        I (jax.Array): synaptic input current
-    """
-
-    V: jax.Array
-    I: jax.Array
+from jaxsnn.base.types import LIFState
 
 
 @dataclasses.dataclass
