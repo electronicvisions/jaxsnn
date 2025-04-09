@@ -220,7 +220,7 @@ def main(args: argparse.Namespace):
         opt_state, weights, rng = state
         test_rng, train_rng, perm_rng, rng = jax.random.split(rng, 4)
         # Train
-        trainset_batched = data_loader(trainset, args.batch_size, perm_rng)
+        trainset_batched = data_loader(trainset, args.batch_size, rng=perm_rng)
         (opt_state, weights, _), _ = custom_lax.scan(
             train_fn, (opt_state, weights, train_rng), trainset_batched)
         # Test

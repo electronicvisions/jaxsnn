@@ -126,7 +126,7 @@ def main(args: argparse.Namespace):
         start = time.time()
         # Generate randomly shuffled batches
         this_shuffle_rng, shuffle_rng = random.split(shuffle_rng)
-        trainset_batched = data_loader(trainset, 64, this_shuffle_rng)
+        trainset_batched = data_loader(trainset, 64, rng=this_shuffle_rng)
 
         # Swap axes because time axis needs to come before batch axis
         trainset_batched = (

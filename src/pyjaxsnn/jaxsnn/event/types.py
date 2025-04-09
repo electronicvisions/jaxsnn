@@ -30,7 +30,7 @@ class Spike:
     idx: jax.Array
 
     @property
-    def shape(self):
+    def shape_(self):
         return self.time.shape  # pylint: disable=no-member
 
     def __getitem__(self, key) -> Spike:
@@ -52,7 +52,7 @@ class EventPropSpike:
     current: jax.Array
 
     @property
-    def shape(self):
+    def shape_(self):
         return self.time.shape  # pylint: disable=no-member
 
     def __getitem__(self, key) -> EventPropSpike:

@@ -11,25 +11,33 @@ Dataset = Tuple[EventPropSpike, jax.Array, str]
 def data_loader(
     dataset: Any,
     batch_size: int,
+    num_batches: Optional[int] = None,
     rng: Optional[jax.Array] = None,
 ):
-    total_length = jax.tree_util.tree_leaves(dataset[0])[0].shape[0]
-
-    permutation = (
-        random.permutation(rng, total_length)
-        if rng is not None
-        else jnp.arange(total_length)
-    )
-    # Perform permutation of dataset
-    dataset = jax.tree_map(lambda x: x[permutation], dataset)
-
     # Determine number of batches
-    num_batches = total_length // batch_size
+    if num_batches is None:
+        num_batches_list = jax.vmap(
+            lambda data: data.shape[0] // batch_size
+        )(jnp.array(jax.tree_util.tree_leaves(dataset[0])))
+        assert jnp.all(num_batches_list == num_batches_list[0]), \
+            "All inputs must have equal size"
+        num_batches = num_batches_list[0]
 
-    # Split dataset up into batches
-    # NOTE: shortens the dataset to num_batches * batch_size
-    dataset = jax.tree_map(
-        lambda x: x[:num_batches * batch_size].reshape(
-            (num_batches, batch_size) + x.shape[1:]), dataset)
+    if rng is not None:
+        permutation = random.permutation(rng, num_batches * batch_size)
+    else:
+        permutation = jnp.arange(num_batches * batch_size)
 
-    return dataset
+    # Perform permutation of dataset
+    dataset = jax.tree_map(lambda x: jnp.take(x, permutation, axis=0), dataset)
+
+    # Function to split dataset into batches
+    def batch_fn(i, data):
+        return jax.tree_map(
+            lambda x: jax.lax.dynamic_slice_in_dim(
+                x, i * batch_size, batch_size), data)
+
+    batched_dataset = jax.vmap(
+        batch_fn, in_axes=(0, None))(jnp.arange(num_batches), dataset)
+
+    return batched_dataset

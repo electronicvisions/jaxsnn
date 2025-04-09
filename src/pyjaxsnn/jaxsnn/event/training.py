@@ -41,7 +41,7 @@ def epoch(
     i: int,
 ):  # pylint: disable=too-many-arguments
     rng = jax.random.PRNGKey(i)
-    trainset_batched = data_loader(trainset, 64, rng)
+    trainset_batched = data_loader(trainset, 64, rng=rng)
     res, duration = time_it(
         jax.lax.scan,
         update_fn,
