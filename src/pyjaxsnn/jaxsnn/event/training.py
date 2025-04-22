@@ -29,7 +29,7 @@ def update(
 
     updates, opt_state = optimizer.update(grad, state.opt_state)
     weights = optax.apply_updates(state.weights, updates)
-    return OptState(opt_state, weights), (value, grad)
+    return OptState(opt_state, weights, state.rng), (value, grad)
 
 
 def epoch(
@@ -39,9 +39,9 @@ def epoch(
     testset,
     opt_state: OptState,
     i: int,
-):  # pylint: disable=too-many-arguments
-    rng = jax.random.PRNGKey(i)
-    trainset_batched = data_loader(trainset, 64, rng=rng)
+):  # pylint: disable=too-many-arguments, too-many-locals
+    rng, train_rng, test_rng = jax.random.split(opt_state.rng, 3)
+    trainset_batched = data_loader(trainset, 64, rng=train_rng)
     res, duration = time_it(
         jax.lax.scan,
         update_fn,
@@ -49,8 +49,9 @@ def epoch(
         trainset_batched
     )
     opt_state, (recording, grad) = res
+    opt_state = OptState(opt_state.opt_state, opt_state.weights, rng)
 
-    testset_batched = data_loader(testset, 64)
+    testset_batched = data_loader(testset, 64, rng=test_rng)
     test_result = loss_and_acc(loss_fn, opt_state.weights, testset_batched)
     log.info(
         f"Epoch {i}, "

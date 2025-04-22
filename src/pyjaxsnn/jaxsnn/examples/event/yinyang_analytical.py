@@ -128,8 +128,8 @@ def main(args: argparse.Namespace):
 
     # iterate over epochs
     res = custom_lax.scan(
-        epoch_fn, OptState(opt_state, weights), jnp.arange(args.epochs))
-    (opt_state, weights), (test_result, weights_over_time, duration) = res
+        epoch_fn, OptState(opt_state, weights, rng), jnp.arange(args.epochs))
+    state, (test_result, weights_over_time, duration) = res
 
     # save experiment data
     acc = round(test_result.accuracy[-1], 3)

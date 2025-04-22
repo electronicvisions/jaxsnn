@@ -194,7 +194,6 @@ def main(args: argparse.Namespace):
         return (opt_state, weights, rng), (value, grad)
 
     def test_fn(weights, batch):
-        weights, rng = weights
         input_spikes, _ = batch
 
         hw_spikes, _ = experiment.get_hw_results(
@@ -214,19 +213,21 @@ def main(args: argparse.Namespace):
         hw_spikes = [add_linear_noise(hw_spikes[0])]
         loss_result = loss_fn(weights, batch, external=hw_spikes)
 
-        return (weights, rng), loss_result
+        return weights, loss_result
 
     def epoch(state, i):
         opt_state, weights, rng = state
         test_rng, train_rng, perm_rng, rng = jax.random.split(rng, 4)
         # Train
-        trainset_batched = data_loader(trainset, args.batch_size, rng=perm_rng)
+        trainset_batched = data_loader(
+            trainset, args.batch_size, n_train_batches, rng=perm_rng)
         (opt_state, weights, _), _ = custom_lax.scan(
             train_fn, (opt_state, weights, train_rng), trainset_batched)
         # Test
-        testset_batched = data_loader(testset, args.batch_size)
+        testset_batched = data_loader(
+            testset, args.batch_size, n_test_batches, rng=test_rng)
         loss, acc, t_first_spike, _ = loss_and_acc_scan(
-            test_fn, (weights, test_rng), testset_batched)
+            test_fn, weights, testset_batched)
         # New state
         state = (opt_state, weights, rng)
         log.INFO(f"Epoch {i} - Loss: {loss:.4f} - Acc: {acc:.4f} - ")

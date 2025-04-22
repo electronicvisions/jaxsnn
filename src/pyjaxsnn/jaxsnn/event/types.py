@@ -119,8 +119,23 @@ InitApplyHW = Tuple[Init, ApplyHW]
 
 
 class OptState(NamedTuple):
+    """
+    Container for the optimizer/training state across steps.
+
+    This immutable state groups the underlying optimizer's internal state,
+    the current set of model weights, and the JAX PRNG key used for
+    stochastic operations (e.g., sampling).
+
+    :param opt_state: Optimizer-specific internal state to carry across updates
+        (e.g., from optax.init/optax.update).
+    :param weights: Ordered collection of learnable model parameters to be
+        optimized.
+    :param rng: JAX PRNG key used for randomized computations; should be split
+        and updated between steps.
+    """
     opt_state: optax.OptState
     weights: List[Weight]
+    rng: jax.random.KeyArray
 
 
 # define the interface that a root solver has
