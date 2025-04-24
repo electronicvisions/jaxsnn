@@ -41,7 +41,7 @@ from jaxsnn.event.construct import (
     construct_recurrent_init_fn,
 )
 from jaxsnn.event.flow import lif_exponential_flow
-from jaxsnn.event.functional import step, trajectory
+from jaxsnn.event.functional import step, step_existing, trajectory
 from jaxsnn.event.root import ttfs_solver
 from jaxsnn.event.root.next_finder import next_event
 from jaxsnn.event.transition import (
@@ -247,7 +247,7 @@ def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
     transition = partial(transition_with_recurrence, params)
-    step_fn = partial(step, dynamics, transition, t_max)
+    step_fn = partial(step_existing, dynamics, transition, t_max, None)
 
     single_adjoint_flow = adjoint_lif_exponential_flow(params)
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
@@ -279,7 +279,7 @@ def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
     single_flow = lif_exponential_flow(params)
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
     transition = partial(transition_without_recurrence, params)
-    step_fn = partial(step, dynamics, transition, t_max)
+    step_fn = partial(step_existing, dynamics, transition, t_max, None)
 
     # define adjoint step function (EventProp)
     single_adjoint_flow = adjoint_lif_exponential_flow(params)

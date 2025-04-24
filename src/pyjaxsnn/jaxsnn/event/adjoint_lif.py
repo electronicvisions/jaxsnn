@@ -1,6 +1,6 @@
 # pylint: disable=invalid-name
 from functools import partial
-from typing import Callable, Any, Tuple
+from typing import Callable, Tuple, Optional, List
 
 import jax
 import jax.numpy as np
@@ -9,14 +9,14 @@ from jaxsnn.event.flow import exponential_flow
 from jaxsnn.event.functional import StepInput, trajectory, filter_spikes
 from jaxsnn.event.types import (
     EventPropSpike,
+    InputQueue,
     LIFState,
+    Spike,
     StepState,
     Weight,
     WeightInput,
     WeightRecurrent,
-    InputQueue
 )
-from jaxsnn.event.root.next_finder import next_queue
 
 
 def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
@@ -320,18 +320,11 @@ def construct_adjoint_apply_fn(
     def custom_trajectory(
         s: StepState,
         weights: Weight,
-        layer_start: int,
-        known_spikes: Any,
+        layer_start: int
     ):
-        # Attach known spikes to the root solver if necessary
-        if known_spikes is not None:
-            solver = partial(next_queue, known_spikes, layer_start)
-            step_fn_bound = partial(step_fn, solver)
-        else:
-            step_fn_bound = step_fn
-        return jax.lax.scan(
-            step_fn_bound, (s, weights, layer_start), np.arange(n_spikes)
-        )
+        state, spikes = jax.lax.scan(
+            step_fn, (s, weights, layer_start), np.arange(n_spikes))
+        return state, spikes
 
     def custom_trajectory_fwd(*args):
         # save res for backward
@@ -366,7 +359,7 @@ def construct_adjoint_apply_fn(
             -(n_spikes - (adjoint_state.input_queue.head % n_spikes)),
         )
 
-        return adjoint_state, grads, 0, _
+        return adjoint_state, grads, 0
 
     custom_trajectory = jax.custom_vjp(custom_trajectory)
     custom_trajectory.defvjp(custom_trajectory_fwd, custom_trajectory_bwd)
@@ -374,7 +367,7 @@ def construct_adjoint_apply_fn(
     def apply_fn(  # pylint: disable=unused-argument
         weights: Weight,
         input_spikes: EventPropSpike,
-        external: Any,
+        known_spikes: Optional[List[Spike]],
         carry: int,
     ) -> Tuple[int, Weight, EventPropSpike, EventPropSpike]:
         if carry is None:
@@ -384,10 +377,16 @@ def construct_adjoint_apply_fn(
             layer_index, layer_start = carry
 
         # Pass in known spikes of current layer
-        if external is not None:
-            layer_external = external[layer_index]
-        else:
-            layer_external = None
+        if known_spikes is not None:
+            # Convert Spike to EventPropSpike
+            known_spikes = known_spikes[layer_index]
+            known_spikes = EventPropSpike(
+                time=known_spikes.time,
+                idx=known_spikes.idx,
+                current=np.zeros_like(known_spikes.time))
+            input_spikes = jax.tree_util.tree_map(
+                lambda x, y: np.concatenate([x, y], axis=0),
+                input_spikes, known_spikes)
 
         this_layer_weights = weights[layer_index]
         input_size = this_layer_weights.input.shape[0]
@@ -400,12 +399,10 @@ def construct_adjoint_apply_fn(
             spike_times=-1 * np.ones(n_hidden),
             spike_mask=np.zeros(n_hidden, dtype=bool),
             time=0.0,
-            input_queue=InputQueue(input_spikes),
-        )
+            input_queue=InputQueue(input_spikes))
 
-        _, spikes = custom_trajectory(
-            s, this_layer_weights, layer_start, layer_external
-        )
+        _, spikes = custom_trajectory(s, this_layer_weights, layer_start)
+
         layer_index += 1
 
         return (layer_index, layer_start), this_layer_weights, spikes, spikes
