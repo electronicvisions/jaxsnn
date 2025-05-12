@@ -8,7 +8,7 @@ import jax.numpy as np
 import tree_math
 from jax import random
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.threshold import superspike
+from jaxsnn.discrete.functional.threshold import superspike
 
 
 @dataclasses.dataclass
@@ -33,7 +33,7 @@ class LIFState(NamedTuple):
         v (jax.Array): membrane potential
         i (jax.Array): synaptic input current
         input_weights (jax.Array): input weights
-        recurrent_weights (jax.Array): recurrentweights
+        recurrent_weights (jax.Array): recurrent weights
     """
 
     z: jax.Array

@@ -5,14 +5,13 @@ import jax.numpy as np
 import optax
 from jax import random
 from jaxsnn.base.compose import serial
-from jaxsnn.discrete.leaky_integrate import LI
-from jaxsnn.discrete.leaky_integrate_and_fire import LIF
+from jaxsnn.discrete.modules.leaky_integrate import LI
+from jaxsnn.discrete.modules.leaky_integrate_and_fire import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.dataset import yinyang_dataset, data_loader
 from jaxsnn.discrete.loss import acc_and_loss, nll_loss
-from jaxsnn.discrete.threshold import superspike
 import unittest
 
 

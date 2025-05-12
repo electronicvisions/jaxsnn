@@ -5,7 +5,7 @@ from typing import Tuple
 import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.threshold import superspike
+from jaxsnn.discrete.functional.threshold import superspike
 
 
 @partial(jax.jit, static_argnames=["k"])

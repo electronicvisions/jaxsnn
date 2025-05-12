@@ -10,8 +10,8 @@ import jaxsnn
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset, data_loader
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.leaky_integrate import LI
-from jaxsnn.discrete.leaky_integrate_and_fire import LIF
+from jaxsnn.discrete.modules import LI
+from jaxsnn.discrete.modules import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
 from jaxsnn.discrete.loss import nll_loss, acc_and_loss

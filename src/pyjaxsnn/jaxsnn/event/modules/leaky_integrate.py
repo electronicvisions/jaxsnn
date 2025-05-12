@@ -3,7 +3,7 @@ from functools import partial
 import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.threshold import heaviside
+from jaxsnn.discrete.functional.threshold import heaviside
 from jaxsnn.event.types import LIFState, Spike
 
 
