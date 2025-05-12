@@ -6,7 +6,9 @@ import jax
 import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
-from jaxsnn.event.functional import StepInput, trajectory, filter_spikes
+from jaxsnn.event.stepping import StepInput
+from jaxsnn.event.trajectory import trajectory
+from jaxsnn.event.utils.filter import filter_spikes
 from jaxsnn.event.types import (
     EventPropSpike,
     InputQueue,

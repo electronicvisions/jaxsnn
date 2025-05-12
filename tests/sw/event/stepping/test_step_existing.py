@@ -3,7 +3,8 @@ from functools import partial
 import numpy as np
 import jax
 import jax.numpy as jnp
-from jaxsnn.event.functional import filter_spikes, step_existing
+from jaxsnn.event.utils.filter import filter_spikes
+from jaxsnn.event.stepping import step_existing
 from jaxsnn.event.types import (
     EventPropSpike, LIFState, StepState, WeightInput, InputQueue)
 from jaxsnn.event.transition import transition_without_recurrence
