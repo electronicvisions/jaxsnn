@@ -53,7 +53,7 @@ def construct_recurrent_init_fn(
 
 
 def construct_init_fn(
-    n_hidden: int, mean: float, std: float, duplication: Optional[int] = None
+    size: int, mean: float, std: float, duplication: Optional[int] = None
 ) -> SingleInit:
     def init_fn(
         rng: jax.Array, input_shape: int
@@ -61,11 +61,11 @@ def construct_init_fn(
         rng, layer_rng = jax.random.split(rng)
         if duplication is not None:
             weights = jax.random.normal(
-                layer_rng, (int(input_shape / duplication), n_hidden)
+                layer_rng, (int(input_shape / duplication), size)
             )
             weights = np.repeat(weights, duplication, axis=0)
         else:
-            weights = jax.random.normal(layer_rng, (input_shape, n_hidden))
-        return rng, n_hidden, WeightInput(weights * std + mean)
+            weights = jax.random.normal(layer_rng, (input_shape, size))
+        return rng, size, WeightInput(weights * std + mean)
 
     return init_fn

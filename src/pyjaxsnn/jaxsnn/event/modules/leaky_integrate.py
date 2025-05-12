@@ -42,7 +42,7 @@ leaky_integrator = jax.vmap(li_cell, in_axes=(None, None, 1, None), out_axes=1)
 
 
 def LeakyIntegrator(  # pylint: disable=invalid-name
-    n_hidden: int,
+    size: int,
     t_max: float,
     params: LIFParameters,
     mean: float = 0.5,
@@ -53,8 +53,8 @@ def LeakyIntegrator(  # pylint: disable=invalid-name
         rng, layer_rng = jax.random.split(rng)
         return (
             rng,
-            n_hidden,
-            jax.random.normal(layer_rng, (input_shape, n_hidden)) * std + mean
+            size,
+            jax.random.normal(layer_rng, (input_shape, size)) * std + mean
         )
 
     kernel = np.array(

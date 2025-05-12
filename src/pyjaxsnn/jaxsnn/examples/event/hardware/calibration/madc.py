@@ -83,7 +83,7 @@ def main():
 
     # setup software experiment
     _, apply_fn = LIF(
-        n_hidden=1,
+        size=1,
         n_spikes=n_input * duplication + n_output_spikes,
         t_max=runtime_us * 1e-6,
         params=params,

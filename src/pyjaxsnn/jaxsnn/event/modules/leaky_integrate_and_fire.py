@@ -55,7 +55,7 @@ from jaxsnn.event.types import (
 
 
 def LIF(  # pylint: disable=too-many-arguments
-    n_hidden: int,
+    size: int,
     n_spikes: int,
     t_max: float,
     params: LIFParameters,
@@ -66,7 +66,7 @@ def LIF(  # pylint: disable=too-many-arguments
     """A feed-forward layer of LIF Neurons.
 
     Args:
-        n_hidden (int): Number of hidden neurons
+        size (int): Number of hidden neurons
         n_spikes (int): Number of spikes which are simulated in this layer
         t_max (float): Maxium simulation time
         p (LIFParameters): Parameters of the LIF neurons
@@ -86,8 +86,8 @@ def LIF(  # pylint: disable=too-many-arguments
     transition = partial(transition_without_recurrence, params)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
 
-    apply_fn = trajectory(step_fn, n_hidden, n_spikes)
-    init_fn = construct_init_fn(n_hidden, mean, std, duplication)
+    apply_fn = trajectory(step_fn, size, n_spikes)
+    init_fn = construct_init_fn(size, mean, std, duplication)
 
     return init_fn, apply_fn
 
@@ -118,7 +118,7 @@ def RecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
 
 
 def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
-    n_hidden: int,
+    size: int,
     n_spikes: int,
     t_max: float,
     params: LIFParameters,
@@ -130,7 +130,7 @@ def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
     """Feed-forward layer of LIF neurons with EventProp gradient computation.
 
     Args:
-        n_hidden (int): Number of hidden neurons
+        size (int): Number of hidden neurons
         n_spikes (int): Number of spikes which are simulated in this
         t_max (float): Maximum simulation time
         p (LIFParameters): Parameters of the LIF neurons
@@ -165,9 +165,9 @@ def EventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
         step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
     )
 
-    init_fn = construct_init_fn(n_hidden, mean, std, duplication)
+    init_fn = construct_init_fn(size, mean, std, duplication)
     apply_fn = construct_adjoint_apply_fn(
-        step_fn, step_fn_bwd, n_hidden, n_spikes, wrap_only_step
+        step_fn, step_fn_bwd, size, n_spikes, wrap_only_step
     )
 
     return init_fn, apply_fn
@@ -225,11 +225,11 @@ def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
         step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
     )
 
-    n_hidden = np.sum(np.array(layers))
+    size = np.sum(np.array(layers))
 
     init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
     apply_fn = construct_adjoint_apply_fn(
-        step_fn, step_fn_bwd, n_hidden, n_spikes, wrap_only_step
+        step_fn, step_fn_bwd, size, n_spikes, wrap_only_step
     )
 
     return init_fn, apply_fn
@@ -257,17 +257,17 @@ def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
         step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
     )
 
-    n_hidden = np.sum(np.array(layers))
+    size = np.sum(np.array(layers))
 
     init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
     apply_fn = construct_adjoint_apply_fn(
-        step_fn, step_fn_bwd, n_hidden, n_spikes
+        step_fn, step_fn_bwd, size, n_spikes
     )
     return init_fn, apply_fn
 
 
 def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
-    n_hidden: int,
+    size: int,
     n_spikes: int,
     t_max: float,
     params: LIFParameters,
@@ -292,9 +292,9 @@ def HardwareLIF(  # pylint: disable=too-many-arguments,too-many-locals
         step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
     )
 
-    init_fn = construct_init_fn(n_hidden, mean, std, duplication)
+    init_fn = construct_init_fn(size, mean, std, duplication)
     apply_fn = construct_adjoint_apply_fn(
-        step_fn, step_fn_bwd, n_hidden, n_spikes
+        step_fn, step_fn_bwd, size, n_spikes
     )
 
     return init_fn, apply_fn

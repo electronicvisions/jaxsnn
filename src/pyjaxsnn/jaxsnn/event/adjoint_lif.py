@@ -282,7 +282,7 @@ def step_bwd(  # pylint: disable=too-many-locals
 def construct_adjoint_apply_fn(
     step_fn,
     step_fn_bwd,
-    n_hidden,
+    size,
     n_spikes,
     wrap_only_step=False,
 ):
@@ -302,7 +302,7 @@ def construct_adjoint_apply_fn(
         step_fn_event_prop = jax.custom_vjp(step_fn)
         step_fn_event_prop.defvjp(step_fn_fwd, step_fn_bwd)
 
-        forward = trajectory(step_fn_event_prop, n_hidden, n_spikes)
+        forward = trajectory(step_fn_event_prop, size, n_spikes)
         return forward
 
     # wrap step bwd so it is compliant with scan syntax
@@ -396,9 +396,9 @@ def construct_adjoint_apply_fn(
         input_spikes = filter_spikes(input_spikes, layer_start - input_size)
 
         s = StepState(
-            neuron_state=LIFState(np.zeros(n_hidden), np.zeros(n_hidden)),
-            spike_times=-1 * np.ones(n_hidden),
-            spike_mask=np.zeros(n_hidden, dtype=bool),
+            neuron_state=LIFState(np.zeros(size), np.zeros(size)),
+            spike_times=-1 * np.ones(size),
+            spike_mask=np.zeros(size, dtype=bool),
             time=0.0,
             input_queue=InputQueue(input_spikes))
 

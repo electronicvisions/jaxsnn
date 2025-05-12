@@ -227,7 +227,7 @@ def step(  # pylint: disable=unused-argument,too-many-locals
 
 def trajectory(
     step_fn: Callable[[StepInput, int], Tuple[StepInput, EventPropSpike]],
-    n_hidden: int,
+    size: int,
     n_spikes: int,
 ) -> SingleApply:
     """Evaluate the `step_fn` until `n_spikes` have been simulated.
@@ -255,9 +255,9 @@ def trajectory(
 
         step_state = StepState(
             neuron_state=LIFState(
-                np.zeros(n_hidden), np.zeros(n_hidden)),
-            spike_times=-1 * np.ones(n_hidden),
-            spike_mask=np.zeros(n_hidden, dtype=bool),
+                np.zeros(size), np.zeros(size)),
+            spike_times=-1 * np.ones(size),
+            spike_mask=np.zeros(size, dtype=bool),
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
