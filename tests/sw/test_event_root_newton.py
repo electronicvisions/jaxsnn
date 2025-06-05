@@ -1,12 +1,14 @@
+import unittest
 from functools import partial
+
+from numpy.testing import assert_almost_equal
 
 import jax
 import jax.numpy as jnp
-from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.modules.leaky_integrate import LIFState
-from jaxsnn.event.root.newton import newton_solver
-from numpy.testing import assert_almost_equal
-import unittest
+
+from jaxsnn.event.solver.newton import newton_solver
+from jaxsnn.event.modules import LIFParameters
+from jaxsnn.event.states import LIFState
 
 
 class TestEventRootNewton(unittest.TestCase):

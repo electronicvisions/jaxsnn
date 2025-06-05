@@ -1,11 +1,12 @@
+import unittest
 from functools import partial
 
 import jax
 import jax.numpy as jnp
-from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.types import LIFState
-from jaxsnn.event.root import cr_newton_solver
-import unittest
+
+from jaxsnn.event.modules import LIFParameters
+from jaxsnn.event.states import LIFState
+from jaxsnn.event.solver.custom_root_newton import cr_newton_solver
 
 
 class TestEventRootCustomRootNewton(unittest.TestCase):

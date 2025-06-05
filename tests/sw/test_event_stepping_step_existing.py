@@ -1,124 +1,419 @@
 import unittest
 from functools import partial
+
 import numpy as np
 import jax
 import jax.numpy as jnp
-import numpy as np
-from jaxsnn.event.modules.leaky_integrate_and_fire import EventPropLIF
-from jaxsnn.event.utils.filter import filter_spikes
-from jaxsnn.event.stepping import step_existing
+
+from jaxsnn.event.states import LIFState
 from jaxsnn.event.types import (
-    EventPropSpike, LIFState, StepState, WeightInput, InputQueue)
-from jaxsnn.event.transition import transition_without_recurrence
-from jaxsnn.event.flow import lif_exponential_flow
-from jaxsnn.base.params import LIFParameters
+    Spike,
+    StepState,
+)
+from jaxsnn.event.stepping import (
+    step_existing,
+    multi_layer_step,
+)
+from jaxsnn.event.functional import trajectory
+from jaxsnn.event.functional.lif.dynamics import lif_exponential_flow
+from jaxsnn.event.functional.lif.transition import transition
 
 
 class TestStepExistingEvents(unittest.TestCase):
 
-    def test_step_existing(self):
+    input_size = 10
+    layer_size = 5
+    t_max = 10.0
+    n_steps = 35
+    n_inputs = 7
+    n_outputs = 12
 
-        layer_start = 10
-        layer_size = 5
-        weights = WeightInput(jnp.ones((layer_start, layer_size)))
+    def run_single_layer_scc(
+        self,
+        input_spikes,
+        external_spikes,
+        weight: float = 1.0,
+        recurrent: bool = False,
+    ):
+        parameters = {
+            "inp": None,
+            "syn": jnp.full((self.input_size, self.layer_size), weight),
+            "nrn": None,
+        }
 
-        input_spikes = EventPropSpike(
-            time=jnp.array([0.1, 0.3, 0.3, 0.6, 0.6, 0.2, 0.5, 0.4]),
-            idx=jnp.array([2, 14, 13, 7, 12, 12, 1, 11]),
-            current=jnp.zeros(8))
+        output_spikes = Spike.empty(self.n_steps)
+        spikes = {
+            "inp": input_spikes,
+            "syn": None,
+            "nrn": output_spikes,
+        }
+        external_spikes = {
+            "nrn": external_spikes
+        }
 
-        input_spikes = filter_spikes(input_spikes, 0)
+        states = {
+            "inp": None,
+            "syn": None,
+            "nrn": StepState(
+                LIFState(
+                    jnp.zeros(self.layer_size),
+                    jnp.zeros(self.layer_size),
+                ),
+                jnp.array(0.0)
+            )
+        }
 
-        step_state = StepState(
-            neuron_state=LIFState(jnp.zeros(layer_size), jnp.zeros(layer_size)),
-            spike_times=-1 * jnp.ones(layer_size),
-            spike_mask=jnp.zeros(layer_size, dtype=bool),
-            time=0.0,
-            input_queue=InputQueue(input_spikes))
+        queue_heads = {
+            "inp": jnp.array(2 * [0]),
+            "syn": jnp.array(2 * [0]),
+            "nrn": jnp.array(2 * [0]) if not recurrent else jnp.array(3 * [0]),
+        }
 
-        params = LIFParameters()
-        single_flow = lif_exponential_flow(params)
-        dynamics = jax.vmap(single_flow, in_axes=(0, None))
-        transition = partial(transition_without_recurrence, params)
-        step_fn = partial(step_existing, dynamics, transition, 1.0, None)
+        if recurrent:
+            parameters["syn_rec"] = jnp.ones(
+                (self.layer_size, self.layer_size)
+            )
+            spikes["syn_rec"] = None
+            states["syn_rec"] = None
+            queue_heads["syn_rec"] = jnp.array(2 * [0])
 
-        state, spikes = jax.lax.scan(
-            step_fn, (step_state, weights, layer_start),
-            jnp.arange(10))
+        # Transitions per input connection
+        if recurrent:
+            transition_fns = [
+                partial(transition, 0.0, "syn"),
+                lambda s, w, i, l: s,
+                partial(transition, 0.0, "syn_rec"),
+            ]
+        else:
+            transition_fns = [
+                partial(transition, 0.0, "syn"),
+                lambda s, w, i, l: s,
+                lambda s, w, i, l: s,
+            ]
+        single_flow = lif_exponential_flow(
+            jnp.array(5),
+            jnp.array(10),
+        )
+        dynamics_fn = jax.vmap(single_flow, in_axes=(0, None))
 
-        self.assertIsNone(
-            np.testing.assert_array_equal(
-                spikes.time, jnp.concatenate(
-                    (input_spikes.time, jnp.array([jnp.inf, jnp.inf])))))
-        self.assertIsNone(
-            np.testing.assert_array_equal(
-                spikes.idx, jnp.concatenate(
-                    (input_spikes.idx, jnp.array([-1, -1])))))
+        step_fn = partial(
+            step_existing,
+            ["inp"] if not recurrent else ["inp", "nrn"],
+            dynamics_fn,
+            transition_fns,
+            "nrn",
+            self.t_max,
+        )
 
+        node_index_mapping = {"nrn": 2}
+        step_fn = partial(
+            multi_layer_step,
+            {"nrn": step_fn},
+            ["nrn"],
+            node_index_mapping,
+        )
 
-class TestStepExistingEventsRealistic(unittest.TestCase):
+        spikes, states, _, queue_idx = trajectory(
+            step_fn,
+            self.n_steps,
+            parameters,
+            spikes,
+            external_spikes,
+            states,
+            queue_heads,
+        )
 
-    def test_step_existing_realistic_batched(self):
+        return spikes, states, queue_idx
 
-        rng = jax.random.PRNGKey(0)
-        rng, rng_params = jax.random.split(rng)
+    def generate_events(self):
+        rng = jax.random.PRNGKey(np.random.randint(0, 10000))
+        rng_input, rng_ext = jax.random.split(rng, 2)
 
-        input_size = 100
-        batch_size = 128
-        hidden_size = 200
-        n_input_spikes = 100
-        n_spikes_hidden = 10 * hidden_size
-        n_spikes_total = n_input_spikes + n_spikes_hidden
-        t_max = 0.1
-        params = LIFParameters()
-
-        input_spikes = EventPropSpike(
+        input_spikes = Spike(
             time=jax.random.uniform(
-            rng, shape=(batch_size, n_input_spikes), minval=0.0, maxval=t_max),
+                rng_input, shape=(self.n_inputs,), minval=0.0, maxval=self.t_max,
+            ),
             idx=jax.random.randint(
-                rng, shape=(batch_size, n_input_spikes), minval=0,
-                maxval=input_size),
-            current=jnp.zeros((batch_size, n_input_spikes)))
+                rng_input, shape=(self.n_inputs,), minval=0,
+                maxval=self.input_size,
+            ),
+            layer_idx=jnp.zeros(self.n_inputs, dtype=int),
+            internal=jnp.ones(self.n_inputs, dtype=bool), 
+            current=jnp.zeros(self.n_inputs),
+        ).sort()
 
-        # Generate events
-        init_fn, apply_fn = EventPropLIF(
-            size=hidden_size,
-            n_spikes=n_spikes_total,
-            t_max=t_max,
-            params=params,
-            mean=0.2,
-            std=0.1)
-        apply_fn = jax.vmap(apply_fn, in_axes=(None, 0, 0, None))
-        rng_params, _, weights = init_fn(rng_params, input_size)
-        _, _, spikes, _ = apply_fn([weights], input_spikes, None, None)
+        external_spikes = Spike(
+            time=jax.random.uniform(
+                rng_ext, shape=(self.n_outputs,), minval=0.0, maxval=self.t_max,
+            ),
+            idx=jax.random.randint(
+                rng_ext, shape=(self.n_outputs,), minval=0,
+                maxval=self.layer_size,
+            ),
+            layer_idx=jnp.full(self.n_outputs, 2, dtype=int),
+            internal=jnp.ones(self.n_outputs, dtype=bool),
+            current=jnp.zeros(self.n_outputs),
+        ).sort()
 
-        # Now step events
-        single_flow = lif_exponential_flow(params)
-        dynamics = jax.vmap(single_flow, in_axes=(0, None))
-        transition = partial(transition_without_recurrence, params)
-        step_fn = partial(step_existing, dynamics, transition, t_max, None)
+        return input_spikes, external_spikes, None
 
-        def step_fn_wrapped(times, idxs, currents):
-            step_state = StepState(
-                neuron_state=LIFState(
-                    jnp.zeros(hidden_size),
-                    jnp.zeros(hidden_size)),
-                spike_times=-1 * jnp.ones(hidden_size),
-                spike_mask=jnp.zeros(hidden_size, dtype=bool),
-                time=0.0,
-                input_queue=InputQueue(EventPropSpike(
-                    time=times, idx=idxs, current=currents)))
-            input_state = (step_state, weights, input_size)
-            _, spikes = jax.lax.scan(
-                step_fn, input_state, jnp.arange(n_spikes_total))
-            return spikes
+    def test_step_existing_feedforward_no_external(self):
+        input_spikes, _, _ = self.generate_events()
+        external_spikes = Spike.empty(self.n_steps)
 
-        step_fn_vmapped = jax.vmap(step_fn_wrapped, in_axes=(0, 0, 0))
-        spikes = step_fn_vmapped(spikes.time, spikes.idx, spikes.current)
+        spikes, states, _ = self.run_single_layer_scc(
+            input_spikes,
+            external_spikes,
+        )
+        inputs = spikes["inp"]
+        spikes = spikes["nrn"]
+        states = states["nrn"]
 
-        self.assertEqual(spikes.time.shape, (batch_size, n_spikes_total))
-        self.assertEqual(spikes.idx.shape, (batch_size, n_spikes_total))
-        self.assertEqual(spikes.current.shape, (batch_size, n_spikes_total))
+        # We should get n_steps spikes
+        self.assertTrue(spikes.shape_ == (self.n_steps,))
+
+        # Input events should stay the same
+        self.assertTrue(jnp.all(inputs.time == input_spikes.time))
+        self.assertTrue(jnp.all(inputs.idx == input_spikes.idx))
+        self.assertTrue(jnp.all(inputs.current == input_spikes.current))
+        self.assertTrue(jnp.all(inputs.layer_idx == input_spikes.layer_idx))
+        self.assertTrue(jnp.all(inputs.internal == input_spikes.internal))
+
+        # Neuron spikes should ONLY hold input spikes
+        nrn_input_spikes = spikes[:self.n_inputs]
+        self.assertTrue(jnp.all(nrn_input_spikes.time == input_spikes.time))
+        self.assertTrue(jnp.all(nrn_input_spikes.idx == input_spikes.idx))
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.current == input_spikes.current)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.layer_idx == input_spikes.layer_idx)
+        )
+        self.assertTrue(
+            jnp.all(~nrn_input_spikes.internal == input_spikes.internal)
+        )
+
+        if self.n_steps > self.n_inputs:
+            nrn_input_spikes = spikes[self.n_inputs:]
+            empty_spikes = Spike.empty(self.n_steps - self.n_inputs)
+
+            self.assertTrue(jnp.all(nrn_input_spikes.time == self.t_max))
+            self.assertTrue(jnp.all(nrn_input_spikes.idx == empty_spikes.idx))
+            self.assertTrue(
+                jnp.all(nrn_input_spikes.current == empty_spikes.current)
+            )
+            self.assertTrue(
+                jnp.all(nrn_input_spikes.layer_idx == empty_spikes.layer_idx)
+            )
+            self.assertTrue(
+                jnp.all(nrn_input_spikes.internal == empty_spikes.internal)
+            )
+
+        # States should not be zero (input events)
+        self.assertTrue(jnp.any(states.neuron_state.V != 0.))
+        self.assertTrue(jnp.any(states.neuron_state.I != 0.))
+
+    def test_step_existing_feedforward(self):
+        # Test random
+        input_spikes, external_spikes, _ = self.generate_events()
+
+        spikes, states, _ = self.run_single_layer_scc(
+            input_spikes,
+            external_spikes,
+        )
+        inputs = spikes["inp"]
+        spikes = spikes["nrn"]
+        states = states["nrn"]
+
+        # We should get n_steps spikes
+        self.assertTrue(spikes.shape_ == (self.n_steps,))
+
+        # Input events should stay the same
+        self.assertTrue(jnp.all(inputs.time == input_spikes.time))
+        self.assertTrue(jnp.all(inputs.idx == input_spikes.idx))
+        self.assertTrue(jnp.all(inputs.current == input_spikes.current))
+        self.assertTrue(jnp.all(inputs.layer_idx == input_spikes.layer_idx))
+        self.assertTrue(jnp.all(inputs.internal == input_spikes.internal))
+
+        # Neuron spikes should hold input spikes and external spikes
+        merged_spikes = input_spikes.concatenate(external_spikes)
+        merged_spikes = merged_spikes.concatenate(
+            Spike.empty(self.n_steps - merged_spikes.shape_[0])
+        ).sort()
+        # Time is capped at t_max
+        merged_spikes.time = jnp.where(
+            merged_spikes.time >= self.t_max, self.t_max, merged_spikes.time
+        )
+        # We need to adjust internal
+        merged_spikes.internal = jnp.where(
+            merged_spikes.layer_idx == 0, False, merged_spikes.internal
+        )
+        merged_spikes = merged_spikes[:self.n_steps]
+
+        # We dont have current in external events
+        nrn_input_spikes = spikes[:self.n_steps]
+        nrn_input_spikes.current = jnp.zeros_like(merged_spikes.current)
+
+        self.assertTrue(jnp.all(nrn_input_spikes.time == merged_spikes.time))
+        self.assertTrue(jnp.all(nrn_input_spikes.idx == merged_spikes.idx))
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.current == merged_spikes.current)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.layer_idx == merged_spikes.layer_idx)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.internal == merged_spikes.internal)
+        )
+
+        # States should not be zero
+        if inputs.time.min() < spikes.time.max():
+            self.assertTrue(jnp.any(states.neuron_state.V != 0.))
+            self.assertTrue(jnp.any(states.neuron_state.I != 0.))
+
+    def test_step_existing_feedforward_equal_times(self):
+        input_spikes, external_spikes, _ = self.generate_events()
+
+        # Test multiple equal input times
+        input_spikes.time = input_spikes.time.at[3].set(input_spikes.time[4])
+        input_spikes = input_spikes.sort()
+        # Force equal external spike times
+        external_spikes.time = external_spikes.time.at[2].set(
+            external_spikes.time[3]
+        )
+        external_spikes = external_spikes.sort()
+
+        # force external spike to be equal to input spike -> external first
+        external_spikes.time = external_spikes.time.at[5].set(
+            input_spikes.time[5]
+        )
+        external_spikes = external_spikes.sort()
+
+        # force external spike to be equal to input spike -> input first
+        input_spikes.time = input_spikes.time.at[6].set(
+            external_spikes.time[6]
+        )
+        input_spikes = input_spikes.sort()
+
+        # run
+        spikes, states, _ = self.run_single_layer_scc(
+            input_spikes,
+            external_spikes,
+        )
+        inputs = spikes["inp"]
+        spikes = spikes["nrn"]
+        states = states["nrn"]
+
+        # Input events should stay the same
+        self.assertTrue(jnp.all(inputs.time == input_spikes.time))
+        self.assertTrue(jnp.all(inputs.idx == input_spikes.idx))
+        self.assertTrue(jnp.all(inputs.current == input_spikes.current))
+        self.assertTrue(jnp.all(inputs.layer_idx == input_spikes.layer_idx))
+        self.assertTrue(jnp.all(inputs.internal == input_spikes.internal))
+
+        # Neuron spikes should hold input spikes and external spikes
+        merged_spikes = input_spikes.concatenate(external_spikes)
+        merged_spikes = merged_spikes.concatenate(
+            Spike.empty(self.n_steps - merged_spikes.shape_[0])
+        ).sort()
+        # Time is capped at t_max
+        merged_spikes.time = jnp.where(
+            merged_spikes.time >= self.t_max, self.t_max, merged_spikes.time
+        )
+        # We need to adjust internal
+        merged_spikes.internal = jnp.where(
+            merged_spikes.layer_idx == 0, False, merged_spikes.internal
+        )
+        merged_spikes = merged_spikes[:self.n_steps]
+
+
+        # We dont have current in external events
+        nrn_input_spikes = spikes[:self.n_steps]
+        nrn_input_spikes.current = jnp.zeros_like(merged_spikes.current)
+
+        self.assertTrue(jnp.all(nrn_input_spikes.time == merged_spikes.time))
+        self.assertTrue(jnp.all(nrn_input_spikes.idx == merged_spikes.idx))
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.current == merged_spikes.current)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.layer_idx == merged_spikes.layer_idx)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.internal == merged_spikes.internal)
+        )
+
+        # States should not be zero
+        if inputs.time.min() < spikes.time.max():
+            self.assertTrue(jnp.any(states.neuron_state.V != 0.))
+            self.assertTrue(jnp.any(states.neuron_state.I != 0.))
+
+    def test_step_existing_recurrent(self):
+        # Test random
+        input_spikes, external_spikes, _ = self.generate_events()
+
+        spikes, states, _ = self.run_single_layer_scc(
+            input_spikes,
+            external_spikes,
+            recurrent=True,
+        )
+        inputs = spikes["inp"]
+        spikes = spikes["nrn"]
+        states = states["nrn"]
+
+        # We should get n_steps spikes
+        self.assertTrue(spikes.shape_ == (self.n_steps,))
+
+        # Input events should stay the same
+        self.assertTrue(jnp.all(inputs.time == input_spikes.time))
+        self.assertTrue(jnp.all(inputs.idx == input_spikes.idx))
+        self.assertTrue(jnp.all(inputs.current == input_spikes.current))
+        self.assertTrue(jnp.all(inputs.layer_idx == input_spikes.layer_idx))
+        self.assertTrue(jnp.all(inputs.internal == input_spikes.internal))
+
+        # Neuron spikes should hold input spikes and rec external spikes
+        merged_spikes = input_spikes.concatenate(external_spikes)
+        external_spikes.internal = jnp.zeros_like(external_spikes.internal)
+        # Add recurrent internal spieks
+        merged_spikes = merged_spikes.concatenate(external_spikes).sort()
+        merged_spikes = merged_spikes.concatenate(
+            Spike.empty(self.n_steps - merged_spikes.shape_[0])
+        ).sort()
+        # Time is capped at t_max
+        merged_spikes.time = jnp.where(
+            merged_spikes.time >= self.t_max, self.t_max, merged_spikes.time
+        )
+        # We need to adjust internal
+        merged_spikes.internal = jnp.where(
+            merged_spikes.layer_idx == 0, False, merged_spikes.internal
+        )
+        merged_spikes = merged_spikes[:self.n_steps]
+
+        # We dont have current in external events
+        nrn_input_spikes = spikes[:self.n_steps]
+        nrn_input_spikes.current = jnp.zeros_like(merged_spikes.current)
+
+        self.assertTrue(jnp.all(nrn_input_spikes.time == merged_spikes.time))
+        self.assertTrue(jnp.all(nrn_input_spikes.idx == merged_spikes.idx))
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.current == merged_spikes.current)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.layer_idx == merged_spikes.layer_idx)
+        )
+        self.assertTrue(
+            jnp.all(nrn_input_spikes.internal == merged_spikes.internal)
+        )
+
+        # States should not be zero
+        if inputs.time.min() < spikes.time.max():
+            self.assertTrue(jnp.any(states.neuron_state.V != 0.))
+            self.assertTrue(jnp.any(states.neuron_state.I != 0.))
+
+
+    @unittest.skip("TODO: Test multiple input layers.")
+    def test_step_existing_feedforward_multiple_inputs(self):
+        pass
 
 
 if __name__ == '__main__':

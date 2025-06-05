@@ -7,6 +7,7 @@ from waflib.extras.symwaf2ic import get_toplevel_path
 def depends(dep):
     dep("code-format")
     dep("nir")
+    dep("hxtorch")
 
 
 def options(opt):
@@ -32,10 +33,12 @@ def configure(cfg):
 
 
 def build(bld):
+    bld.env.BBS_HARDWARE_AVAILABLE = "SLURM_HWDB_YAML" in os.environ
+
     bld(
         target="jaxsnn",
         features="py use",
-        use=["nir"],
+        use=["hxtorch", "_hxtorch_core", "nir"],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         install_from="src/pyjaxsnn",
@@ -44,13 +47,23 @@ def build(bld):
     bld(
         target="jaxsnn_linting",
         features="use pylint pycodestyle",
-        use=["nir"],
+        use=["hxtorch", "_hxtorch_core", "nir"],
         tests=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         pylint_config=os.path.join(
             get_toplevel_path(), "code-format", "pylintrc"),
         pycodestyle_config=os.path.join(
             get_toplevel_path(), "code-format", "pycodestyle"),
         test_timeout=60,
+    )
+
+    bld(
+        target="jaxsnn_hwtests",
+        tests=bld.path.ant_glob("tests/hw/**/*.py"),
+        features="use pytest",
+        use=["jaxsnn"],
+        install_path="${PREFIX}/bin/tests/jaxsnn/hw",
+        test_timeout=2500,
+        skip_run=not bld.env.BBS_HARDWARE_AVAILABLE
     )
 
     bld(

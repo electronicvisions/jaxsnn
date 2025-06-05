@@ -7,13 +7,13 @@ import jax.numpy as jnp
 import optax
 from jax import random
 import jaxsnn
-from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset
+from jaxsnn.event.custom_lax import scan
 from jaxsnn.event.encode import (
     spatio_temporal_encode, target_temporal_encode, encode)
-from jaxsnn.event import custom_lax
-from jaxsnn.event.modules.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.loss import mse_loss
+from jaxsnn.event.modules import Source, LIF, Linear, LIFParameters
+from jaxsnn.event.topology import Topology
 from jaxsnn.event.training import epoch, update
 from jaxsnn.event.types import OptState
 from jaxsnn.examples.event.utils import test_step, loss_wrapper
@@ -24,7 +24,7 @@ def get_parser() -> argparse.ArgumentParser:
     Returns an argument parser with all the options.
     """
     parser = argparse.ArgumentParser(
-        description="hxtorch spiking YinYang example",
+        description="jaxsnn spiking YinYang example",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--seed", type=int, default=0)
     # data
@@ -90,47 +90,87 @@ def main(args: argparse.Namespace):
         xy_trainset, input_encoder_batched, target_encoder_batched)
     testset = encode(
         xy_testset, input_encoder_batched, target_encoder_batched)
+    trainset = ({"inp": trainset[0]}, trainset[1])
+    testset = ({"inp": testset[0]}, testset[1])
 
-    # define net
-    init_fn, apply_fn = serial(
-        LIF(
-            args.hidden_size,
-            n_spikes=args.n_spikes_hidden,
-            t_max=t_max,
-            params=params,
-            mean=3.0,
-            std=1.6),
-        LIF(
-            output_size,
-            n_spikes=args.n_spikes_output,
-            t_max=t_max,
-            params=params,
-            mean=0.5,
-            std=0.8))
+    # define topology
+    builder = Topology(t_max=t_max)
+
+    # create modules
+    builder.add(
+        {
+            "inp": Source(input_size),
+            "lif1": LIF(
+                args.hidden_size,
+                args.n_spikes_hidden,
+                params,
+            ),
+            "lif2": LIF(
+                output_size,
+                args.n_spikes_output,
+                params,
+            ),
+            "syn1": Linear(
+                mean=3.0,
+                std=1.6,
+                min_delay=0.000,
+            ),
+            "syn2": Linear(
+                mean=0.5,
+                std=0.8,
+                min_delay=0.000,
+            ),
+        }
+    )
+
+    # connect modules
+    builder.connect(
+        [
+            ("inp", "syn1"),
+            ("syn1", "lif1"),
+            ("lif1", "syn2"),
+            ("syn2", "lif2"),
+        ]
+    )
+
+    # build topology
+    init_fn, apply_fn = builder.done()
 
     # init weights
-    _, weights = init_fn(param_rng, input_size)
+    weights = init_fn(param_rng)
 
     # define and init optimizer
     scheduler = optax.exponential_decay(
         args.lr, n_train_batches, args.lr_decay)
     optimizer = optax.chain(
+        optax.scale(1.0 / args.tau_syn),
         optax.clip(0.01),
         optax.adam(scheduler))
     opt_state = optimizer.init(weights)
 
     # define loss and update function
     loss_fn = partial(
-        loss_wrapper, apply_fn, mse_loss, params.tau_mem,
-        input_size + args.hidden_size + output_size, output_size)
+        loss_wrapper, apply_fn, mse_loss,
+        params.tau_mem, "lif2", output_size)
 
-    update_fn = jax.jit(partial(update, optimizer, loss_fn, params))
+    update_fn = jax.jit(partial(update, optimizer, loss_fn))
     test_fn = partial(test_step, loss_fn)
-    epoch_fn = partial(epoch, update_fn, test_fn, trainset, testset)
+    epoch_fn = partial(
+        epoch,
+        update_fn,
+        test_fn,
+        trainset,
+        testset,
+        args.batch_size,
+        args.batch_size,
+    )
 
     # iterate over epochs
-    res = custom_lax.scan(
-        epoch_fn, OptState(opt_state, weights, rng), jnp.arange(args.epochs))
+    res = scan(
+        epoch_fn,
+        OptState(opt_state, weights, rng),
+        jnp.arange(args.epochs, dtype=int),
+    )
     state, (test_result, weights_over_time, duration) = res
 
     # save experiment data

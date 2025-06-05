@@ -1,8 +1,3 @@
-from jax import config
-from jaxsnn.event.from_nir import from_nir, ConversionConfig
-from jaxsnn.event.from_nir_data import from_nir_data
-from jaxsnn.event.to_nir_data import to_nir_data
-
 try:
     # Try to import pylogging
     import pylogging as logger
@@ -14,10 +9,18 @@ try:
         # Configure the jaxsnn logger if it has no appenders
         logger.default_config(level=logger.LogLevel.WARN)
         logger.set_loglevel(jaxsnn_logger, logger.LogLevel.INFO)
-
 except ImportError:
     # Import standard logger
     import logging
+
+    TRACE_LEVEL = 5
+    logging.addLevelName(TRACE_LEVEL, "TRACE")
+
+    def trace(self, message, *args, **kwargs):
+        if self.isEnabledFor(TRACE_LEVEL):
+            self.log(TRACE_LEVEL, message, args, **kwargs)
+
+    logging.Logger.TRACE = trace
 
     # Set up the standard logger configuration
     jaxsnn_logger = logging.getLogger("jaxsnn")
@@ -27,6 +30,18 @@ except ImportError:
         logging.basicConfig(level=logging.WARN)
         jaxsnn_logger.setLevel(logging.INFO)
 
+try:
+    from hxtorch import (  # pylint: disable=unused-import
+        init_hardware,
+        init_hardware_minimal,
+        release_hardware,
+    )
+except ImportError:
+    jaxsnn_logger.warning(
+        "hxtorch is not installed. Please install hxtorch to use the"
+        " hardware features of jaxsnn.",
+    )
+
 
 def get_logger(name: str):
     if 'logger' in globals() and hasattr(logger, 'get'):
@@ -34,6 +49,3 @@ def get_logger(name: str):
         return logger.get(name)
     # Otherwise use standard logging, to return logger
     return jaxsnn_logger.getChild(name)
-
-
-config.update("jax_debug_nans", True)

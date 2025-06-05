@@ -1,15 +1,18 @@
+import unittest
+
 from functools import partial
 import numpy as np
 
 import jax
 import jax.numpy as jnp
-from jaxsnn.base.params import LIFParameters
-from jaxsnn.event.modules.leaky_integrate import LIFState
-from jaxsnn.event.root.ttfs import ttfs_solver
-import unittest
+
+from jaxsnn.event.solver import ttfs_solver
+from jaxsnn.event.modules import LIFParameters
+from jaxsnn.event.states import LIFState
 
 params = LIFParameters()
 t_max = 0.2
+
 
 class TestEventRootTTFS(unittest.TestCase):
 

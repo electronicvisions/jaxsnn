@@ -3,9 +3,6 @@ from typing import Tuple, Optional, Any, List
 import jax
 from jax import random
 import jax.numpy as jnp
-from jaxsnn.event.types import EventPropSpike
-
-Dataset = Tuple[EventPropSpike, jax.Array, str]
 
 
 def data_loader(

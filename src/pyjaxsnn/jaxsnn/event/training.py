@@ -5,9 +5,8 @@ import jax
 import jax.numpy as jnp
 import optax
 import jaxsnn
-from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.dataset import data_loader
-from jaxsnn.event.types import OptState, Spike
+from jaxsnn.event.types import OptState, IOData, Parameters
 from jaxsnn.event.utils import time_it
 
 
@@ -17,18 +16,16 @@ log = jaxsnn.get_logger("jaxsnn.event.training")
 def update(
     optimizer,
     loss_fn: Callable,
-    params: LIFParameters,
     state: OptState,
-    batch: Tuple[Spike, jax.Array],
-) -> Tuple[OptState, Tuple[jax.Array, jax.Array]]:
+    batch: Tuple[IOData, jax.Array],
+) -> Tuple[OptState, Tuple[jax.Array, Parameters]]:
     value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
-        state.weights, batch
+        state.params,
+        batch,
     )
-    grad = jax.tree_util.tree_map(lambda g: g / params.tau_syn, grad)
-
     updates, opt_state = optimizer.update(grad, state.opt_state)
-    weights = optax.apply_updates(state.weights, updates)
-    return OptState(opt_state, weights, state.rng), (value, grad)
+    params = optax.apply_updates(state.params, updates)
+    return OptState(opt_state, params, state.rng), (value, grad)
 
 
 def epoch(
@@ -39,26 +36,47 @@ def epoch(
     ],
     trainset,
     testset,
-    opt_state: OptState,
+    batch_size_train: int,
+    batch_size_test: int,
+    state: OptState,
     i: int,
 ):  # pylint: disable=too-many-arguments, too-many-locals
-    rng, train_rng, test_rng = jax.random.split(opt_state.rng, 3)
-    trainset_batched = data_loader(trainset, 64, rng=train_rng)
+    rng, train_rng, test_rng = jax.random.split(state.rng, 3)
+    trainset_batched = data_loader(trainset, batch_size_train, rng=train_rng)
     res, duration = time_it(
-        jax.lax.scan,
-        update_fn,
-        opt_state,
-        trainset_batched
+        jax.lax.scan, update_fn, state, trainset_batched
     )
-    opt_state, (recording, grad) = res
-    opt_state = OptState(opt_state.opt_state, opt_state.weights, rng)
+    state, (recording, grad) = res
+    state = OptState(state.opt_state, state.params, rng)
 
-    testset_batched = data_loader(testset, 64, rng=test_rng)
-    test_result, test_str = test_fn(opt_state.weights, testset_batched)
-    mean_spikes = jnp.sum(recording[1][1][0].idx >= 0, axis=-1).mean()
-    mean_grad = grad[0].input.mean()
+    testset_batched = data_loader(testset, batch_size_test, rng=test_rng)
+    test_result, test_str = test_fn(state.params, testset_batched)
+
+    spikes_info = ""
+    for node in recording[1][1]:
+        spikes = recording[1][1][node]
+        spikes = spikes.where(spikes.internal) if spikes is not None else None
+        spikes_mean = (
+            f"{jnp.sum(spikes.idx >= 0, axis=-1).mean():.4f}"
+            if spikes is not None
+            else None
+        )
+        spikes_info += f"\t\t{node}: {spikes_mean}\n"
+
+    grads_info = ""
+    for node in recording[1][1]:
+        grad_node = grad[node]
+        grad_mean = f"{grad_node.mean():.8f}" \
+            if grad_node is not None else None
+        grads_info += f"\t\t{node}: {grad_mean}\n"
+
     log.info(
-        f"Epoch {i}, test: {test_str}, spikes: {mean_spikes:.1f}, "
-        f"grad: {mean_grad:.5f}, time: {duration:.2f}s"
+        f"Epoch {i}:\n"
+        f"\ttest result:\n\t\t{test_str},\n"
+        f"\tspikes:\n{spikes_info}"
+        f"\tgrad:\n{grads_info}"
+        f"\tin {duration:.2f}s"
     )
-    return opt_state, (test_result, opt_state.weights, duration)
+    return (
+        OptState(state.opt_state, state.params, rng),
+        (test_result, state.params, duration))

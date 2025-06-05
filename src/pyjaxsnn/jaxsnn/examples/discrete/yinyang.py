@@ -2,17 +2,17 @@ from typing import Callable, Dict, Tuple
 import argparse
 import time
 from functools import partial
+from typing import Callable, Dict, Tuple
 
 import jax
 import optax
 import jax.numpy as jnp
 from jax import random
 import jaxsnn
-from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset, data_loader
-from jaxsnn.base.params import LIFParameters
-from jaxsnn.discrete.modules.leaky_integrate import LI
-from jaxsnn.discrete.modules.leaky_integrate_and_fire import LIF
+from jaxsnn.discrete.topology import Topology
+from jaxsnn.discrete.modules import Input, LIF, LI, Linear
+from jaxsnn.discrete.functional import LIFParameters, LIParameters
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
 from jaxsnn.discrete.loss import nll_loss
@@ -27,7 +27,7 @@ def get_parser() -> argparse.ArgumentParser:
     Returns an argument parser with all the options.
     """
     parser = argparse.ArgumentParser(
-        description="hxtorch spiking YinYang example",
+        description="jaxsnn spiking YinYang example",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--seed", type=int, default=0)
     # data
@@ -44,7 +44,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--batch-size", type=int, default=64, metavar="<num samples>",
         help="input batch size for training")
-    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lr-decay", type=float, default=0.98)
     parser.add_argument("--expected-spikes", type=float, default=0.8)
     return parser
@@ -60,34 +60,44 @@ def train_step(
     batch: Tuple[Dict[str, jax.Array], jax.Array],
 ) -> Tuple[Tuple[optax.OptState, optax.Params],
            Tuple[jax.Array, Dict[str, jax.Array]]]:
-    """A single step in the training process.
-
-    1. Run the sample and calculate the gradient
-    2. Calculate parameter updates
-    3. Update the parameters
-
-    The step function is compliant with the syntax of `jaxlax.scan`,
-    making it easy to be looped over.
     """
-    opt_state, weights = state
+    Run one training step.
 
-    def loss_fn(params, batch):
+    1. Forward pass and loss (+ regularization) computation
+    2. Gradient computation
+    3. Parameter update
+
+    :param apply_fn: Batched model apply function called as
+        apply_fn(inputs, params).
+    :param decoder: Batched decoder applied to the LI layer output.
+    :param optimizer: Optax optimizer used to compute and apply updates.
+    :param rho: Regularization strength for firing-rate penalty.
+    :param target_rate: Target spikes per sample for the LIF-layer regularizer.
+    :param state: Tuple of (opt_state, parameters).
+    :param batch: Mini-batch as (inputs, targets).
+
+    :returns: Updated (opt_state, parameters) and (loss, preds).
+    """
+    opt_state, parameters = state
+
+    def loss_fn(params, batch, apply_fn=apply_fn, decoder=decoder, rho=rho):
         inputs, targets = batch
-        _, _, preds, recording = apply_fn(params, inputs, None, None)
-        preds_decoded = decoder(preds)
+        _, preds = apply_fn(inputs, params)
+        preds_decoded = decoder(preds["li"])
         loss = nll_loss(preds_decoded, targets)
         regularization = rho * jnp.sum(
-            jnp.square(jnp.sum(recording[0].z, axis=0) - target_rate)
+            jnp.square(jnp.sum(preds["lif"], axis=1) - target_rate)
         )
-        return loss + regularization, recording
+        return loss + regularization, preds
 
-    (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        weights, batch,
+    (loss, preds), grads = jax.value_and_grad(loss_fn, has_aux=True)(
+        parameters, batch
     )
-    updates, opt_state = optimizer.update(grads, opt_state)
-    weights = optax.apply_updates(weights, updates)
 
-    return (opt_state, weights), recording
+    updates, opt_state = optimizer.update(grads, opt_state)
+    parameters = optax.apply_updates(parameters, updates)
+
+    return (opt_state, parameters), (loss, preds)
 
 
 def test_step(
@@ -98,34 +108,51 @@ def test_step(
 ) -> Tuple[jax.Array, jax.Array]:
     """
     Computes the accuracy and loss for a single test step.
+
     :param apply_fn: The model's apply function.
     :param decoder: The decoder function to compute loss and predictions from
         model output.
     :param parameters: The trained model parameters.
     :param testset: A batch of test data, as a tuple of (inputs, targets).
+
     :return: A tuple containing the computed accuracy and loss.
     """
     inputs, targets = testset
-    _, _, preds, _ = apply_fn(parameters, inputs, None, None)
-    preds_decoded = decoder(preds)
+
+    _, preds = apply_fn(inputs, parameters)
+    preds_decoded = decoder(preds["li"])
+
     correct = (jnp.argmax(preds_decoded, axis=1) == targets).sum()
     accuracy = correct / len(targets)
+
     targets = one_hot(targets, preds_decoded.shape[1])
     loss = -jnp.mean(jnp.sum(targets * preds_decoded, axis=1))
+
     return jnp.mean(accuracy), jnp.mean(loss)
 
 
 def main(args: argparse.Namespace):
-    params = LIFParameters(
-        tau_syn=args.tau_syn, tau_mem=args.tau_mem, v_th=args.v_th)
+    """
+    Function to train a LIF network to solve the YinYang dataset
+    """
+    lif_params = LIFParameters(
+        tau_syn=args.tau_syn,
+        tau_mem=args.tau_mem,
+        v_th=args.v_th,
+    )
+    li_params = LIParameters(
+        tau_syn=args.tau_syn,
+        tau_mem=args.tau_mem,
+    )
 
     n_train_batches = args.trainset_size // args.batch_size
     n_test_batches = args.testset_size // args.batch_size
     train_samples = args.batch_size * n_train_batches
     test_samples = args.batch_size * n_test_batches
 
-    t_late = params.tau_syn + params.tau_mem
+    t_late = lif_params.tau_syn + lif_params.tau_mem
     time_steps = int(2 * t_late / args.dt)
+
     log.info(f"dt: {args.dt}, {time_steps} time steps, t_late: {t_late}")
 
     # Define RNGs
@@ -134,66 +161,116 @@ def main(args: argparse.Namespace):
 
     # Setting up trainset and testset
     xy_trainset = yinyang_dataset(
-        train_rng, train_samples, mirror=True, bias_spike=0.0)
+        train_rng, train_samples, mirror=True, bias_spike=0.0,
+    )
     xy_testset = yinyang_dataset(
-        test_rng, test_samples, mirror=True, bias_spike=0.0)
+        test_rng, test_samples, mirror=True, bias_spike=0.0,
+    )
 
     # Encoding the inputs
-    time_steps_encoding = int(time_steps * 2 / 3)
     input_encoder_batched = jax.vmap(
-        spatio_temporal_encode, in_axes=(0, None, None, None))
-
+        spatio_temporal_encode, in_axes=(0, None, None, None),
+    )
     train_input_encoded = input_encoder_batched(
-        xy_trainset[0], time_steps_encoding, t_late, args.dt)
-    trainset = (train_input_encoded, xy_trainset[1])
+        xy_trainset[0], time_steps, t_late, args.dt,
+    )
+    test_input_encoded = input_encoder_batched(
+        xy_testset[0], time_steps, t_late, args.dt,
+    )
 
-    test_input_encoded = spatio_temporal_encode(
-        xy_testset[0], time_steps_encoding, t_late, args.dt)
-    testset = (test_input_encoded, xy_testset[1])
+    # define topology
+    builder = Topology(dt=args.dt)
 
-    # define the network
-    snn_init, snn_apply = serial(LIF(args.hidden_size), LI(3))
+    # create modules
+    builder.add(
+        {
+            "inp": Input(5),
+            "lif": LIF(
+                args.hidden_size,
+                lif_params,
+            ),
+            "li": LI(
+                3,
+                li_params,
+            ),
+            "syn_ih": Linear(
+                mean=0.0,
+                std=0.7,
+            ),
+            "syn_hh": Linear(
+                mean=0.0,
+                std=0.2,
+            ),
+            "syn_ho": Linear(
+                mean=0.0,
+                std=0.2,
+            ),
+        }
+    )
+
+    # connect modules
+    builder.connect(
+        [
+            ("inp", "syn_ih"),
+            ("syn_ih", "lif"),
+            ("lif", "syn_hh"),
+            ("syn_hh", "lif"),
+            ("lif", "syn_ho"),
+            ("syn_ho", "li"),
+        ]
+    )
+
+    # Datasets
+    trainset = ({"inp": train_input_encoded}, xy_trainset[1])
+    testset = ({"inp": test_input_encoded}, xy_testset[1])
+
+    # build topology
+    init_fn, apply_fn = builder.done()
 
     # define optimizer
     scheduler = optax.exponential_decay(
-        args.lr, n_train_batches, args.lr_decay)
+        args.lr, n_train_batches, args.lr_decay,
+    )
     optimizer = optax.adam(scheduler)
 
-    # define loss and train function
+    apply_fn = jax.vmap(apply_fn, in_axes=(0, None))
+
     train_step_fn = partial(
         train_step,
-        snn_apply,
-        max_over_time_decode,
+        apply_fn,
+        jax.vmap(max_over_time_decode),
         optimizer,
         1e-5,
         args.expected_spikes,
     )
 
     overall_time = time.time()
-    _, weights = snn_init(init_rng, input_size=5)
-    opt_state = optimizer.init(weights)
+    parameters = init_fn(init_rng)
+    opt_state = optimizer.init(parameters)
 
     accuracies, loss = [], []
     for epoch in range(args.epochs):
         start = time.time()
         # Generate randomly shuffled batches
         this_shuffle_rng, shuffle_rng = random.split(shuffle_rng)
-        trainset_batched = data_loader(trainset, 64, rng=this_shuffle_rng)
 
-        # Swap axes because time axis needs to come before batch axis
-        trainset_batched = (
-            jnp.swapaxes(trainset_batched[0], 1, 2),
-            trainset_batched[1])
-        (opt_state, weights), recording = jax.lax.scan(
-            train_step_fn, (opt_state, weights), trainset_batched)
+        # Training
+        trainset_batched = data_loader(trainset, 64, rng=this_shuffle_rng)
+        (opt_state, parameters), (_, preds) = jax.lax.scan(
+            train_step_fn,
+            (opt_state, parameters),
+            trainset_batched,
+        )
         end = time.time() - start
 
-        spikes_per_item = jnp.count_nonzero(recording[0].z) / train_samples
+        spikes_per_item = jnp.count_nonzero(preds["lif"]) / train_samples
+
+        # Testing
         accuracy, test_loss = test_step(
-            snn_apply,
-            max_over_time_decode,
-            weights,
-            (testset[0], testset[1]),
+            apply_fn,
+            jax.vmap(max_over_time_decode),
+            parameters,
+            testset,
         )
 
         accuracies.append(accuracy)

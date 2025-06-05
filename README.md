@@ -86,18 +86,19 @@ python -m jaxsnn.examples.event.yinyang_analytical
 
 ### Time Continuous
 
-`jaxsnn.event` treats time continously and allows jumping from one event to the next one. It's core functionality consists of the `step` function, which does three things:
+`jaxsnn.event` treats time continously and allows jumping from one event to the next one. Its core functionality consists of the `step` function, which does three things:
 
 1. Find the next threshold crossing
 2. Integrate the neuron to this point in time
 3. Apply the discontinuity after the threshold crossing
 
-`jaxsnn.event.modules.leaky_integrate_and_fire` provides multiple neuron types which can be used to build larger networks. Each neuron type defines the three functions mentioned above.
+`jaxsnn.event.modules.lif` provides the implementation of a CubaLIF neuron
+which can be used to build larger networks.
 
 
 ### BSS-2 Connection
 
-`jaxsnn.event.hardware` provides functionality to connect to the [BSS-2 system](https://www.frontiersin.org/articles/10.3389/fnins.2022.795876/full) and to conduct learning experiments on dedicated neuromorphic hardware.
+`jaxsnn.event.modules.hx` provides functionality to connect to the [BSS-2 system](https://www.frontiersin.org/articles/10.3389/fnins.2022.795876/full) and to conduct learning experiments on dedicated neuromorphic hardware.
 
 
 ## First Steps
@@ -136,40 +137,11 @@ If you want to work with the BSS-2 system, a working example is provided:
 python -m jaxsnn.examples.event.yinyang_bss2
 ```
 
-The operation point calibration script is `src/pyjaxsnn/jaxsnn/event/hardware/calib/neuron_calib.py`.
-Example:
-
-```bash
-srun -p cube --wafer 69 --fpga-without-aout 0 --pty c python ./neuron_calib.py \
-	--wafer           W69F0 \
-	--threshold         150 \
-	--tau-syn          6e-6 \
-	--tau-mem         12e-6 \
-	--refractory-time 30e-6 \
-	--synapse-dac-bias 1000
-	--calib-dir src/pyjaxsnn/jaxsnn/event/hardware/calib
-```
-
-If you want to study the behaviour that different hardware artifacts (noise on the spike times) have on the performance of SNNs, check out this example:
-
-```bash
-python -m jaxsnn.examples.event.hardware.yinyang_mock
-```
-
-You can switch between an actual execution on BSS-2 and a pure software mock mode, in which the hardware is emulated by a second software network. You can
-add noise to spikes from this first network or limit the dynamic range (like it is on BSS-2).
-
-
-## TODO
-
-- The mapping between the hardware neuron modules `HardwareRecurrentLIF` (which can simulate multiple feed-forward layers) and the populations / projections is not yet implemented cleanly and is hacked into the tasks (experiment returns a list of spikes for two layers, which are merged together, projections are hardcoded)
-
-
 ## Acknowledgements
 
 The software in this repository has been developed by staff and students
 of Heidelberg University as part of the research carried out by the
-Electronic Vision(s) group at the Kirchhoff-Institute for Physics.
+Electronic Visions group at the Kirchhoff-Institute for Physics.
 
 This work has received funding from the EC Horizon 2020 Framework Programme
 under grant agreements 785907 (HBP SGA2) and 945539 (HBP SGA3), the Deutsche

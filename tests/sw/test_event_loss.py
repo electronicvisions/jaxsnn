@@ -1,9 +1,11 @@
 import unittest
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxsnn.base.types import LIFState
-from jaxsnn.event.types import EventPropSpike
+
+from jaxsnn.event.states import LIFState
+from jaxsnn.event.types import Spike
 from jaxsnn.event.loss import (
     max_over_time,
     nll_loss,
@@ -12,7 +14,10 @@ from jaxsnn.event.loss import (
     mse_loss,
     first_spike,
 )
-from numpy.testing import assert_almost_equal, assert_array_equal
+from numpy.testing import (
+    assert_almost_equal,
+    assert_array_equal,
+)
 
 
 class TestLossFunctions(unittest.TestCase):
@@ -149,48 +154,53 @@ class TestLossFunctions(unittest.TestCase):
         times = jnp.array([5.0, 10.0, 15.0, 8.0, 12.0, 20.0])
         idx = jnp.array([0, 1, 2, 1, 0, 2])  # Neuron indices
         currents = jnp.ones_like(times)
+        internal = jnp.ones_like(times, dtype=bool)
 
-        spikes = EventPropSpike(
+        spikes = Spike(
             time=times,
             idx=idx,
             current=currents,
+            internal=internal,
         )
 
-        result = first_spike(spikes, n_outputs, n_outputs)
+        result = first_spike(spikes, n_outputs)
         expected = jnp.array([5.0, 8.0, 15.0])  # First internal spike for each neuron
 
         # Use numpy testing for array comparison
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
         self.assertEqual(result.shape, (n_outputs,))
 
-        spikes = EventPropSpike(
+        spikes = Spike(
             time=jnp.array([0.1, 0.3]),
             idx=2 + jnp.array([0, 1]),
             current=jnp.array([1.0, 1.0]),
+            internal=jnp.array([True, True])
         )
         self.assertIsNone(
             assert_array_equal(
-                first_spike(spikes, 2, 2), jnp.array([jnp.inf, jnp.inf])))
+                first_spike(spikes, 2), jnp.array([jnp.inf, jnp.inf])))
 
         # Test case: one internal spike for neuron 1
-        spikes = EventPropSpike(
+        spikes = Spike(
             time=jnp.array([0.1, 0.3]),
             idx=jnp.array([1, 3]),
             current=jnp.array([1.0, 1.0]),
+            internal=jnp.array([True, False])
         )
         self.assertIsNone(
             assert_array_equal(
-                first_spike(spikes, 2, 2), jnp.array([jnp.inf, 0.1])))
+                first_spike(spikes, 2), jnp.array([jnp.inf, 0.1])))
 
         # Test case: internal spikes for both neurons
-        spikes = EventPropSpike(
+        spikes = Spike(
             time=jnp.array([0.3, 0.1]),
             idx=jnp.array([3, 0]),
             current=jnp.array([1.0, 1.0]),
+            internal=jnp.array([True, True])
         )
         self.assertIsNone(
             assert_array_equal(
-                first_spike(spikes, 2, 2), jnp.array([0.1, jnp.inf])))
+                first_spike(spikes, 2), jnp.array([0.1, jnp.inf])))
 
     def test_first_spike_no_spikes(self):
         """Test first spike when some neurons don't spike."""
@@ -198,14 +208,16 @@ class TestLossFunctions(unittest.TestCase):
         times = jnp.array([5.0, 10.0])
         idx = jnp.array([0, 1])  # Only neurons 0 and 1 spike
         currents = jnp.ones_like(times)
+        internal = jnp.ones_like(times, dtype=bool)
 
-        spikes = EventPropSpike(
+        spikes = Spike(
             time=times,
             idx=idx,
             current=currents,
+            internal=internal,
         )
 
-        result = first_spike(spikes, n_outputs, n_outputs)
+        result = first_spike(spikes, n_outputs)
         expected = jnp.array([5.0, 10.0, jnp.inf])  # neuron 2 never spikes
         np.testing.assert_array_equal(result, expected)
 
@@ -216,13 +228,13 @@ class TestLossFunctions(unittest.TestCase):
         idx = jnp.array([2, 3])
         currents = jnp.ones_like(times)
 
-        spikes = EventPropSpike(
+        spikes = Spike(
             time=times,
             idx=idx,
             current=currents,
         )
 
-        result = first_spike(spikes, n_outputs, n_outputs)
+        result = first_spike(spikes, n_outputs)
         expected = jnp.array([jnp.inf, jnp.inf])  # No internal spikes
         np.testing.assert_array_equal(result, expected)
 

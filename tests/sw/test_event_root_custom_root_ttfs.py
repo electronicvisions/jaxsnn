@@ -1,7 +1,9 @@
+import unittest
+
 import numpy as np
 import jax.numpy as jnp
-from jaxsnn.event.root import cr_ttfs_solver
-import unittest
+
+from jaxsnn.event.solver.custom_root_ttfs import cr_ttfs_solver
 
 
 class TestEventRootCustomRootTtfs(unittest.TestCase):

@@ -8,20 +8,19 @@ authors = [
 ]
 description = "jaxsnn is an event-based approach to machine-learning-inspired training and simulation of SNNs, including support for neuromorphic backends (BrainScaleS-2)."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  "jax==0.4.13; python_version=='3.8'",
-  "jaxlib==0.4.13; python_version=='3.8'",
-  "jax>=0.4.13,<=0.4.23; python_version>'3.8'",
-  "jaxlib>=0.4.13,<=0.4.23; python_version>'3.8'",
-  "scipy<1.13; python_version>'3.8'",
+  "jax>=0.4.13,<=0.4.23",
+  "jaxlib>=0.4.13,<=0.4.23",
+  "scipy<1.13",
   "optax>=0.1.4",
   "tree-math>0.1.0",
   "matplotlib",
+  "networkx",
 ]
 
 [project.urls]

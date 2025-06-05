@@ -7,14 +7,14 @@ import jax.numpy as jnp
 import optax
 from jax import random
 import jaxsnn
-from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset
+from jaxsnn.event.modules.lif.lif import LIFParameters
 from jaxsnn.event.encode import (
     spatio_temporal_encode, target_temporal_encode, encode)
 from jaxsnn.event import custom_lax
-from jaxsnn.event.modules.leaky_integrate_and_fire import (
-    EventPropLIF, LIFParameters)
 from jaxsnn.event.loss import mse_loss
+from jaxsnn.event.modules import LIF, Linear, Source
+from jaxsnn.event.topology import Topology
 from jaxsnn.event.training import epoch, update
 from jaxsnn.event.types import OptState
 from jaxsnn.examples.event.utils import test_step, loss_wrapper
@@ -25,23 +25,23 @@ def get_parser() -> argparse.ArgumentParser:
     Returns an argument parser with all the options.
     """
     parser = argparse.ArgumentParser(
-        description="hxtorch spiking YinYang example",
+        description="jaxsnn spiking YinYang example",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--seed", type=int, default=0)
     # data
     parser.add_argument("--testset-size", type=int, default=2944)
     parser.add_argument("--trainset-size", type=int, default=4992)
     # encoding
-    parser.add_argument("--t-late", type=float, default=2.0 * 5e-3)
-    parser.add_argument("--correct-target-time", type=float, default=0.9 * 5e-3)
-    parser.add_argument("--wrong-target-time", type=float, default=1.1 * 5e-3)
+    parser.add_argument("--t-late", type=float, default=2.0 * 6e-6)
+    parser.add_argument("--correct-target-time", type=float, default=0.8 * 6e-6)
+    parser.add_argument("--wrong-target-time", type=float, default=1.2 * 6e-6)
     # model
     parser.add_argument("--hidden-size", type=int, default=100)
-    parser.add_argument("--tau-mem", type=float, default=1e-2)
-    parser.add_argument("--tau-syn", type=float, default=5e-3)
+    parser.add_argument("--tau-mem", type=float, default=12e-6)
+    parser.add_argument("--tau-syn", type=float, default=6e-6)
     parser.add_argument("--threshold", type=float, default=1.0)
-    parser.add_argument("--n-spikes-hidden", type=int, default=50)
-    parser.add_argument("--n-spikes-output", type=int, default=53)
+    parser.add_argument("--n-spikes-hidden", type=int, default=100 + 25)
+    parser.add_argument("--n-spikes-output", type=int, default=103)
     # training
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument(
@@ -80,7 +80,7 @@ def main(args: argparse.Namespace):
     # Encoding
     input_encoder_batched = jax.jit(jax.vmap(partial(
         spatio_temporal_encode,
-        t_late=args.t_late, duplication=1, duplicate_neurons=False)))
+        t_late=args.t_late, duplication=5, duplicate_neurons=False)))
     target_encoder_batched = jax.jit(jax.vmap(partial(
         target_temporal_encode,
         n_classes=3, correct_target_time=args.correct_target_time,
@@ -91,44 +91,83 @@ def main(args: argparse.Namespace):
         xy_trainset, input_encoder_batched, target_encoder_batched)
     testset = encode(
         xy_testset, input_encoder_batched, target_encoder_batched)
+    trainset = ({"inp": trainset[0]}, trainset[1])
+    testset = ({"inp": testset[0]}, testset[1])
 
-    # define net
-    init_fn, apply_fn = serial(
-        EventPropLIF(
-            args.hidden_size,
-            n_spikes=args.n_spikes_hidden,
-            t_max=t_max,
-            params=params,
-            mean=3.0,
-            std=1.6),
-        EventPropLIF(
-            output_size,
-            n_spikes=args.n_spikes_output,
-            t_max=t_max,
-            params=params,
-            mean=0.5,
-            std=0.8))
+    # define topology
+    builder = Topology(
+        t_max=t_max,
+        backprop_method="eventprop",
+    )
+
+    # create modules
+    builder.add(
+        {
+            "inp": Source(input_size),
+            "lif1": LIF(
+                args.hidden_size,
+                args.n_spikes_hidden,
+                params,
+            ),
+            "lif2": LIF(
+                output_size,
+                args.n_spikes_output,
+                params,
+            ),
+            "syn1": Linear(
+                mean=3.0 / 5,
+                std=1.6 / 5,
+                min_delay=0.000,
+            ),
+            "syn2": Linear(
+                mean=0.5,
+                std=0.8,
+                min_delay=0.000,
+            ),
+        }
+    )
+
+    # connect modules
+    builder.connect(
+        [
+            ("inp", "syn1"),
+            ("syn1", "lif1"),
+            ("lif1", "syn2"),
+            ("syn2", "lif2"),
+        ]
+    )
+
+    # build topology
+    init_fn, apply_fn = builder.done()
 
     # init weights
-    _, weights = init_fn(param_rng, input_size)
+    weights = init_fn(param_rng)
 
     # define and init optimizer
     scheduler = optax.exponential_decay(
         args.lr, n_train_batches, args.lr_decay)
     optimizer = optax.chain(
+        optax.scale(1.0 / args.tau_syn),
         optax.clip(0.01),
         optax.adam(scheduler))
     opt_state = optimizer.init(weights)
 
     # define loss and update function
-    n_neurons = input_size + args.hidden_size + output_size
     loss_fn = partial(
-        loss_wrapper, apply_fn, mse_loss, params.tau_mem,
-        n_neurons, output_size)
+        loss_wrapper, apply_fn, mse_loss,
+        params.tau_mem, "lif2", output_size)
 
-    update_fn = jax.jit(partial(update, optimizer, loss_fn, params))
+    update_fn = jax.jit(partial(update, optimizer, loss_fn))
     test_fn = partial(test_step, loss_fn)
-    epoch_fn = partial(epoch, update_fn, test_fn, trainset, testset)
+    epoch_fn = partial(
+        epoch,
+        update_fn,
+        test_fn,
+        trainset,
+        testset,
+        args.batch_size,
+        args.batch_size,
+    )
 
     # iterate over epochs
     res = custom_lax.scan(

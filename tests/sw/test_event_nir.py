@@ -1,13 +1,26 @@
 """Test the functionality of NIR and NIRData conversions"""
 import unittest
 import numpy as np
-import nir
+
 import jax.numpy as jnp
 from jax import random
-from jaxsnn import ConversionConfig, from_nir, from_nir_data, to_nir_data
-from jaxsnn.base.compose import serial
-from jaxsnn.event.modules.leaky_integrate_and_fire import LIF, LIFParameters
-from jaxsnn.event.types import EventPropSpike
+
+import nir
+
+from jaxsnn.event import (
+    ConversionConfig,
+    from_nir,
+    from_nir_data,
+    to_nir_data,
+)
+from jaxsnn.event.modules import (
+    LIF,
+    LIFParameters,
+    Linear,
+    Source,
+)
+from jaxsnn.event.topology import Topology
+from jaxsnn.event.types import Spike
 
 
 class TestFromNIRConversion(unittest.TestCase):
@@ -21,22 +34,36 @@ class TestFromNIRConversion(unittest.TestCase):
         rng = random.PRNGKey(1234)
         # generate random number x as weight
         x = float(random.uniform(rng, shape=(), minval=2.0, maxval=3.0))
-
         params = LIFParameters(v_reset=-1.0, v_th=1.0,
                                tau_mem=1e-2, tau_syn=5e-3)
 
-        # training params
-        t_max = 4.0 * params.tau_syn
-        size = 1
-        n_spikes = 10
+        builder = Topology(t_max=4.0 * params.tau_syn)
 
-        jaxsnn_init, jaxsnn_apply = serial(LIF(
-            size=size,
-            n_spikes=n_spikes,
-            t_max=t_max,
-            params=params,
-            mean=x,
-            std=0))
+        builder.add(
+            {
+                "input": Source(1),
+                "lif": LIF(
+                    1,
+                    10,
+                    params,
+                ),
+                "syn1": Linear(
+                    mean=x,
+                    std=0.,
+                    min_delay=0.000,
+                ),
+            }
+        )
+
+        builder.connect(
+            [
+                ("input", "syn1"),
+                ("syn1", "lif")
+            ]
+        )
+
+        params = LIFParameters(v_reset=-1.0, v_th=1.0,
+                               tau_mem=1e-2, tau_syn=5e-3)
 
         # Create a NIR graph that matches the LIF model and convert it
         # to jaxsnn init/apply functions
@@ -60,33 +87,63 @@ class TestFromNIRConversion(unittest.TestCase):
                 ("lif", "output")
             ]
         )
-        config = ConversionConfig(t_max = 4*params.tau_syn,
-                                  n_spikes = {"lif": n_spikes})
-        nir_init, nir_apply = from_nir(nir_graph, config)
 
-        input_spikes = EventPropSpike(
-            time=jnp.array([0.0, 1e-4, 2e-4, 3e-4, 4e-4]),
-            idx=jnp.array([0, 0, 0, 0, 0]),
-            current=jnp.array([0.0, 0.0, 0.0, 0.0, 0.0]))
+        jaxsnn_init, jaxsnn_apply = builder.done()
+
+        config = ConversionConfig(
+            t_max=4 * params.tau_syn,
+            n_steps={"lif": 10},
+        )
+        nir_topology = from_nir(nir_graph, config)
+        nir_init, nir_apply = nir_topology.done()
+
+        input_spikes = {
+            "input": Spike(
+                time=jnp.array([[0.0, 1e-4, 2e-4, 3e-4, 4e-4]]),
+                idx=jnp.array([[0, 0, 0, 0, 0]]),
+                current=jnp.array([[0.0, 0.0, 0.0, 0.0, 0.0]]),
+                layer_idx=jnp.array([[0, 0, 0, 0, 0]]),
+                internal=jnp.array([[True, True, True, True, True]]),
+            )
+        }
 
         # jaxsnn model without NIR
-        _, weights = jaxsnn_init(rng, 1)
-        _, _, jaxsnn_output, _ = jaxsnn_apply(weights, input_spikes)
+        weights = jaxsnn_init(rng)
+        jaxsnn_output = jaxsnn_apply(input_spikes, weights)
 
         # jaxsnn model with NIR
-        _, nir_weights = nir_init(rng, 1)
-        _, _, nir_output, _ = nir_apply(nir_weights, input_spikes)
+        nir_weights = nir_init(rng)
+        nir_output = nir_apply(input_spikes, nir_weights)
 
         # Compare outputs
-        assert(jaxsnn_output.idx[5] != -1), "There should be at least one spike in the output."
-        assert(
-            jnp.array_equal(jaxsnn_output.time, nir_output.time) and
-            jnp.array_equal(jaxsnn_output.idx, nir_output.idx) and
-            jnp.array_equal(jaxsnn_output.current, nir_output.current)
-        ), "NIR to jaxsnn conversion did not produce the same output as the manual jaxsnn model."
+        self.assertTrue(
+            jaxsnn_output['lif'].idx[0, 5] != -1,
+            "There should be at least one spike in the output.",
+        )
+
+        self.assertTrue(
+            jnp.array_equal(
+                jaxsnn_output['lif'].time, nir_output['lif'].time,
+            )
+            and jnp.array_equal(
+                jaxsnn_output['lif'].idx, nir_output['lif'].idx,
+            )
+            and jnp.array_equal(
+                jaxsnn_output['lif'].current, nir_output['lif'].current,
+            )
+            and jnp.array_equal(
+                jaxsnn_output['lif'].layer_idx, nir_output['lif'].layer_idx,
+            )
+            and jnp.array_equal(
+                jaxsnn_output['lif'].internal, nir_output['lif'].internal,
+            ),
+            "NIR to jaxsnn conversion did not produce the same output as the "
+            "manual jaxsnn model."
+        )
 
 
 class TestNIRDataConversion(unittest.TestCase):
+
     nir_graph = nir.NIRGraph(
         nodes={
             "input": nir.Input(input_type=np.array([5])),
@@ -109,48 +166,106 @@ class TestNIRDataConversion(unittest.TestCase):
     )
 
     def test_from_time_gridded_data(self):
-        cfg = ConversionConfig(t_max=0.02, n_spikes={"lif": 10})
+        cfg = ConversionConfig(t_max=0.02, n_steps={"lif": 10})
         nir_data = nir.NIRGraphData(
             nodes={
                 "lif": nir.NIRNodeData(
                     observables={
                         "spikes": nir.TimeGriddedData(
-                            data=np.random.randint(0, 2, (4, 20, 10)).astype(bool),
+                            data=np.random.randint(
+                                0, 2, (4, 20, 10),
+                            ).astype(bool),
                             dt=0.001
                         )
                     }
                 )
             }
         )
-        init, apply = from_nir(self.nir_graph, cfg)
-        
-        jaxsnn_model = (init, apply)
-        jaxsnn_dict = from_nir_data(nir_data, jaxsnn_model)
+        topology = from_nir(self.nir_graph, cfg)
 
-        self.assertIn("lif", jaxsnn_dict,
-                      "Converted jaxsnn dict should contain 'lif' node.")
-        self.assertIsInstance(jaxsnn_dict["lif"], EventPropSpike,
-                              "'lif' node should be of type EventPropSpike.")
-        self.assertEqual(jaxsnn_dict["lif"].time.shape,
-                         (4, 10),
-                         "'lif' spikes should have shape (batch_size, n_spikes).")
+        jaxsnn_dict = from_nir_data(nir_data, topology)
+
+        self.assertIn(
+            "lif",
+            jaxsnn_dict,
+            "Converted jaxsnn dict should contain 'lif' node.",
+        )
+        self.assertIsInstance(
+            jaxsnn_dict["lif"],
+            Spike,
+            "'lif' node should be of type Spike.",
+        )
+        self.assertEqual(
+            jaxsnn_dict["lif"].time.shape,
+            (4, 10),
+            "'lif' spikes should have shape (batch_size, n_spikes).",
+        )
 
     def test_stable_conversion(self):
-        cfg = ConversionConfig(t_max=5e-4, n_spikes={"lif": 10})
-        init, apply = from_nir(self.nir_graph, cfg)
+        cfg = ConversionConfig(t_max=5e-4, n_steps={"lif": 10})
+        topology = from_nir(self.nir_graph, cfg)
 
-        original_spikes = {"lif": EventPropSpike(
-            time=jnp.array([[0.0, 1e-4, 2.5e-4, 3e-4, 4e-4], [0.0, 1.5e-4, 2.5e-4, 3e-4, 4e-4]]),
-            idx=jnp.array([[0, 1, 3, 5, 2], [4, 3, 2, 1, 0]]),
-            current=jnp.array([[0.0, 3.0, 4.5, 0.0, 2.7], [0.5, 0.9, 2.0, 2.6, 1.9]]))}
+        original_spikes = {
+            "lif": Spike(
+                time=jnp.array([[0.0, 1e-4, 2.5e-4, 3e-4, 4e-4],
+                                [0.0, 1.5e-4, 2.5e-4, 3e-4, 4e-4]]),
+                idx=jnp.array([[0, 1, 3, 5, 2],
+                               [4, 3, 2, 1, 0]]),
+                current=jnp.array([[0.0, 3.0, 4.5, 0.0, 2.7],
+                                   [0.5, 0.9, 2.0, 2.6, 1.9]]),
+                layer_idx=jnp.array([[0, 0, 0, 0, 0],
+                                     [0, 0, 0, 0, 0]]),
+                internal=jnp.array([[True, True, True, True, True],
+                                    [True, True, True, True, True]])
+        )}
 
-        jaxsnn_model = (init, apply)
-        nir_data = to_nir_data(original_spikes, jaxsnn_model, ('spikes', 'current'))
-        converted_spikes = from_nir_data(nir_data, jaxsnn_model, ('spikes', 'current'))
+        nir_data = to_nir_data(
+            original_spikes,
+            topology,
+            ('spikes', 'current'),
+        )
+        converted_spikes = from_nir_data(
+            nir_data,
+            topology,
+            ('spikes', 'current'),
+        )
 
-        self.assertTrue(jnp.equal(original_spikes["lif"].idx, converted_spikes["lif"].idx).all(),
-                        "Mismatch in spike indices for node 'lif'")
-        self.assertTrue(jnp.equal(original_spikes["lif"].time, converted_spikes["lif"].time).all(),
-                        "Mismatch in spike times for node 'lif'")
-        self.assertTrue(jnp.equal(original_spikes["lif"].current, converted_spikes["lif"].current).all(),
-                        "Mismatch in current for node 'lif'")
+        self.assertTrue(
+            jnp.equal(
+                original_spikes["lif"].idx,
+                converted_spikes["lif"].idx,
+            ).all(),
+            "Mismatch in spike indices for node 'lif'",
+        )
+        self.assertTrue(
+            jnp.equal(
+                original_spikes["lif"].time,
+                converted_spikes["lif"].time,
+            ).all(),
+            "Mismatch in spike times for node 'lif'",
+        )
+        self.assertTrue(
+            jnp.equal(
+                original_spikes["lif"].current,
+                converted_spikes["lif"].current,
+            ).all(),
+            "Mismatch in current for node 'lif'",
+        )
+        self.assertTrue(
+            jnp.equal(
+                original_spikes["lif"].layer_idx,
+                converted_spikes["lif"].layer_idx,
+            ).all(),
+            "Mismatch in layer_idx for node 'lif'",
+        )
+        self.assertTrue(
+            jnp.equal(
+                original_spikes["lif"].internal,
+                converted_spikes["lif"].internal,
+            ).all(),
+            "Mismatch in internal for node 'lif'",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

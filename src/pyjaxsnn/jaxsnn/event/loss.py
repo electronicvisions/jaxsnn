@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
-from jaxsnn.event.types import EventPropSpike, LIFState
+from jaxsnn.event.types import Spike
+from jaxsnn.event.states import LIFState
 
 
 def max_over_time(output: LIFState) -> jax.Array:
@@ -34,6 +35,7 @@ def ttfs_loss(
     tau_mem: float,
 ) -> jax.Array:
     idx = jnp.argmin(target)
+    # TODO: Exchange 2 * tau_mem with t_max
     first_spikes = jnp.minimum(jnp.abs(first_spikes), 2 * tau_mem)
     return -jnp.log(
         jnp.sum(jnp.exp((first_spikes[idx] - first_spikes) / tau_mem))
@@ -51,13 +53,14 @@ def mse_loss(
 
 
 def first_spike(
-    spikes: EventPropSpike,
-    size: int,
+    spikes: Spike,
     n_outputs: int
 ) -> jax.Array:
-    return jnp.array(
+    spikes = spikes.where(spikes.internal)
+    first_spikes = jnp.array(
         [
             jnp.min(jnp.where(spikes.idx == idx, spikes.time, jnp.inf))
-            for idx in range(size)
-        ][size - n_outputs:]
+            for idx in range(n_outputs)
+        ]
     )
+    return first_spikes

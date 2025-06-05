@@ -4,7 +4,7 @@ from typing import Tuple
 
 import jax
 import jax.numpy as jnp
-from jaxsnn.base.params import LIFParameters
+from jaxsnn.discrete.modules.lif import LIFParameters
 from jaxsnn.discrete.functional.threshold import superspike
 
 

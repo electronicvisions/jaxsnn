@@ -1,141 +1,249 @@
-from typing import Callable, Tuple
+from typing import (
+    List,
+    Callable,
+    Tuple,
+    Dict,
+)
+from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
-from jaxsnn.event.types import EventPropSpike, Solver, StepState
-from jaxsnn.event.stepping.types import StepInput
+
+from jaxsnn.event.types import (
+    EventT,
+    DynamicsFn,
+    MinDelayCheckFn,
+    NextInputFn,
+    Step,
+    StepState,
+    Spike,
+    SolverFn,
+    QueueHead,
+    QueueIndex,
+)
 
 
-def step(  # pylint: disable=unused-argument,too-many-locals
-    dynamics: Callable,
-    tr_dynamics: Callable,
+def next_input(  # pylint: disable=too-many-locals,too-many-arguments
+    input_layers: List[str],
+    min_delays: Dict[str, float],
+    spikes: Dict[str, Spike],
+    queue_heads: jax.Array,
+    time: float,
     t_max: float,
-    solver: Solver,
-    step_input: StepInput,
-    *args: int,
-) -> Tuple[StepInput, EventPropSpike]:
-    """Find next spike (external or internal), and simulate to that point.
-
-    Args:
-        dynamics (Callable): Function describing the continuous neuron dynamics
-        tr_dynamics (Callable): Function describing the transition dynamics
-        t_max (float): Max time until which to run
-        solver (Solver): Parallel root solver which returns the next event
-        state (StepInput): (StepState, weights, int)
-    Returns:
-        Tuple[StepInput, Spike]: New state after transition and stored spike
+) -> Tuple[jax.Array, jax.Array, Spike]:
     """
-    state, weights, layer_start = step_input
-    prev_layer_start = layer_start - weights.input.shape[0]
+    Find the next input spike event across potentially multiple input layers.
+    """
+    next_times = jnp.zeros(len(input_layers))
+    queue_idx = jnp.zeros(len(input_layers), dtype=int)
 
-    def return_existing_event(current_state):
-        """
-        We have queued spikes because multiple spikes occurred at the same time
+    # Create a template PyTree for each layer
+    spike_candidates = spikes[input_layers[0]].empty(
+        shape=(len(input_layers),)
+    )
 
-        TODO: Think about spikes later than t_max
-        """
-        idx = jnp.argmin(current_state.spike_times)
-        time = current_state.spike_times[idx]
+    for i, input_node in enumerate(input_layers):
+        layer_spikes = spikes[input_node]
 
-        no_event = time >= t_max
-        stored_idx = jax.lax.cond(
-            no_event, lambda: -1, lambda: idx + layer_start)
+        mask = (
+            layer_spikes.internal
+            & (layer_spikes.time + min_delays[input_node] >= time)
+            & (jnp.arange(layer_spikes.time.size) >= queue_heads[i])
+        )
 
-        # Event to return
-        new_event = EventPropSpike(
-            time, stored_idx, current_state.neuron_state.I[idx])
+        allowed_times = jnp.where(mask, layer_spikes.time, t_max)
+        idx = jnp.argmin(allowed_times)
 
-        # Update masks
-        current_state.spike_times \
-            = current_state.spike_times.at[idx].set(t_max)
-        current_state.spike_mask \
-            = current_state.spike_mask.at[idx].set(False)
+        # Store the per-layer results
+        next_times = next_times.at[i].set(
+            allowed_times[idx] + min_delays[input_node],
+        )
+        queue_idx = queue_idx.at[i].set(idx)
+        spike_candidates = spike_candidates.set_item(i, layer_spikes[idx])
 
-        return (current_state, weights, layer_start), new_event
+    earliest_layer = jnp.argmin(next_times)
+    spike_idx = queue_idx[earliest_layer]
 
-    def find_new_events(current_state):
-        next_times = solver(
-            current_state.neuron_state, current_state.time, t_max)
-        next_internal_idx = jnp.argmin(next_times)
-        next_internal_time = jnp.minimum(next_times[next_internal_idx], t_max)
+    final_spike = replace(
+        spike_candidates[earliest_layer],
+        time=next_times[earliest_layer],
+    )
 
-        # determine spike nature and spike time
-        input_time = jax.lax.cond(
-            current_state.input_queue.is_empty,
-            lambda: t_max,
-            lambda: current_state.input_queue.peek().time)
-        t_dyn = jnp.minimum(next_internal_time, input_time)
+    return earliest_layer, spike_idx, final_spike
 
-        # comparing only makes sense if exactly dt is returned from solver
-        spike_in_layer = next_internal_time < input_time
-        no_event = t_dyn >= t_max
 
-        # New neuron state
-        evolved_neuron_state = dynamics(
-            current_state.neuron_state, t_dyn - current_state.time)
+def min_delay_check(
+    input_nodes: List[str],
+    min_delays: Dict[str, float],
+    spikes: Dict[str, EventT],
+    spike_time: jax.Array,
+) -> Tuple[jax.Array, jax.Array]:
+    """
+    Check if a given spike time is not too far ahead in the future.
 
-        # Detect where neurons have spiked
-        # TODO: EA 2025-04-23: This is problematic for hardware because the
-        # threshold test is not working reliably anymore
-        spike_mask = jnp.zeros_like(
-            current_state.spike_mask).at[next_internal_idx].set(True)
-        spike_mask = jnp.where(
-            # Sometimes other neurons cross threshold in evolved state because
-            # of numerical differences
-            (evolved_neuron_state.V >= 1.)
-            # Some times neurons are very close to threshold but smaller when
-            # multiple neurons spike simultaneously
-            | (next_times == next_internal_time),
-            True, spike_mask)
-        spike_mask = jnp.where(
-            no_event | ~spike_in_layer,
-            jnp.zeros_like(current_state.spike_times, dtype=bool),
-            spike_mask)
+    For each recurrently connected input layer, finds the latest spike
+    time plus the minimum delay, then compares to the given spike time.
+    This ensures that no input spike can reach the neuron before the
+    time of the spike.
 
-        # Create new event
-        current = jax.lax.cond(
+    :param input_nodes: List of indices of input layers.
+    :param min_delays: Array of minimum delays per input connection.
+    :param spikes: List of spike records for all layers.
+    :param spike_time: The spike time to check.
+
+    :returns: Tuple containing
+        - boolean indicating if spike_time is safe,
+        - the computed safe time (minimum allowed spike time).
+    """
+    if len(input_nodes) == 0:
+        return jnp.array(True), spike_time
+
+    next_times = jnp.zeros(len(input_nodes))
+    for i, input_node in enumerate(input_nodes):
+        layer_spikes = spikes[input_node]
+
+        mask = layer_spikes.idx != -1
+        allowed_times = jnp.where(mask, layer_spikes.time, 0)
+        idx = jnp.argmax(allowed_times)
+
+        next_times = next_times.at[i].set(
+            allowed_times[idx] + min_delays[input_node],
+        )
+
+    safe_time = jnp.min(next_times)
+
+    return safe_time >= spike_time, safe_time
+
+
+def step(  # pylint: disable=unused-argument,too-many-locals,too-many-arguments
+    next_input_fn: NextInputFn,
+    min_delay_check_fn: MinDelayCheckFn,
+    dynamics: DynamicsFn,
+    tr_dynamics: List[Callable],
+    t_max: float,
+    solver: SolverFn,
+    step_input: Step,
+) -> Tuple[Spike, StepState, QueueHead, QueueIndex]:
+    """
+    Find the next spike (external or internal), and evolve state to that point.
+
+    :param next_input_fn: Function to find the next input spike.
+    :param min_delay_check_fn: Function to check if spike is allowed.
+    :param dynamics: Function describing continuous neuron dynamics.
+    :param tr_dynamics: List of functions describing the transition after a
+        spike.
+    :param t_max: Maximum simulation time for this step.
+    :param solver: Solver that returns the next internal event.
+    :param step_input: Tuple containing
+        (weights, spikes, state, _, layer_idx, queue_heads, _).
+
+    :returns: Tuple containing
+        - Spike: The new spike event.
+        - StepState: Updated neuron state after transition.
+        - QueueHead: Updated queue heads.
+        - QueueIndex: Spike queue index of the spike event.
+    """
+    next_internal = solver(
+        step_input.state.neuron_state,
+        step_input.state.time,
+        t_max,
+    )
+
+    # Find next input spike
+    rel_input_layer_idx, spike_queue_idx, input_spike = next_input_fn(
+        step_input.spikes,
+        step_input.queue_head,
+        step_input.state.time,
+        t_max,
+    )
+
+    t_dyn = jnp.minimum(next_internal.time, input_spike.time)
+
+    spike_allowed, safe_time = min_delay_check_fn(step_input.spikes, t_dyn)
+    t_dyn = jax.lax.cond(
+        spike_allowed, lambda: t_dyn, lambda: safe_time,
+    )
+
+    spike_in_layer = next_internal.time < input_spike.time
+
+    no_event = jnp.logical_or(
+        t_dyn >= t_max, jnp.logical_not(spike_allowed))
+
+    internal = jnp.logical_and(jnp.logical_not(no_event), spike_in_layer)
+
+    queue_head = jax.lax.cond(
+        jnp.logical_or(spike_in_layer, no_event),
+        lambda: step_input.queue_head,
+        lambda: step_input.queue_head.at[rel_input_layer_idx].set(
+            spike_queue_idx + 1,
+        ),
+    )
+
+    stored_layer_idx = jax.lax.cond(
+        no_event,
+        lambda: -1,
+        lambda: jax.lax.cond(
             spike_in_layer,
-            lambda: evolved_neuron_state.I[next_internal_idx],
-            lambda: current_state.input_queue.peek().current)
+            lambda: step_input.layer_idx,
+            lambda: input_spike.layer_idx,
+        ),
+    )
+    stored_internal_idx = jax.lax.cond(
+        no_event,
+        lambda: -1,
+        lambda: jax.lax.cond(
+            spike_in_layer,
+            lambda: next_internal.idx,
+            lambda: input_spike.idx,
+        ),
+    )
 
-        stored_idx = jax.lax.cond(
-            no_event,
-            lambda: -1,
-            lambda: jax.lax.cond(
-                spike_in_layer,
-                lambda: next_internal_idx + layer_start,
-                lambda: current_state.input_queue.peek().idx))
-
-        new_event = EventPropSpike(t_dyn, stored_idx, current)
-
-        # Update step state
-        evolved_state = StepState(
-            neuron_state=evolved_neuron_state,
-            spike_times=next_times,
-            spike_mask=spike_mask,
+    state: StepState = jax.lax.cond(
+        no_event,
+        lambda: step_input.state,
+        lambda: StepState(
+            neuron_state=dynamics(
+                step_input.state.neuron_state,
+                t_dyn - step_input.state.time,
+            ),
             time=t_dyn,
-            input_queue=current_state.input_queue)
+        ),
+    )
 
-        # Transition state
-        transitioned_state = jax.lax.cond(
-            no_event,
-            lambda *args: evolved_state,
+    current = jax.lax.cond(
+        spike_in_layer,
+        lambda: state.neuron_state.I[next_internal.idx],
+        lambda: input_spike.current,
+    )
+
+    transitioned_state = jax.lax.cond(
+        no_event,
+        lambda: state,
+        lambda: jax.lax.switch(
+            rel_input_layer_idx,
             tr_dynamics,
-            evolved_state,
-            weights,
-            spike_mask,
+            state,
+            step_input.parameters,
+            stored_internal_idx,
             spike_in_layer,
-            prev_layer_start)
+        ),
+    )
 
-        transitioned_state.spike_times \
-            = next_times.at[next_internal_idx].set(t_max)
-        transitioned_state.spike_mask \
-            = spike_mask.at[next_internal_idx].set(False)
+    stored_time = jax.lax.cond(
+        no_event,
+        lambda: t_max,
+        lambda: t_dyn,
+    )
 
-        return (transitioned_state, weights, layer_start), new_event
-
-    return jax.lax.cond(
-        jnp.any(state.spike_mask),
-        return_existing_event,
-        find_new_events,
-        state)
+    return (
+        Spike(
+            time=stored_time,
+            idx=stored_internal_idx,
+            current=current,
+            layer_idx=stored_layer_idx,
+            internal=internal,
+        ),
+        transitioned_state,
+        queue_head,
+        spike_queue_idx,
+    )

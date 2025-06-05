@@ -2,7 +2,7 @@ from typing import Optional, Tuple, Callable
 
 import jax
 import jax.numpy as jnp
-from jaxsnn.event.types import EventPropSpike
+from jaxsnn.event.types import Spike
 
 
 def spatio_temporal_encode(
@@ -10,8 +10,8 @@ def spatio_temporal_encode(
     t_late: float,
     duplication: Optional[int],
     duplicate_neurons: bool,
-) -> EventPropSpike:
-    spike_idx = jnp.arange(inputs.shape[-1])
+) -> Spike:
+    spike_idx = jnp.arange(inputs.shape[-1], dtype=int)
 
     if duplication is not None:
         inputs = jnp.repeat(inputs, duplication, axis=-1)
@@ -30,11 +30,13 @@ def spatio_temporal_encode(
 
     inputs = inputs * t_late
 
-    # Add zero current
-    input_spikes = EventPropSpike(
-        inputs, spike_idx, jnp.zeros_like(spike_idx, dtype=inputs.dtype)
+    return Spike(
+        time=inputs,
+        idx=spike_idx,
+        current=jnp.zeros_like(inputs),
+        layer_idx=jnp.zeros_like(inputs, dtype=int),
+        internal=jnp.ones_like(inputs, dtype=bool),
     )
-    return input_spikes
 
 
 def target_temporal_encode(

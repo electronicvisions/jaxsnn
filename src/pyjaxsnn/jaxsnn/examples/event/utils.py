@@ -2,12 +2,12 @@ from typing import Any, Callable, List, Tuple, Optional
 
 import jax
 import jax.numpy as jnp
+from jaxsnn.base.types import Parameters
 from jaxsnn.event.loss import first_spike
 from jaxsnn.event.types import (
-    Apply,
-    EventPropSpike,
-    Weight,
+    ModelApplyFn,
     Spike,
+    IOData,
 )
 
 
@@ -31,46 +31,33 @@ def test_step(
 
 
 def loss_wrapper(
-    apply_fn: Apply,
+    apply_fn: ModelApplyFn,
     loss_fn: Callable[[jax.Array, jax.Array, float], float],
     tau_mem: float,
-    n_neurons: int,
+    output_node: str,
     n_outputs: int,
-    weights: List[Weight],
-    batch: Tuple[EventPropSpike, jax.Array],
-    external: Optional[List[Spike]] = None,
+    parameters: Parameters,
+    batch: Tuple[IOData, jax.Array],
     carry: Optional[Any] = None,
-) -> Tuple[jax.Array, Tuple[jax.Array, Any]]:
+) -> Tuple[jax.Array, Tuple[jax.Array, IOData]]:
     input_spikes, target = batch
 
-    # Check if run with known spikes
-    if external is None:
-        in_axes = (None, 0, None, None)
-    else:
-        in_axes = (None, 0, 0, None)
-
-    # Create batched functions
-    apply_fn = jax.vmap(
-        apply_fn, in_axes=in_axes
-    )
-
     first_spike_function = jax.vmap(
-        first_spike, in_axes=(0, None, None)
+        first_spike, in_axes=(0, None)
     )
 
     loss_function = jax.vmap(
         loss_fn, in_axes=(0, 0, None)
     )
 
-    _, _, output, recording = apply_fn(
-        weights,
+    events = apply_fn(
         input_spikes,
-        external,
-        carry
+        parameters,
     )
 
-    t_first_spike = first_spike_function(output, n_neurons, n_outputs)
+    output_spikes = events[output_node]
+    t_first_spike = first_spike_function(output_spikes, n_outputs)
 
     loss_value = jnp.mean(loss_function(t_first_spike, target, tau_mem))
 
-    return loss_value, (t_first_spike, recording)
+    return loss_value, (t_first_spike, events)

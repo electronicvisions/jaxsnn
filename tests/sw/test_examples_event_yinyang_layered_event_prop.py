@@ -21,7 +21,7 @@ class YinYangEventPropLayeredExampleTest(unittest.TestCase):
             "--threshold=1.0",
             "--n-spikes-hidden=50",
             "--n-spikes-output=53",
-            "--epochs=20",
+            "--epochs=10",
             "--batch-size=64",
             "--lr=0.005",
             "--lr-decay=0.99",
