@@ -34,29 +34,32 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--synapse-dac-bias", type=int, default=1000)
 
     parser.add_argument("--calib-dir", type=str, default="calib_files/")
+    parser.add_argument("--calib-name", type=str, default=None)
+    parser.add_argument(
+        "--recreate-calib-files", action="store_true", default=False)
     return parser
 
 
 def custom_calibrate(args: argparse.Namespace) -> None:
 
-    target_path = Path(
-        args.calib_dir
-        + f"calibration_{args.wafer}_"
-        + f"leak{args.leak:.0f}_"
-        + f"th{args.threshold:.0f}_"
-        + f"reset{args.reset:.0f}_"
-        + f"taus-{args.tau_syn*1e6:.0f}us_"
-        + f"taum-{args.tau_mem*1e6:.0f}us_"
-        + f"trefrac-{args.refractory_time*1e6:.1f}us_"
-        + f"isyningm-{args.i_synin_gm:.0f}_"
-        + f"sdbias-{args.synapse_dac_bias:.0f}.pbin"
-    )
-
-    if not args.wafer:
-        log.ERROR("No wafer and fpga for filenaming specified. "
-                  + "Please specifiy setup using argument '--wafer WxxFx'.")
+    target_path = Path(args.calib_dir + (
+        args.calib_name if args.calib_name is not None else (
+            f"calibration_{args.wafer}_"
+            + f"leak{args.leak:.0f}_"
+            + f"th{args.threshold:.0f}_"
+            + f"reset{args.reset:.0f}_"
+            + f"taus-{args.tau_syn*1e6:.0f}us_"
+            + f"taum-{args.tau_mem*1e6:.0f}us_"
+            + f"trefrac-{args.refractory_time*1e6:.1f}us_"
+            + f"isyningm-{args.i_synin_gm:.0f}_"
+            + f"sdbias-{args.synapse_dac_bias:.0f}.pbin")))
+    target_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
+        if os.path.exists(target_path) and not args.recreate_calib_files:
+            log.INFO(f"Calibration file already exists. Using ({target_path}")
+            return
+
         log.TRACE(f"Test opening file {target_path}")
         with target_path.open(mode="w", encoding="utf-8"):
             pass

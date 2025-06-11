@@ -247,7 +247,7 @@ def step_bwd(  # pylint: disable=too-many-locals
     (_, weights, layer_start), spike = res
     (adjoint_state, grads, _), adjoint_spike = g
 
-    reversed_time = t_max - spike.time
+    reversed_time = t_max - np.minimum(spike.time, t_max)
     time_diff = reversed_time - adjoint_state.time
 
     # integrate lambdas to the spike
@@ -332,6 +332,7 @@ def construct_adjoint_apply_fn(
         return res, res
 
     def custom_trajectory_bwd(res, g):
+
         (_, weights, layer_start), spikes = res
         (adjoint_state, grads, _), adjoint_spikes = g
 
