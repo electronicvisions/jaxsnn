@@ -11,7 +11,7 @@ Dataset = Tuple[EventPropSpike, jax.Array, str]
 def data_loader(
     dataset: Any,
     batch_size: int,
-    rng: Optional[random.KeyArray] = None,
+    rng: Optional[jax.Array] = None,
 ):
     total_length = jax.tree_util.tree_leaves(dataset[0])[0].shape[0]
 

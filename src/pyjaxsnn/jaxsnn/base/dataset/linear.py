@@ -6,7 +6,7 @@ from jax import random
 
 
 def linear_dataset(
-    rng: random.KeyArray,
+    rng: jax.Array,
     size: int,
     mirror: bool,
     bias_spike: Optional[float],
