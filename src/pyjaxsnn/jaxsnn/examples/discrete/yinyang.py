@@ -1,3 +1,4 @@
+import argparse
 import time
 from functools import partial
 
@@ -19,6 +20,34 @@ from jaxsnn.discrete.loss import nll_loss, acc_and_loss
 log = jaxsnn.get_logger("jaxsnn.examples.discrete.yinyang")
 
 
+def get_parser() -> argparse.ArgumentParser:
+    """
+    Returns an argument parser with all the options.
+    """
+    parser = argparse.ArgumentParser(
+        description="hxtorch spiking YinYang example",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--seed", type=int, default=0)
+    # data
+    parser.add_argument("--testset-size", type=int, default=2944)
+    parser.add_argument("--trainset-size", type=int, default=4992)
+    # model
+    parser.add_argument("--tau-mem", type=float, default=1e-2)
+    parser.add_argument("--tau-syn", type=float, default=5e-3)
+    parser.add_argument("--v_th", type=float, default=0.6)
+    parser.add_argument("--dt", type=float, default=5e-4)
+    parser.add_argument("--hidden-size", type=int, default=120)
+    # training
+    parser.add_argument("--epochs", type=int, default=150)
+    parser.add_argument(
+        "--batch-size", type=int, default=64, metavar="<num samples>",
+        help="input batch size for training")
+    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--lr-decay", type=float, default=0.98)
+    parser.add_argument("--expected-spikes", type=float, default=0.8)
+    return parser
+
+
 def train_step(optimizer, state, batch, loss_fn):
     """A single step in the training process.
 
@@ -33,97 +62,78 @@ def train_step(optimizer, state, batch, loss_fn):
     inputs, output = batch
 
     (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        weights, (inputs, output), max_over_time_decode
-    )
+        weights, (inputs, output), max_over_time_decode)
     updates, opt_state = optimizer.update(grads, opt_state)
     weights = optax.apply_updates(weights, updates)
     return (opt_state, weights, i + 1), recording
 
 
-def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
-    n_classes = 3
-    input_size = 5
-    batch_size = 64
-    n_train_batches = 78
-    train_samples = batch_size * n_train_batches
-    test_samples = 1000
+def main(args: argparse.Namespace):
+    params = LIFParameters(
+        tau_syn=args.tau_syn, tau_mem=args.tau_mem, v_th=args.v_th)
 
-    bias_spike = 0.0
-    mirror = True
+    n_train_batches = args.trainset_size // args.batch_size
+    n_test_batches = args.testset_size // args.batch_size
+    train_samples = args.batch_size * n_train_batches
+    test_samples = args.batch_size * n_test_batches
 
-    hidden_features = 120
-    expected_spikes = 0.8
-    lr_decay = 0.98
-    step_size = 5e-4
+    t_late = params.tau_syn + params.tau_mem
+    time_steps = int(2 * t_late / args.dt)
+    log.info(f"dt: {args.dt}, {time_steps} time steps, t_late: {t_late}")
 
-    t_late = LIFParameters().tau_syn + LIFParameters().tau_mem
-    time_steps = int(2 * t_late / DT)
-    log.info(f"DT: {DT}, {time_steps} time steps, t_late: {t_late}")
-
-    # Define random keys
-    rng = random.PRNGKey(seed)
-    init_key, train_key, test_key, shuffle_key = random.split(rng, 4)
+    # Define RNGs
+    rng = random.PRNGKey(args.seed)
+    init_rng, train_rng, test_rng, shuffle_rng = random.split(rng, 4)
 
     # Setting up trainset and testset
-    trainset = yinyang_dataset(train_key, train_samples, mirror, bias_spike)
-    testset = yinyang_dataset(test_key, test_samples, mirror, bias_spike)
+    xy_trainset = yinyang_dataset(
+        train_rng, train_samples, mirror=True, bias_spike=0.0)
+    xy_testset = yinyang_dataset(
+        test_rng, test_samples, mirror=True, bias_spike=0.0)
 
     # Encoding the inputs
     time_steps_encoding = int(time_steps * 2 / 3)
     input_encoder_batched = jax.vmap(
-        spatio_temporal_encode,
-        in_axes=(0, None, None, None)
-    )
-    train_input_encoded = input_encoder_batched(
-        trainset[0],
-        time_steps_encoding,
-    )
+        spatio_temporal_encode, in_axes=(0, None, None, None))
 
-    trainset = (train_input_encoded, trainset[1])
+    train_input_encoded = input_encoder_batched(
+        xy_trainset[0], time_steps_encoding, t_late, args.dt)
+    trainset = (train_input_encoded, xy_trainset[1])
 
     test_input_encoded = spatio_temporal_encode(
-        testset[0],
-        time_steps_encoding,
-    )
-    testset = (test_input_encoded, testset[1])
+        xy_testset[0], time_steps_encoding, t_late, args.dt)
+    testset = (test_input_encoded, xy_testset[1])
 
     # define the network
-    snn_init, snn_apply = serial(
-        LIF(hidden_features),
-        LI(n_classes),
-    )
+    snn_init, snn_apply = serial(LIF(args.hidden_size), LI(3))
 
     # define optimizer
-    scheduler = optax.exponential_decay(step_size, n_train_batches, lr_decay)
-    optimizer_fn = optax.adam
-    optimizer = optimizer_fn(scheduler)
+    scheduler = optax.exponential_decay(
+        args.lr, n_train_batches, args.lr_decay)
+    optimizer = optax.adam(scheduler)
 
     # define loss and train function
     loss_fn = partial(
-        nll_loss, snn_apply, expected_spikes=expected_spikes, rho=1e-5
-    )
+        nll_loss, snn_apply, expected_spikes=args.expected_spikes, rho=1e-5)
     train_step_fn = partial(train_step, optimizer, loss_fn=loss_fn)
 
     overall_time = time.time()
-    _, weights = snn_init(init_key, input_size=input_size)
+    _, weights = snn_init(init_rng, input_size=5)
     opt_state = optimizer.init(weights)
 
-    accuracies = []
-    loss = []
-    for epoch in range(epochs):
+    accuracies, loss = [], []
+    for epoch in range(args.epochs):
         start = time.time()
         # Generate randomly shuffled batches
-        this_shuffle_key, shuffle_key = random.split(shuffle_key)
-        trainset_batched = data_loader(trainset, 64, this_shuffle_key)
+        this_shuffle_rng, shuffle_rng = random.split(shuffle_rng)
+        trainset_batched = data_loader(trainset, 64, this_shuffle_rng)
 
         # Swap axes because time axis needs to come before batch axis
         trainset_batched = (
             np.swapaxes(trainset_batched[0], 1, 2),
-            trainset_batched[1]
-        )
+            trainset_batched[1])
         (opt_state, weights, i), recording = jax.lax.scan(
-            train_step_fn, (opt_state, weights, 0), trainset_batched
-        )
+            train_step_fn, (opt_state, weights, 0), trainset_batched)
         end = time.time() - start
 
         spikes_per_item = np.count_nonzero(recording[0].z) / train_samples
@@ -131,18 +141,24 @@ def train(seed: int = 0, epochs: int = 100, DT: float = 5e-4):
             snn_apply,
             weights,
             (testset[0], testset[1]),
-            max_over_time_decode
-        )
+            max_over_time_decode)
+
         accuracies.append(accuracy)
         loss.append(test_loss)
+
         log.info(
-            f"Epoch: {epoch}, Loss: {test_loss:3f}, Test accuracy: {accuracy:.3f}, Seconds: {end:.3f}, Spikes: {spikes_per_item:.1f}"
-        )
+            f"Epoch: {epoch}, Loss: {test_loss:3f}, "
+            + f"Test accuracy: {accuracy:.3f}, Seconds: {end:.3f}, "
+            + f"Spikes: {spikes_per_item:.1f}")
+
+    acc = round(accuracies[-1], 3)
+    log.info(f"Acc: {acc} after {args.epochs} epochs")
     log.info(
-        f"Finished {epochs} epochs in {time.time() - overall_time:.3f} seconds"
-    )
-    return accuracies, loss
+        f"Finished {args.epochs} epochs in {time.time() - overall_time:.3f} "
+        + "seconds")
+
+    return acc
 
 
 if __name__ == "__main__":
-    train()
+    main(get_parser().parse_args())
