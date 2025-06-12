@@ -37,7 +37,7 @@ def get_class(coords, r_big: float, r_small: float):
 
 
 def yinyang_dataset(
-    rng: random.KeyArray,
+    rng: jax.Array,
     size: int,
     mirror: bool,
     bias_spike: Optional[float],

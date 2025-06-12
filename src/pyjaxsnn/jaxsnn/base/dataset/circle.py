@@ -6,7 +6,7 @@ from jax import random
 
 
 def circle_dataset(
-    rng: random.KeyArray,
+    rng: jax.Array,
     size: int,
     mirror: bool = True,
     bias_spike: Optional[float] = 0.0,
