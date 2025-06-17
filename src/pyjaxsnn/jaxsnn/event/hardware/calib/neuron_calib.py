@@ -58,7 +58,8 @@ def custom_calibrate(args: argparse.Namespace) -> None:
 
     try:
         log.TRACE(f"Test opening file {target_path}")
-        target_path.open("w", encoding="utf-8")
+        with target_path.open(mode="w", encoding="utf-8"):
+            pass
         log.INFO("Opened file and got no error... now calibrate")
         with hxcomm.ManagedConnection() as connection:
             # init
