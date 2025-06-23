@@ -25,20 +25,20 @@ and [tree-math](https://github.com/google/tree-math).
 When using the neuromorphic BrainScaleS-2 backend, the software stack of the
 platform is required.
 
-We provide a container image (based on the [Singularity format](https://sylabs.io/docs/)) including all build-time and runtime dependencies.
+We provide a container image (based on the [Apptainer format](https://apptainer.org/)) including all build-time and runtime dependencies.
 Feel free to download the most recent version from [here](https://openproject.bioai.eu/containers/).
 
-For all following steps, we assume that the most recent Singularity container is located at `/containers/stable/latest`.
+For all following steps, we assume that the most recent Apptainer container is located at `/containers/stable/latest`.
 
 
 ### Github-based Build
 To build this project from public resources, adhere to the following guide:
 
 ```shell
-# 1) Most of the following steps will be executed within a singularity container
+# 1) Most of the following steps will be executed within a apptainer container
 #    To keep the steps clutter-free, we start by defining an alias
 shopt -s expand_aliases
-alias c="singularity exec --app dls /containers/stable/latest"
+alias c="apptainer exec --app dls /containers/stable/latest"
 
 # 2) Prepare a fresh workspace and change directory into it
 mkdir workspace && cd workspace
@@ -65,9 +65,13 @@ c ./waf build -j1
 c ./waf install
 
 # 9) If you run programs outside waf, you'll need to add ./lib and ./bin to your path specifications
-export SINGULARITYENV_PREPEND_PATH=`pwd`/bin:$SINGULARITYENV_PREPEND_PATH
-export SINGULARITYENV_LD_LIBRARY_PATH=`pwd`/lib:$SINGULARITYENV_LD_LIBRARY_PATH
+export APPTAINERENV_PREPEND_PATH=`pwd`/bin:$APPTAINERENV_PREPEND_PATH
+export APPTAINERENV_LD_LIBRARY_PATH=`pwd`/lib:$APPTAINERENV_LD_LIBRARY_PATH
 export PYTHONPATH=`pwd`/lib:$PYTHONPATH
+export PYTHONPATH=`pwd`/lib/python3.10/site-packages:$PYTHONPATH
+
+# 10) To validate that your build was successful, execute the following example
+python -m jaxsnn.examples.event.yinyang_analytical
 ```
 
 ## Structure
@@ -77,7 +81,7 @@ export PYTHONPATH=`pwd`/lib:$PYTHONPATH
 
 ### Time Discrete
 
-`jaxsnn.discrete` simulates **SNNs** by treating time in a discrete way. It uses euler steps of a fixed size to advance the network forward in time which draws inspiration from [norse](www.github.com/norse/norse). 
+`jaxsnn.discrete` simulates **SNNs** by treating time in a discrete way. It uses euler steps of a fixed size to advance the network forward in time which draws inspiration from [norse](www.github.com/norse/norse).
 
 
 ### Time Continuous
@@ -86,14 +90,14 @@ export PYTHONPATH=`pwd`/lib:$PYTHONPATH
 
 1. Find the next threshold crossing
 2. Integrate the neuron to this point in time
-3. Apply the discontinuity after the treshold crossing
+3. Apply the discontinuity after the threshold crossing
 
-`jaxsnn.event.leaky_integrate_and_fire` provides multiple neuron types which can be used to build larger networks. Each neuron type defined the three functions mentioned above.
+`jaxsnn.event.modules.leaky_integrate_and_fire` provides multiple neuron types which can be used to build larger networks. Each neuron type defines the three functions mentioned above.
 
 
 ### BSS-2 Connection
 
-`jaxsnn.event.hardware` provides functionality to connect to the [BSS-2 system](https://www.frontiersin.org/articles/10.3389/fnins.2022.795876/full) and to conduct learning experimens on dedicated neuromorphic hardare.
+`jaxsnn.event.hardware` provides functionality to connect to the [BSS-2 system](https://www.frontiersin.org/articles/10.3389/fnins.2022.795876/full) and to conduct learning experiments on dedicated neuromorphic hardware.
 
 
 ## First Steps
@@ -103,19 +107,25 @@ We provide multiple examples for usage of `jaxsnn`.
 Time discrete learning using surrogate gradients on the Yin-Yang dataset:
 
 ```bash
-python -m jaxsnn.discrete.tasks.yinyang
+python -m jaxsnn.examples.discrete.yinyang
 ```
 
 Event-based two layer feed-forward network with analytical gradients:
 
 ```bash
-python -m jaxsnn.event.tasks.yinyang_analytical
+python -m jaxsnn.examples.event.yinyang_analytical
 ```
 
-Event-based recurrent network (with weights set up to emulate a two-layer feed-forward network) with gradients computed using the EventProp algorithm:
+Event-based two-layer feed-forward network with gradients computed using the EventProp algorithm:
 
 ```bash
-python -m jaxsnn.event.tasks.yinyang_event_prop
+python -m jaxsnn.examples.event.yinyang_layered_event_prop
+```
+
+Event-based recurrent network with gradients computed using the EventProp algorithm:
+
+```bash
+python -m jaxsnn.examples.event.yinyang_recurrent_event_prop
 ```
 
 ### BSS-2
@@ -123,7 +133,7 @@ python -m jaxsnn.event.tasks.yinyang_event_prop
 If you want to work with the BSS-2 system, a working example is provided:
 
 ```bash
-python -m jaxsnn.event.tasks.hardware.yinyang
+python -m jaxsnn.examples.event.yinyang_bss2
 ```
 
 The operation point calibration script is `src/pyjaxsnn/jaxsnn/event/hardware/calib/neuron_calib.py`.
@@ -143,7 +153,7 @@ srun -p cube --wafer 69 --fpga-without-aout 0 --pty c python ./neuron_calib.py \
 If you want to study the behaviour that different hardware artifacts (noise on the spike times) have on the performance of SNNs, check out this example:
 
 ```bash
-python -m jaxsnn.event.tasks.hardware.yinyang_mock
+python -m jaxsnn.examples.event.hardware.yinyang_mock
 ```
 
 You can switch between an actual execution on BSS-2 and a pure software mock mode, in which the hardware is emulated by a second software network. You can
@@ -152,10 +162,7 @@ add noise to spikes from this first network or limit the dynamic range (like it 
 
 ## TODO
 
-- Numeric: In the `EventPropLIF` neuron module, gradients currently do not flow correctly over multiple layers. This problem consists because the state of the input queue is not adjusted correctly in the `custom_vjp`. It is therefore only possible to defined a multile layer networks via one recursive layer using `RecurrentEventPropLIF`
 - The mapping between the hardware neuron modules `HardwareRecurrentLIF` (which can simulate multiple feed-forward layers) and the populations / projections is not yet implemented cleanly and is hacked into the tasks (experiment returns a list of spikes for two layers, which are merged together, projections are hardcoded)
-- Currently, in each task and experiment, small noise is added to the spike data from hardware. This is because the `jaxsnn` gradient computation can not handle mutliple spikes with **exactly** the same time, which can happen on BSS-2 because of the cycle resolution. This should either be moved to the `experiment` class directly, or the software should be adjusted to handle this case.
-- Plotting: The plotting currently does not load from saved data, but runs at the end of each task. It should be set up to run stand-alone with data loaded from a file.
 
 
 ## Acknowledgements
