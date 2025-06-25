@@ -74,6 +74,7 @@ export PYTHONPATH=`pwd`/lib:$PYTHONPATH
 
 `jaxsnn` is split into two parts. Training of **SNNs** is done in the init/apply style.
 
+
 ### Time Discrete
 
 `jaxsnn.discrete` simulates **SNNs** by treating time in a discrete way. It uses euler steps of a fixed size to advance the network forward in time which draws inspiration from [norse](www.github.com/norse/norse). 
@@ -88,6 +89,7 @@ export PYTHONPATH=`pwd`/lib:$PYTHONPATH
 3. Apply the discontinuity after the treshold crossing
 
 `jaxsnn.event.leaky_integrate_and_fire` provides multiple neuron types which can be used to build larger networks. Each neuron type defined the three functions mentioned above.
+
 
 ### BSS-2 Connection
 
@@ -147,13 +149,6 @@ python -m jaxsnn.event.tasks.hardware.yinyang_mock
 You can switch between an actual execution on BSS-2 and a pure software mock mode, in which the hardware is emulated by a second software network. You can
 add noise to spikes from this first network or limit the dynamic range (like it is on BSS-2).
 
-## Docs
-
-Multiple notebooks help you getting started with `jaxsnn`.
-
-- `event_based_snn.ipynb` gives a great introduction on how to write event-based software for gradient-based learning with SNNs in JAX
-- `ttfs.ipynb` explores how spikes times can be computed analytically and how a small network of LIF neurons can be constructed
-- `event_prop.ipynb` compares the gradients of the EventProp algorithm analytical gradients (TTFS)
 
 ## TODO
 
@@ -161,6 +156,7 @@ Multiple notebooks help you getting started with `jaxsnn`.
 - The mapping between the hardware neuron modules `HardwareRecurrentLIF` (which can simulate multiple feed-forward layers) and the populations / projections is not yet implemented cleanly and is hacked into the tasks (experiment returns a list of spikes for two layers, which are merged together, projections are hardcoded)
 - Currently, in each task and experiment, small noise is added to the spike data from hardware. This is because the `jaxsnn` gradient computation can not handle mutliple spikes with **exactly** the same time, which can happen on BSS-2 because of the cycle resolution. This should either be moved to the `experiment` class directly, or the software should be adjusted to handle this case.
 - Plotting: The plotting currently does not load from saved data, but runs at the end of each task. It should be set up to run stand-alone with data loaded from a file.
+
 
 ## Acknowledgements
 
