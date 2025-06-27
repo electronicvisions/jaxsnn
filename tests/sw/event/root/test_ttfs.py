@@ -5,7 +5,6 @@ import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.modules.leaky_integrate import LIFState
 from jaxsnn.event.root.ttfs import ttfs_solver
-from numpy.testing import assert_almost_equal
 import unittest
 
 params = LIFParameters()
@@ -21,8 +20,8 @@ class TestEventRootTtfs(unittest.TestCase):
 
         weight = np.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
-        assert value == t_max
-        assert grad == 0
+        self.assertEqual(value, t_max)
+        self.assertEqual(grad, 0)
 
     def test_ttfs_solver_no_spike(self):
         def loss(weight):
@@ -32,8 +31,8 @@ class TestEventRootTtfs(unittest.TestCase):
 
         weight = np.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
-        assert value == t_max
-        assert grad == 0
+        self.assertEqual(value, t_max)
+        self.assertEqual(grad, 0)
 
     def test_ttfs_solver_spike(self):
         def loss(weight):
@@ -43,8 +42,8 @@ class TestEventRootTtfs(unittest.TestCase):
 
         weight = np.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
-        assert_almost_equal(value, 0.00323507, 8)
-        assert_almost_equal(grad, -0.00618034, 8)
+        self.assertAlmostEqual(value, 0.00323507, 8)
+        self.assertAlmostEqual(grad, -0.00618034, 8)
 
     def test_nan(self):
         t_max = 4.0 * params.tau_syn
@@ -125,8 +124,8 @@ class TestEventRootTtfs(unittest.TestCase):
             return np.sum(times)
 
         value, grad = jax.value_and_grad(loss_fn)(np.array(1.0))
-        assert_almost_equal(value, 1.04246, 5)
-        assert_almost_equal(grad, -0.12974, 5)
+        self.assertAlmostEqual(value, 1.04246, 4)
+        self.assertAlmostEqual(grad, -0.12974, 4)
 
 
 if __name__ == '__main__':

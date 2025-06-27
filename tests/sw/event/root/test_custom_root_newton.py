@@ -5,7 +5,6 @@ import jax.numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.types import LIFState
 from jaxsnn.event.root import cr_newton_solver
-from numpy.testing import assert_almost_equal
 import unittest
 
 
@@ -35,8 +34,8 @@ class TestEventRootCustomRootNewton(unittest.TestCase):
 
         weight = np.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
-        assert_almost_equal(value, 0.00323507, 8)
-        assert_almost_equal(grad, -0.00618034, 8)
+        self.assertAlmostEqual(value, 0.00323507, 8)
+        self.assertAlmostEqual(grad, -0.00618034, 8)
 
     def test_cr_newton_solver_no_spike(self):
         solver = partial(cr_newton_solver, self.get_lif_dynamics(), 0.0)
@@ -49,8 +48,8 @@ class TestEventRootCustomRootNewton(unittest.TestCase):
 
         weight = np.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
-        assert value == dt
-        assert grad == 0
+        self.assertEqual(value, dt)
+        self.assertEqual(grad, 0)
 
 
 if __name__ == '__main__':
