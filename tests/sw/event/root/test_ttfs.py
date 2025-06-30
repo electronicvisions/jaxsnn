@@ -1,4 +1,5 @@
 from functools import partial
+import numpy as np
 
 import jax
 import jax.numpy as jnp
@@ -10,8 +11,49 @@ import unittest
 params = LIFParameters()
 t_max = 0.2
 
+class TestEventRootTTFS(unittest.TestCase):
 
-class TestEventRootTtfs(unittest.TestCase):
+    def test_vmapping(self):
+        expected_time = 0.003235072
+        # Single neuron
+        population_size = 10
+        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        state = LIFState(V=0.0, I=3.0)
+        event = solver(state, t_max)
+
+        self.assertEqual(event.shape, ())
+        self.assertAlmostEqual(event, expected_time, 6)
+
+        # Map over a population
+        population_size = 10
+        solver = partial(ttfs_solver, params.tau_mem, params.v_th)
+        pop_solver = jax.vmap(solver, in_axes=(0, None))
+        state = LIFState(
+            V=jnp.zeros(population_size), I=3.0 * jnp.ones(population_size))
+        pop_events = pop_solver(state, t_max)
+
+        self.assertEqual(pop_events.shape, (population_size,))
+        self.assertIsNone(
+            np.testing.assert_array_almost_equal(
+                pop_events, jnp.full(population_size, expected_time)))
+
+        # Map over batch
+        batch_size = 32
+        batched_pop_solver = jax.vmap(pop_solver, in_axes=(0, None))
+        state = LIFState(
+            V=jnp.zeros((batch_size, population_size)),
+            I=3.0 * jnp.ones((batch_size, population_size)))
+        batch_pop_events = batched_pop_solver(state, t_max)
+
+        self.assertEqual(
+            batch_pop_events.shape, (batch_size, population_size))
+        self.assertIsNone(
+            np.testing.assert_array_almost_equal(
+                batch_pop_events,
+                jnp.full((batch_size, population_size), expected_time)))
+
+
+class TestEventRootTTFSGrads(unittest.TestCase):
     def test_ttfs_solver_vanishing_denomniator(self):
         def loss(weight):
             state = LIFState(V=-551.6683959960938, I=0.0006204545497894287)
