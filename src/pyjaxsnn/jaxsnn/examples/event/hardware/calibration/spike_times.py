@@ -6,7 +6,7 @@ a weight scaling factor and time shift factor between the two.
 import datetime as dt
 
 import hxtorch
-import jax.numpy as np
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import jaxsnn
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
@@ -35,7 +35,7 @@ def main():
     runtime_us = 50
     n_input = 10
     n_spikes = 1
-    weights = np.arange(0.3, 1.1, 0.01)
+    weights = jnp.arange(0.3, 1.1, 0.01)
     n_batches = 10
     batch_start_plotting = 0
     n_runs = 10
@@ -47,10 +47,10 @@ def main():
     Neuron(1, params, experiment)
 
     inputs = Spike(
-        idx=np.repeat(
-            np.expand_dims(np.arange(n_input), axis=1), n_batches, axis=1
+        idx=jnp.repeat(
+            jnp.expand_dims(jnp.arange(n_input), axis=1), n_batches, axis=1
         ).T,
-        time=np.zeros((n_batches, n_input)),
+        time=jnp.zeros((n_batches, n_input)),
     )
     runs = []
     # iterate hardware, ten runs
@@ -62,14 +62,14 @@ def main():
         for weight in weights:
             spike = experiment.get_hw_results(
                 inputs,
-                [WeightInput(np.full((n_input, 1), weight))],
+                [WeightInput(jnp.full((n_input, 1), weight))],
                 runtime_us,
                 n_spikes=[n_spikes],
                 hw_cycle_correction=HW_CYCLE_CORRECTION,
             )[0][0]
             for i in range(n_batches):
                 hw_spikes[i].append(spike.time[i, 0])
-            if not np.isinf(spike.time[0, 0]) and first_hw_spike is None:
+            if not jnp.isinf(spike.time[0, 0]) and first_hw_spike is None:
                 first_hw_spike = 1
                 int_weight = round(weight * wafer_config.weight_scaling)
                 first_hw_times.append(spike.time[0, 0])
@@ -79,16 +79,16 @@ def main():
                 )
         runs.append(hw_spikes)
 
-    log.info(f"Shape: {np.array(runs).shape}")
-    np.save(
+    log.info(f"Shape: {jnp.array(runs).shape}")
+    jnp.save(
         "data/hardware/spike_times/spike_times.npy",
         runs,
         allow_pickle=True,
     )
 
     first_hw_spike = (
-        np.mean(np.array(first_hw_times)),
-        np.mean(np.array(first_hw_weight)),
+        jnp.mean(jnp.array(first_hw_times)),
+        jnp.mean(jnp.array(first_hw_weight)),
     )
     log.info(
         f"Avg run: First HW spike at weight: {int(first_hw_spike[1])} and time {first_hw_spike[0]}"
@@ -104,9 +104,9 @@ def main():
 
     # iterate software
     inputs = EventPropSpike(
-        idx=np.zeros(n_input, dtype=int),
-        time=np.zeros(n_input),
-        current=np.zeros(n_input),
+        idx=jnp.zeros(n_input, dtype=int),
+        time=jnp.zeros(n_input),
+        current=jnp.zeros(n_input),
     )
 
     first_sw_spike = None
@@ -116,14 +116,14 @@ def main():
             filter_spikes(
                 apply_fn(
                     layer_start=1,
-                    weights=WeightInput(np.array([weight])),
+                    weights=WeightInput(jnp.array([weight])),
                     input_spikes=inputs,
                 ),
                 layer_start=1,
             ),
             n_spikes,
         )
-        if not np.isinf(spike.time[0]) and first_sw_spike is None:
+        if not jnp.isinf(spike.time[0]) and first_sw_spike is None:
             first_sw_spike = (spike.time[0], weight)
             log.info(
                 f"First SW spike at weight: {weight:.2f} and time {spike.time[0]}"
@@ -142,10 +142,10 @@ def main():
     # plot
     fig, axs = plt.subplots(1, 1, figsize=(15, 8))
     for i in range(batch_start_plotting, n_batches):
-        sum = np.zeros_like(weights)
+        sum = jnp.zeros_like(weights)
         # iterate all runs
         for run in range(n_runs):
-            data = np.array(runs[run][i]) * 1e6 * 125
+            data = jnp.array(runs[run][i]) * 1e6 * 125
             sum += data
             axs.plot(int_weights, data, linewidth=0.2, color="gray")
         # plot mean
@@ -161,7 +161,7 @@ def main():
     )
     axs.plot(
         int_weights,
-        (np.array(sw_spikes) + offset) * 1e6 * 125,
+        (jnp.array(sw_spikes) + offset) * 1e6 * 125,
         label="Software",
     )
     axs.set_xlabel(

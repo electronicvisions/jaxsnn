@@ -1,10 +1,10 @@
 # pylint: disable=invalid-name
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 
 
 def heaviside(x):
-    return 0.5 + 0.5 * np.sign(x)
+    return 0.5 + 0.5 * jnp.sign(x)
 
 
 @jax.custom_vjp
@@ -23,7 +23,7 @@ def superspike_fwd(x, alpha):
 
 def superspike_bwd(res, g):
     (x, alpha) = res
-    grad = g / (alpha * np.abs(x) + 1.0) ** 2
+    grad = g / (alpha * jnp.abs(x) + 1.0) ** 2
     return (grad, None)
 
 

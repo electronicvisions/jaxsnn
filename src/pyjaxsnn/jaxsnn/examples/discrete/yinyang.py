@@ -4,7 +4,7 @@ from functools import partial
 
 import jax
 import optax
-from jax import numpy as np
+import jax.numpy as jnp
 from jax import random
 import jaxsnn
 from jaxsnn.base.compose import serial
@@ -130,13 +130,13 @@ def main(args: argparse.Namespace):
 
         # Swap axes because time axis needs to come before batch axis
         trainset_batched = (
-            np.swapaxes(trainset_batched[0], 1, 2),
+            jnp.swapaxes(trainset_batched[0], 1, 2),
             trainset_batched[1])
         (opt_state, weights, i), recording = jax.lax.scan(
             train_step_fn, (opt_state, weights, 0), trainset_batched)
         end = time.time() - start
 
-        spikes_per_item = np.count_nonzero(recording[0].z) / train_samples
+        spikes_per_item = jnp.count_nonzero(recording[0].z) / train_samples
         accuracy, test_loss = acc_and_loss(
             snn_apply,
             weights,

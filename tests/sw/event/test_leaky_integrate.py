@@ -1,4 +1,4 @@
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIParameters
 from jaxsnn.event.modules.leaky_integrate import LeakyIntegrator, li_cell
 from jaxsnn.event.types import Spike
@@ -10,18 +10,18 @@ class TestEventLi(unittest.TestCase):
     def test_li_cell(self):
         params = LIParameters()
         t_max = 3.0 * params.tau_syn
-        time_steps = np.linspace(0, t_max, 100)
+        time_steps = jnp.linspace(0, t_max, 100)
         n_input = 3
-        kernel = np.array(
+        kernel = jnp.array(
             [[-1. / params.tau_mem, 1. / params.tau_mem],
              [0, -1. / params.tau_syn]])
 
-        spikes = Spike(time=np.array([0]), idx=np.array([0]))
-        weights = np.ones(n_input)
+        spikes = Spike(time=jnp.array([0]), idx=jnp.array([0]))
+        weights = jnp.ones(n_input)
         res = li_cell(kernel, time_steps, weights, spikes)
-        self.assertGreater(np.max(res.I), 0.95)
-        self.assertEqual(np.argmax(res.I), 1)
-        self.assertEqual(np.argmax(res.V), 46)
+        self.assertGreater(jnp.max(res.I), 0.95)
+        self.assertEqual(jnp.argmax(res.I), 1)
+        self.assertEqual(jnp.argmax(res.V), 46)
 
     def test_leaky_integrator(self):
         params = LIParameters()
@@ -31,40 +31,40 @@ class TestEventLi(unittest.TestCase):
         time_steps = 100
 
         # test input spike previous layer
-        spikes = Spike(time=np.array([1e-4]), idx=np.array([-1]))
+        spikes = Spike(time=jnp.array([1e-4]), idx=jnp.array([-1]))
 
         _, apply_fn = LeakyIntegrator(
             n_hidden, t_max, params, time_steps=time_steps
         )
-        weights = np.arange(n_input * n_hidden).reshape(n_input, -1)
+        weights = jnp.arange(n_input * n_hidden).reshape(n_input, -1)
         res = apply_fn(weights, spikes)
         self.assertIsNone(
-            assert_array_equal(res.I, np.zeros((time_steps, n_hidden))))
+            assert_array_equal(res.I, jnp.zeros((time_steps, n_hidden))))
         self.assertIsNone(
-            assert_array_equal(res.V, np.zeros((time_steps, n_hidden))))
+            assert_array_equal(res.V, jnp.zeros((time_steps, n_hidden))))
 
         # test input spike
         spikes = Spike(
-            time=np.array([0]),
-            idx=np.array([0]),
+            time=jnp.array([0]),
+            idx=jnp.array([0]),
         )
         _, apply_fn = LeakyIntegrator(n_hidden, t_max, params)
         res = apply_fn(weights, spikes)
         self.assertIsNone(
             assert_array_almost_equal(
-                np.max(res.I, axis=0), [0.0, 0.85394, 1.707879, 2.561819]))
+                jnp.max(res.I, axis=0), [0.0, 0.85394, 1.707879, 2.561819]))
         self.assertIsNone(
             assert_array_almost_equal(
-                np.max(res.V, axis=0),
-                np.array([0.0, 0.249926, 0.499852, 0.749777])))
+                jnp.max(res.V, axis=0),
+                jnp.array([0.0, 0.249926, 0.499852, 0.749777])))
 
         # test inf spike time
-        spikes = Spike(time=np.array([np.inf]), idx=np.array([-1]),)
+        spikes = Spike(time=jnp.array([jnp.inf]), idx=jnp.array([-1]),)
         _, apply_fn = LeakyIntegrator(n_hidden, t_max, params)
         res = apply_fn(weights, spikes)
 
-        self.assertFalse(np.any(np.isnan(res.V)))
-        self.assertFalse(np.any(np.isnan(res.I)))
+        self.assertFalse(jnp.any(jnp.isnan(res.V)))
+        self.assertFalse(jnp.any(jnp.isnan(res.I)))
 
 
 if __name__ == '__main__':

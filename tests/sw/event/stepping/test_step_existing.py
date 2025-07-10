@@ -46,12 +46,12 @@ class TestEventFlow(unittest.TestCase):
 
         self.assertIsNone(
             np.testing.assert_array_equal(
-                spikes.time, np.concatenate(
-                    (input_spikes.time, np.array([np.inf, np.inf])))))
+                spikes.time, jnp.concatenate(
+                    (input_spikes.time, jnp.array([jnp.inf, jnp.inf])))))
         self.assertIsNone(
             np.testing.assert_array_equal(
-                spikes.idx, np.concatenate(
-                    (input_spikes.idx, np.array([-1, -1])))))
+                spikes.idx, jnp.concatenate(
+                    (input_spikes.idx, jnp.array([-1, -1])))))
 
 
 if __name__ == '__main__':

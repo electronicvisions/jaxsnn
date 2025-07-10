@@ -1,7 +1,7 @@
 import time
 from typing import Any, Callable, List, Tuple
 
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
 
 
@@ -16,9 +16,9 @@ def bump_weights(
         zip(recording, weights)
     ):
         layer_size = layer_weights.input.shape[1]
-        spike_count = np.array(
+        spike_count = jnp.array(
             [
-                np.sum(layer_recording.idx == neuron_ix) / batch_size
+                jnp.sum(layer_recording.idx == neuron_ix) / batch_size
                 for neuron_ix in range(layer_size)
             ]
         )
@@ -29,36 +29,37 @@ def bump_weights(
 
 def clip_gradient(grads: List[WeightInput]) -> List[WeightInput]:
     for i, grad in enumerate(grads):
-        grads[i] = WeightInput(np.where(np.isnan(grad.input), 0.0, grad.input))
+        grads[i] = WeightInput(
+            jnp.where(jnp.isnan(grad.input), 0.0, grad.input))
     return grads
 
 
 def save_weights(weights: List[Weight], folder: str):
     for i, weight in enumerate(weights):
         filename = f"{folder}/weights_{i}.npy"
-        np.save(filename, weight.input, allow_pickle=True)
+        jnp.save(filename, weight.input, allow_pickle=True)
 
 
 def save_weights_recurrent(weights: WeightRecurrent, folder: str):
-    np.save(f"{folder}/weights_input.npy", weights.input, allow_pickle=True)
-    np.save(
+    jnp.save(f"{folder}/weights_input.npy", weights.input, allow_pickle=True)
+    jnp.save(
         f"{folder}/weights_recurrent.npy", weights.recurrent, allow_pickle=True
     )
 
 
 def load_weights_recurrent(folder: str):
     return WeightRecurrent(
-        input=np.load(
+        input=jnp.load(
             f"{folder}/weights_input.npy",
         ),
-        recurrent=np.load(
+        recurrent=jnp.load(
             f"{folder}/weights_recurrent.npy",
         ),
     )
 
 
 def load_weights(filenames) -> List[WeightInput]:
-    return [WeightInput(np.load(f)) for f in filenames]
+    return [WeightInput(jnp.load(f)) for f in filenames]
 
 
 def get_index_trainset(trainset, idx):

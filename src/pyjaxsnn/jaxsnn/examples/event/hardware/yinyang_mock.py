@@ -12,8 +12,8 @@ from typing import List, Tuple
 
 import hxtorch
 import jax
-import jax.numpy as np
-import numpy as onp
+import jax.numpy as jnp
+import numpy as np
 import optax
 from jax import random
 import jaxsnn
@@ -283,10 +283,10 @@ def train(
             hw_spikes = [
                 sort_batch(
                     Spike(
-                        idx=np.concatenate(
+                        idx=jnp.concatenate(
                             (hw_spikes[0].idx, hw_spikes[1].idx), axis=-1
                         ),
-                        time=np.concatenate(
+                        time=jnp.concatenate(
                             (hw_spikes[0].time, hw_spikes[1].time), axis=-1
                         ),
                     )
@@ -345,10 +345,10 @@ def train(
             hw_spikes = [
                 sort_batch(
                     Spike(
-                        idx=np.concatenate(
+                        idx=jnp.concatenate(
                             (hw_spikes[0].idx, hw_spikes[1].idx), axis=-1
                         ),
-                        time=np.concatenate(
+                        time=jnp.concatenate(
                             (hw_spikes[0].time, hw_spikes[1].time), axis=-1
                         ),
                     )
@@ -390,13 +390,13 @@ def train(
         )
 
         grad = jax.tree_util.tree_map(
-            lambda par, g: np.where(par == 0.0, 0.0, g), weights, grad
+            lambda par, g: jnp.where(par == 0.0, 0.0, g), weights, grad
         )
 
         # grad clipping
         if MAX_GRAD is not None:
             grad = jax.tree_util.tree_map(
-                lambda par, g: np.where(np.abs(g) > MAX_GRAD[1], 0.0, g),
+                lambda par, g: jnp.where(jnp.abs(g) > MAX_GRAD[1], 0.0, g),
                 weights,
                 grad,
             )
@@ -427,8 +427,8 @@ def train(
         )
 
         duration = time.time() - start
-        masked = onp.ma.masked_where(t_first_spike == np.inf, t_first_spike)
-        number_of_hidden_spikes = np.sum(
+        masked = np.ma.masked_where(t_first_spike == jnp.inf, t_first_spike)
+        number_of_hidden_spikes = jnp.sum(
             input_size <= recording[0].idx, axis=-1
         ).mean()
         input_param = weights[0].input[:, :hidden_size]
@@ -437,12 +437,12 @@ def train(
             f"Epoch {i}, loss: {loss:.6f}, "
             f"acc: {acc:.3f}, "
             f"spikes: {number_of_hidden_spikes:.1f}, "
-            f"output inf: {np.mean((t_first_spike == np.inf), axis=(0, 1))}, "
-            f"grad: {np.mean(np.abs(grad[0].input[:, :,:hidden_size])):.4f}, {np.mean(np.abs(grad[0].recurrent[:, :hidden_size,hidden_size:])):.4f}, "
-            f"max grad: {np.max(np.abs(grad[0].input[:, :,:hidden_size])):.4f}, {np.max(np.abs(grad[0].recurrent[:, :hidden_size,hidden_size:])):.4f}, "
+            f"output inf: {jnp.mean((t_first_spike == jnp.inf), axis=(0, 1))}, "
+            f"grad: {jnp.mean(jnp.abs(grad[0].input[:, :,:hidden_size])):.4f}, {jnp.mean(jnp.abs(grad[0].recurrent[:, :hidden_size,hidden_size:])):.4f}, "
+            f"max grad: {jnp.max(jnp.abs(grad[0].input[:, :,:hidden_size])):.4f}, {jnp.max(jnp.abs(grad[0].recurrent[:, :hidden_size,hidden_size:])):.4f}, "
             f"weights mean: {input_param.mean():.5f}, {recurrent_param.mean():.5f}, "
             f"weights std: {input_param.std():.5f}, {recurrent_param.std():.5f}, "
-            f"param sat: {np.abs(input_param * wafer_config.weight_scaling >= 63).mean():.3f}, {np.abs(recurrent_param * wafer_config.weight_scaling >= 63).mean():.3f}, "
+            f"param sat: {jnp.abs(input_param * wafer_config.weight_scaling >= 63).mean():.3f}, {jnp.abs(recurrent_param * wafer_config.weight_scaling >= 63).mean():.3f}, "
             f"time output: {(masked.mean() / params.tau_syn):.2f} tau_s, "
             f"in {duration:.2f} s, "
             f"hw time: {state[2].get('get_hw_results', 0.0):.2f} s, "
@@ -457,7 +457,7 @@ def train(
         return state, (test_result, weights, duration)
 
     # train the net
-    res = custom_lax.scan(epoch, (opt_state, weights, {}), np.arange(epochs))
+    res = custom_lax.scan(epoch, (opt_state, weights, {}), jnp.arange(epochs))
     (opt_state, weights, timing), (
         test_result,
         weights_over_time,
@@ -485,7 +485,7 @@ def train(
         )
 
     # find best epoch
-    best_epoch = np.argmax(test_result.accuracy)
+    best_epoch = jnp.argmax(test_result.accuracy)
     max_acc = round(test_result.accuracy[best_epoch].item(), 3)
     log.info(f"Max acc: {max_acc} after {best_epoch} epochs")
 

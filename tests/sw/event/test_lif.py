@@ -5,20 +5,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 import jax
-import jax.numpy as np
-import numpy as rnp
-from jax import random
+import jax.numpy as jnp
 from jaxsnn.base.compose import serial
-from jaxsnn.base.dataset.yinyang import yinyang_dataset
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
-    LIF, EventPropLIF, LIFParameters)
+    LIF, LIFParameters)
 from jaxsnn.event.types import EventPropSpike
-from numpy.testing import assert_array_equal, assert_array_almost_equal
-from jaxsnn.event.encode import (
-    spatio_temporal_encode,
-    target_temporal_encode,
-    encode
-)
 from jaxsnn.event.types import WeightInput
 
 
@@ -45,15 +36,15 @@ class TestLIF(unittest.TestCase):
                 std=0))
 
         # Same spike time through same input neuron
-        weights = np.zeros((2, 3))
+        weights = jnp.zeros((2, 3))
         weights = weights.at[0, 0].set(4.5)
         weights = weights.at[0, 2].set(4.5)
         weights = [WeightInput(weights)]
 
         inputs = EventPropSpike(
-            np.array([10e-3]),
-            np.array([0]),
-            np.array([0.0]))
+            jnp.array([10e-3]),
+            jnp.array([0]),
+            jnp.array([0.0]))
 
         res = apply_fn(weights, inputs)[-1]
 
@@ -74,15 +65,15 @@ class TestLIF(unittest.TestCase):
         self.assertGreater(grad[0].input[0, 0], grad[0].input[0, 2])
 
         # Same spike time through different input neurons
-        weights = np.zeros((2, 3))
+        weights = jnp.zeros((2, 3))
         weights = weights.at[0, 0].set(4.5)
         weights = weights.at[1, 2].set(4.5)
         weights = [WeightInput(weights)]
 
         inputs = EventPropSpike(
-            np.array([10e-3, 10e-3]),
-            np.array([0, 1]),
-            np.array([0.0, 0.0]))
+            jnp.array([10e-3, 10e-3]),
+            jnp.array([0, 1]),
+            jnp.array([0.0, 0.0]))
 
         res = apply_fn(weights, inputs)[-1]
 
@@ -119,15 +110,15 @@ class TestLIF(unittest.TestCase):
                 std=0))
 
         # Same spike time through same input neuron
-        weights = np.zeros((2, 3))
+        weights = jnp.zeros((2, 3))
         weights = weights.at[0, 0].set(6.5)
         weights = weights.at[0, 2].set(4.5)
         weights = [WeightInput(weights)]
 
         inputs = EventPropSpike(
-            np.array([10e-3]),
-            np.array([0]),
-            np.array([0.0]))
+            jnp.array([10e-3]),
+            jnp.array([0]),
+            jnp.array([0.0]))
 
         res = apply_fn(weights, inputs)[-1]
 

@@ -1,7 +1,7 @@
 from functools import partial
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.types import LIFState
 from jaxsnn.event.root import cr_newton_solver
@@ -11,13 +11,13 @@ import unittest
 class TestEventRootCustomRootNewton(unittest.TestCase):
     def get_lif_dynamics(self):
         params = LIFParameters()
-        kernel = np.array(
+        kernel = jnp.array(
             [[-1. / params.tau_mem, 1. / params.tau_mem],
              [0, -1. / params.tau_syn]])
 
         def f(state, time):
-            initial_state = np.array([state.V, state.I])
-            return np.dot(jax.scipy.linalg.expm(kernel * time), initial_state)
+            initial_state = jnp.array([state.V, state.I])
+            return jnp.dot(jax.scipy.linalg.expm(kernel * time), initial_state)
 
         def jc(state, t):
             return f(state, t)[0] - params.v_th
@@ -32,7 +32,7 @@ class TestEventRootCustomRootNewton(unittest.TestCase):
             state.I = state.I * weight
             return solver(state, dt=0.2)
 
-        weight = np.array(1.0)
+        weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertAlmostEqual(value, 0.00323507, 8)
         self.assertAlmostEqual(grad, -0.00618034, 8)
@@ -46,7 +46,7 @@ class TestEventRootCustomRootNewton(unittest.TestCase):
             state.I = state.I * weight
             return solver(state, dt)
 
-        weight = np.array(1.0)
+        weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertEqual(value, dt)
         self.assertEqual(grad, 0)

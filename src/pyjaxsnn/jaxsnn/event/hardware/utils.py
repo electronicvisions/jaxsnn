@@ -3,8 +3,8 @@ from functools import partial
 from typing import List, Optional
 
 import jax
-import jax.numpy as np
-import numpy as onp
+import jax.numpy as jnp
+import numpy as np
 from jax import random
 import jaxsnn
 from jaxsnn.event.types import Spike, Weight, WeightInput, WeightRecurrent
@@ -38,12 +38,12 @@ def spike_to_grenade_input(spike: Spike, input_neurons: int):
 
 
 def linear_saturating(
-    weight: np.ndarray,
+    weight: jnp.ndarray,
     scale: float,
     min_weight: float = -63.0,
     max_weight: float = 63.0,
     as_int: bool = True,
-) -> np.ndarray:
+) -> jnp.ndarray:
     """
     Scale all weights according to:
 
@@ -60,10 +60,10 @@ def linear_saturating(
     :returns: The transformed weight tensor.
     """
     if as_int:
-        return np.round(
-            np.clip(scale * weight, min_weight, max_weight)
+        return jnp.round(
+            jnp.clip(scale * weight, min_weight, max_weight)
         ).astype(int)
-    return np.clip(scale * weight, min_weight, max_weight)
+    return jnp.clip(scale * weight, min_weight, max_weight)
 
 
 def filter_spikes_batch(
@@ -71,16 +71,16 @@ def filter_spikes_batch(
 ):
     """Only return spikes of neurons after layer start
 
-    Other spikes are encoded with time=np.inf and index=-1
+    Other spikes are encoded with time=jnp.inf and index=-1
     """
-    filtered_time = np.where(spikes.idx >= layer_start, spikes.time, np.inf)
-    filtered_idx = np.where(spikes.idx >= layer_start, spikes.idx, -1)
+    filtered_time = jnp.where(spikes.idx >= layer_start, spikes.time, jnp.inf)
+    filtered_idx = jnp.where(spikes.idx >= layer_start, spikes.idx, -1)
 
     if layer_end is not None:
-        filtered_time = np.where(
-            filtered_idx < layer_end, filtered_time, np.inf
+        filtered_time = jnp.where(
+            filtered_idx < layer_end, filtered_time, jnp.inf
         )
-        filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
+        filtered_idx = jnp.where(filtered_idx < layer_end, filtered_idx, -1)
 
     return sort_batch(Spike(filtered_time, filtered_idx))
 
@@ -90,18 +90,18 @@ def filter_spikes(
 ):
     """Only return spikes of neurons after layer start
 
-    Other spikes are encoded with time=np.inf and index=-1
+    Other spikes are encoded with time=jnp.inf and index=-1
     """
-    filtered_time = np.where(spikes.idx >= layer_start, spikes.time, np.inf)
-    filtered_idx = np.where(spikes.idx >= layer_start, spikes.idx, -1)
+    filtered_time = jnp.where(spikes.idx >= layer_start, spikes.time, jnp.inf)
+    filtered_idx = jnp.where(spikes.idx >= layer_start, spikes.idx, -1)
 
     if layer_end is not None:
-        filtered_time = np.where(
-            filtered_idx < layer_end, filtered_time, np.inf
+        filtered_time = jnp.where(
+            filtered_idx < layer_end, filtered_time, jnp.inf
         )
-        filtered_idx = np.where(filtered_idx < layer_end, filtered_idx, -1)
+        filtered_idx = jnp.where(filtered_idx < layer_end, filtered_idx, -1)
 
-    sort_idx = np.argsort(filtered_time, axis=-1)
+    sort_idx = jnp.argsort(filtered_time, axis=-1)
 
     idx = filtered_idx[sort_idx]
     time = filtered_time[sort_idx]
@@ -118,10 +118,10 @@ def cut_spikes_batch(spikes: Spike, count):
 
 # sort spikes
 def sort_batch(spikes: Spike) -> Spike:
-    sort_idx = np.argsort(spikes.time, axis=-1)
+    sort_idx = jnp.argsort(spikes.time, axis=-1)
     n_spikes = spikes.time.shape[0]
-    time = spikes.time[np.arange(n_spikes)[:, None], sort_idx]
-    idx = spikes.idx[np.arange(n_spikes)[:, None], sort_idx]
+    time = spikes.time[jnp.arange(n_spikes)[:, None], sort_idx]
+    idx = spikes.idx[jnp.arange(n_spikes)[:, None], sort_idx]
     return Spike(time=time, idx=idx)
 
 
@@ -163,26 +163,26 @@ def simulate_madc(
     weight: float,
     ts: jax.Array,
 ):
-    A = np.array([[-1. / tau_mem, 1. / tau_mem], [0, -1. / tau_syn]])
+    A = jnp.array([[-1. / tau_mem, 1. / tau_mem], [0, -1. / tau_syn]])
     tk = inputs.time
-    xk = np.array([[0.0, weight]])
+    xk = jnp.array([[0.0, weight]])
 
     def heaviside(x):
-        return 0.5 + 0.5 * np.sign(x)
+        return 0.5 + 0.5 * jnp.sign(x)
 
     def kernel(t, t0):
         return heaviside(t - t0) * jax.scipy.linalg.expm(A * (t - t0))
 
     def f(t0, x0, t):
-        return np.einsum("ijk, ik -> j", jax.vmap(partial(kernel, t))(t0), x0)
+        return jnp.einsum("ijk, ik -> j", jax.vmap(partial(kernel, t))(t0), x0)
 
     return jax.vmap(partial(f, tk, xk), in_axes=0)(ts)
 
 
 def add_linear_noise(spike: Spike) -> Spike:
     batch_size, n_spikes = spike.idx.shape
-    time_noise = np.repeat(
-        np.expand_dims(np.linspace(0, 1e-9, n_spikes), axis=0),
+    time_noise = jnp.repeat(
+        jnp.expand_dims(jnp.linspace(0, 1e-9, n_spikes), axis=0),
         batch_size,
         axis=0,
     )
@@ -191,9 +191,9 @@ def add_linear_noise(spike: Spike) -> Spike:
 
 
 def first_spike(spikes: Spike, start: int, stop: int) -> jax.Array:
-    return np.array(
+    return jnp.array(
         [
-            np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
+            jnp.min(jnp.where(spikes.idx == idx, spikes.time, jnp.inf))
             for idx in range(start, stop)
         ]
     )
@@ -211,9 +211,9 @@ def spike_similarity_batch(spike1: Spike, spike2: Spike):
 
         # # now compare the times
         diff = first_spike1 - first_spike2
-        masked = onp.ma.masked_where(diff == np.inf, diff)
-        masked = onp.ma.masked_where(masked == np.nan, masked)
+        masked = np.ma.masked_where(diff == jnp.inf, diff)
+        masked = np.ma.masked_where(masked == jnp.nan, masked)
         log.info(
-            f"SW: {np.mean(first_spike1, axis=0) / 6e-6} tau_syn,"
-            f"HW: {np.mean(first_spike2, axis=0) / 6e-6} tau_syn"
+            f"SW: {jnp.mean(first_spike1, axis=0) / 6e-6} tau_syn,"
+            f"HW: {jnp.mean(first_spike2, axis=0) / 6e-6} tau_syn"
         )

@@ -1,5 +1,5 @@
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.types import StepState, Weight, WeightInput, WeightRecurrent
 
@@ -19,11 +19,11 @@ def transition_with_recurrence(  # pylint: disable=too-many-arguments
         spike_mask: int,
         prev_layer_start: int,  # pylint: disable=unused-argument
     ):
-        mask = np.tile(spike_mask, (weights.recurrent.shape[0], 1))
-        masked_w = np.where(mask.T, weights.recurrent, 0.)
+        mask = jnp.tile(spike_mask, (weights.recurrent.shape[0], 1))
+        masked_w = jnp.where(mask.T, weights.recurrent, 0.)
         tr_row = masked_w.sum(0)
         state.neuron_state.I = state.neuron_state.I + tr_row
-        state.neuron_state.V = np.where(
+        state.neuron_state.V = jnp.where(
             spike_mask, params.v_reset, state.neuron_state.V)
         return state
 
@@ -85,7 +85,7 @@ def transition_without_recurrence(  # pylint: disable=too-many-arguments
         spike_mask: int,
         prev_layer_start: int,  # pylint: disable=unused-argument
     ):
-        state.neuron_state.V = np.where(
+        state.neuron_state.V = jnp.where(
             spike_mask, params.v_reset, state.neuron_state.V)
         return state
 

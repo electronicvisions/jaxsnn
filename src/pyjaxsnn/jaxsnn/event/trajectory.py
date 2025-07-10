@@ -1,7 +1,7 @@
 from typing import Callable, Tuple, Any, Optional
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import (
     EventPropSpike, InputQueue, LIFState, SingleApply, StepState, Weight)
 from jaxsnn.event.stepping.types import StepInput
@@ -38,16 +38,16 @@ def trajectory(
 
         step_state = StepState(
             neuron_state=LIFState(
-                np.zeros(size), np.zeros(size)),
-            spike_times=-1 * np.ones(size),
-            spike_mask=np.zeros(size, dtype=bool),
+                jnp.zeros(size), jnp.zeros(size)),
+            spike_times=-1 * jnp.ones(size),
+            spike_mask=jnp.zeros(size, dtype=bool),
             time=0.0,
             input_queue=InputQueue(input_spikes),
         )
         _, spikes = jax.lax.scan(
             step_fn,
             (step_state, this_layer_weights, layer_start),
-            np.arange(n_spikes)
+            jnp.arange(n_spikes)
         )
 
         layer_index += 1

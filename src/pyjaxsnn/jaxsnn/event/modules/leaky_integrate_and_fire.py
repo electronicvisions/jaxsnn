@@ -27,7 +27,7 @@ from functools import partial
 from typing import List, Optional
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.adjoint_lif import (
     adjoint_lif_exponential_flow,
@@ -111,7 +111,7 @@ def RecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     transition = partial(transition_with_recurrence, params)
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
 
-    hidden_size = np.sum(np.array(layers))
+    hidden_size = jnp.sum(jnp.array(layers))
     apply_fn = trajectory(step_fn, hidden_size, n_spikes)
     init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
 
@@ -226,7 +226,7 @@ def RecurrentEventPropLIF(  # pylint: disable=too-many-arguments,too-many-locals
         step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
     )
 
-    size = np.sum(np.array(layers))
+    size = jnp.sum(jnp.array(layers))
 
     init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
     apply_fn = construct_adjoint_apply_fn(
@@ -258,7 +258,7 @@ def HardwareRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
         step_bwd, adjoint_dynamics, adjoint_tr_dynamics, t_max
     )
 
-    size = np.sum(np.array(layers))
+    size = jnp.sum(jnp.array(layers))
 
     init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
     apply_fn = construct_adjoint_apply_fn(

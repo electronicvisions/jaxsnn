@@ -2,7 +2,7 @@ import argparse
 from functools import partial
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import optax
 from jax import random
 import jaxsnn
@@ -123,7 +123,7 @@ def main(args: argparse.Namespace):
 
     # iterate over epochs
     res = custom_lax.scan(
-        epoch_fn, OptState(opt_state, weights), np.arange(args.epochs))
+        epoch_fn, OptState(opt_state, weights), jnp.arange(args.epochs))
     (opt_state, weights), (test_result, weights_over_time, duration) = res
 
     acc = round(test_result.accuracy[-1], 3)

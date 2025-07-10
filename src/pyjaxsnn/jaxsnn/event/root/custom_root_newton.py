@@ -2,7 +2,7 @@
 from functools import partial
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 
 
 def solve(f, initial_guess, dt):  # pylint: disable=unused-argument
@@ -17,7 +17,7 @@ def solve(f, initial_guess, dt):  # pylint: disable=unused-argument
         step = fx / dfx
         return x - step, 0
 
-    res = jax.lax.scan(body, initial_state, np.arange(10))[0]
+    res = jax.lax.scan(body, initial_state, jnp.arange(10))[0]
     return res
 
 
@@ -29,4 +29,4 @@ def cr_newton_solver(f, initial_guess, state, dt):
     res = jax.lax.custom_root(
         partial(f, state), initial_guess, partial(solve, dt=dt), tangent_solve
     )
-    return np.where(res > 0, res, dt)
+    return jnp.where(res > 0, res, dt)

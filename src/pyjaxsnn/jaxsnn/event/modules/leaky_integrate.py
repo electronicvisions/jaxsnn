@@ -1,7 +1,7 @@
 from functools import partial
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.discrete.functional.threshold import heaviside
 from jaxsnn.event.types import LIFState, Spike
@@ -14,7 +14,7 @@ def kernel_fn(kernel, time, spike_time):
 
 
 def superposition(kernel, spike_time, initial_state, time):
-    return np.einsum(
+    return jnp.einsum(
         "ijk, ik -> j",
         jax.vmap(partial(kernel_fn, kernel, time))(spike_time),
         initial_state,
@@ -25,12 +25,12 @@ def li_cell(
     kernel: jax.Array, time_steps: jax.Array, weights: jax.Array, spikes: Spike
 ) -> LIFState:
     # don't integrate over inf spike times
-    first_inf = np.searchsorted(spikes.time, 1_000_000, side="right")
+    first_inf = jnp.searchsorted(spikes.time, 1_000_000, side="right")
     spikes = Spike(spikes.time[:first_inf], spikes.idx[:first_inf])
 
-    current = weights[spikes.idx] * np.where(spikes.idx == -1, 0.0, 1.0)
-    voltage = np.zeros(len(spikes.idx))
-    initial_state = np.stack((voltage, current), axis=1)
+    current = weights[spikes.idx] * jnp.where(spikes.idx == -1, 0.0, 1.0)
+    voltage = jnp.zeros(len(spikes.idx))
+    initial_state = jnp.stack((voltage, current), axis=1)
     final_state = jax.vmap(
         partial(superposition, kernel, spikes.time, initial_state)
     )(time_steps)
@@ -57,10 +57,10 @@ def LeakyIntegrator(  # pylint: disable=invalid-name
             jax.random.normal(layer_rng, (input_shape, size)) * std + mean
         )
 
-    kernel = np.array(
+    kernel = jnp.array(
         [[-1. / params.tau_mem, 1. / params.tau_mem],
          [0, -1. / params.tau_syn]]
     )
     return init_fn, partial(
-        leaky_integrator, kernel, np.linspace(0, t_max, time_steps)
+        leaky_integrator, kernel, jnp.linspace(0, t_max, time_steps)
     )

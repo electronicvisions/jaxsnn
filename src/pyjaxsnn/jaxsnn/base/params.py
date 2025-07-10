@@ -2,7 +2,7 @@ import dataclasses
 from typing import Dict
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import tree_math
 
 
@@ -27,7 +27,7 @@ class LIFParameters:
 
     @property
     def dynamics(self) -> jax.Array:
-        return np.array(
+        return jnp.array(
             [[-1. / self.tau_mem, 1. / self.tau_mem], [0, -1. / self.tau_syn]])
 
     def as_dict(self) -> Dict:

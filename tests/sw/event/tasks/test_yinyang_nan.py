@@ -1,5 +1,5 @@
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import random
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
@@ -59,7 +59,7 @@ class TestEventTasksYinYangNan(unittest.TestCase):
             EventPropSpike(
                 trainset[0].time[bad_idx][i],
                 trainset[0].idx[bad_idx][i],
-                np.zeros_like(trainset[0].time[bad_idx][i]),
+                jnp.zeros_like(trainset[0].time[bad_idx][i]),
             ),
             trainset[1][bad_idx][i],
         )
@@ -77,7 +77,7 @@ class TestEventTasksYinYangNan(unittest.TestCase):
         (loss, recording), grad = jax.value_and_grad(loss_fn, has_aux=True)(
             weights, batch[0])
 
-        self.assertFalse(np.isnan(np.mean(grad[0].input)))
+        self.assertFalse(jnp.isnan(jnp.mean(grad[0].input)))
 
 
 if __name__ == '__main__':

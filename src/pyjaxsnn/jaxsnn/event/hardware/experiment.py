@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import _hxtorch_core
 import _hxtorch_spiking
 import hxtorch
-import jax.numpy as np
+import jax.numpy as jnp
 import pygrenade_vx as grenade
 from dlens_vx_v3 import hal, lola
 from hxtorch.spiking.neuron_placement import NeuronPlacement
@@ -368,7 +368,7 @@ class Experiment:
             spikes = hw_data[self._populations[i].descriptor]
             spike_list.append(
                 Spike(
-                    idx=np.where(spikes[0] == -1, -1, spikes[0] + offset),
+                    idx=jnp.where(spikes[0] == -1, -1, spikes[0] + offset),
                     time=(spikes[1] + hw_cycle_correction)
                     / cycles_per_us
                     * 1e-6,

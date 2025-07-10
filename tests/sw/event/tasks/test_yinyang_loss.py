@@ -1,6 +1,6 @@
 import unittest
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
 from jaxsnn.event.modules.leaky_integrate_and_fire import LIF
@@ -22,11 +22,11 @@ class TestYinYangLoss(unittest.TestCase):
 
         # class 1
         input_spikes = EventPropSpike(
-            time=np.array(
+            time=jnp.array(
                 [0.0000000e00, 0.00195968, 0.00479668, 0.00520332, 0.00804032]
             ),
-            idx=np.array([4, 0, 3, 1, 2]),
-            current=np.zeros(5),
+            idx=jnp.array([4, 0, 3, 1, 2]),
+            current=jnp.zeros(5),
         )
 
         weights = load_weights(
@@ -39,9 +39,9 @@ class TestYinYangLoss(unittest.TestCase):
             LIF(output_size, n_spikes_output, t_max, params=params))
 
         def first_spike(spikes: EventPropSpike, size: int):
-            return np.array(
+            return jnp.array(
                 [
-                    np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
+                    jnp.min(jnp.where(spikes.idx == idx, spikes.time, jnp.inf))
                     for idx in range(size)
                 ]
             )
@@ -52,18 +52,18 @@ class TestYinYangLoss(unittest.TestCase):
         ):
             _, _, _, recording = apply_fn(weights, input_spikes, None, None)
             first_spikes = first_spike(recording[1], 3)
-            loss = -np.log(
-                np.sum(
+            loss = -jnp.log(
+                jnp.sum(
                     1
-                    + np.exp(-first_spikes[1] / params.tau_mem)
-                    - np.exp(-first_spikes / params.tau_mem)
+                    + jnp.exp(-first_spikes[1] / params.tau_mem)
+                    - jnp.exp(-first_spikes / params.tau_mem)
                 )
             )
             return loss, recording
 
         (loss, recording), grad = jax.value_and_grad(loss_fn, has_aux=True)(
             weights, input_spikes)
-        self.assertFalse(np.isnan(np.mean(grad[0].input)))
+        self.assertFalse(jnp.isnan(jnp.mean(grad[0].input)))
         self.assertAlmostEqual(loss, -1.0986, 4)
 
 

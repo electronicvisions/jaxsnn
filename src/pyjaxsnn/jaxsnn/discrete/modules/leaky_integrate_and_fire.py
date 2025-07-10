@@ -4,7 +4,7 @@ from functools import partial
 from typing import NamedTuple
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import tree_math
 from jax import random
 from jaxsnn.base.params import LIFParameters
@@ -65,8 +65,8 @@ def lif_step(
     # compute reset
     v_new = (1 - z_new) * v_decayed + z_new * params.v_reset
     # compute current jumps
-    i_new = i_decayed + np.matmul(z, recurrent_weights)
-    i_new = i_new + np.matmul(spikes, input_weights)
+    i_new = i_decayed + jnp.matmul(z, recurrent_weights)
+    i_new = i_new + jnp.matmul(spikes, input_weights)
 
     new_state = LIFState(z_new, v_new, i_new)
 
@@ -94,7 +94,7 @@ def LIF(out_dim, method=superspike, scale_in=0.7, scale_rec=0.2):
         else:
             layer_index = state
         this_layer_weights = weights[layer_index]
-        s = LIFState(np.zeros(shape), np.zeros(shape), np.zeros(shape))
+        s = LIFState(jnp.zeros(shape), jnp.zeros(shape), jnp.zeros(shape))
         _, (output, recording) = jax.lax.scan(
             lif_step_fn, (s, this_layer_weights), inputs
         )

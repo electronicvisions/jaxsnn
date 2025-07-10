@@ -3,7 +3,7 @@ import unittest
 from typing import Callable, List, Tuple
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import random
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
@@ -64,11 +64,11 @@ class TestEventTasksContant(unittest.TestCase):
         trainset = constant_dataset(t_max, n_epochs)
 
         # Create Spikes from input
-        spike_idx = np.array([0, 1, 0])
+        spike_idx = jnp.array([0, 1, 0])
         input_spikes = EventPropSpike(
             trainset[0],
-            np.tile(spike_idx, (n_epochs, 1)),
-            np.zeros_like(trainset[0], dtype=trainset[0].dtype))
+            jnp.tile(spike_idx, (n_epochs, 1)),
+            jnp.zeros_like(trainset[0], dtype=trainset[0].dtype))
         trainset_encoded = (input_spikes, trainset[1])
         trainset_batched = data_loader(trainset_encoded, n_epochs)
 

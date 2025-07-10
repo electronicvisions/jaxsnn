@@ -6,8 +6,8 @@ from typing import Tuple
 
 import _hxtorch_core
 import jax
-import jax.numpy as np
-import numpy as onp
+import jax.numpy as jnp
+import numpy as np
 import pygrenade_vx.network as grenade
 import jaxsnn
 from jaxsnn.event.hardware import utils
@@ -61,8 +61,8 @@ class Synapse(Module):
         :returns: A tuple of grenade ProjectionOnNetworks holding the
             descriptors for the excitatory and inhibitory projection.
         """
-        weight_exc = np.copy(self.weight)
-        weight_inh = np.copy(self.weight)
+        weight_exc = jnp.copy(self.weight)
+        weight_inh = jnp.copy(self.weight)
 
         weight_exc = utils.linear_saturating(
             weight_exc, scale=scale, min_weight=0.0
@@ -72,10 +72,10 @@ class Synapse(Module):
         )
 
         connections_exc = _hxtorch_core.weight_to_connection(
-            onp.array(weight_exc)
+            np.array(weight_exc)
         )
         connections_inh = _hxtorch_core.weight_to_connection(
-            onp.array(weight_inh)
+            np.array(weight_inh)
         )
 
         projection_exc = grenade.Projection(

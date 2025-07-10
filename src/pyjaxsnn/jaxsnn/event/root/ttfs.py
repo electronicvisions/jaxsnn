@@ -7,7 +7,7 @@ Therefore, special care is taken to ensure that no NaNs occur, which would
 affect gradient calculation."""
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import LIFState
 
 
@@ -17,7 +17,7 @@ def ttfs_inner_most(
     inner_log = 2 * a_1 / denominator
     return jax.lax.cond(
         inner_log > 1,
-        lambda: tau_mem * np.log(np.maximum(inner_log, 1)),
+        lambda: tau_mem * jnp.log(jnp.maximum(inner_log, 1)),
         lambda: t_max,
     )
 
@@ -30,12 +30,12 @@ def ttfs_inner(
     t_max: float,
 ):
     epsilon = 1e-6
-    denominator = a_2 + np.sqrt(np.maximum(second_term, epsilon))
-    save_denominator = np.where(
-        np.abs(denominator) > epsilon, denominator, epsilon
+    denominator = a_2 + jnp.sqrt(jnp.maximum(second_term, epsilon))
+    save_denominator = jnp.where(
+        jnp.abs(denominator) > epsilon, denominator, epsilon
     )
     return jax.lax.cond(
-        np.abs(denominator) > epsilon,
+        jnp.abs(denominator) > epsilon,
         ttfs_inner_most,
         lambda *args: t_max,
         a_1,

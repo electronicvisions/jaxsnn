@@ -2,7 +2,7 @@
 import dataclasses
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import tree_math
 from jax import random
 from jaxsnn.base.params import LIParameters
@@ -31,7 +31,7 @@ def li_feed_forward_step(
 ):
     state, input_weights = init
     # compute current jumps
-    i_jump = state.i + np.matmul(spikes, input_weights)
+    i_jump = state.i + jnp.matmul(spikes, input_weights)
     # compute voltage updates
     dv = dt / params.tau_mem * ((params.v_leak - state.v) + i_jump)
     v_new = state.v + dv
@@ -62,7 +62,7 @@ def LI(out_dim, scale_in=0.2):
         this_layer_weights = weights[layer_index]
         batch = inputs.shape[1]
         shape = (batch, out_dim)
-        s = LIState(np.zeros(shape), np.zeros(shape))
+        s = LIState(jnp.zeros(shape), jnp.zeros(shape))
         _, (voltages, recording) = jax.lax.scan(
             li_feed_forward_step, (s, this_layer_weights), inputs
         )

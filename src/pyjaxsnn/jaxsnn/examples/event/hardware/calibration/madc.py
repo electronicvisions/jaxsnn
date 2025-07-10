@@ -5,9 +5,9 @@ to find the proper weight scaling and cycle offset factor.
 import datetime as dt
 
 import hxtorch
-import jax.numpy as np
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as onp
+import numpy as np
 from dlens_vx_v3 import hal
 import jaxsnn
 from jaxsnn.event.hardware.calib import W_69_F0_LONG_REFRAC
@@ -30,9 +30,9 @@ cycles_per_us = int(hal.Timer.Value.fpga_clock_cycles_per_us)
 
 
 def fill_zeros_with_last(arr):
-    prev = np.arange(len(arr))
+    prev = jnp.arange(len(arr))
     prev = prev.at[arr == 0].set(0)
-    prev = onp.maximum.accumulate(prev)
+    prev = np.maximum.accumulate(prev)
     return arr[prev]
 
 
@@ -48,20 +48,20 @@ def main():
     weight = 1.0
 
     HW_CYCLE_CORRECTION = -50
-    weights = [WeightInput(input=np.full((input_neurons, 1), weight))]
+    weights = [WeightInput(input=jnp.full((input_neurons, 1), weight))]
 
     inputs = Spike(
-        time=np.repeat(
-            np.array([200, 500]) / (1e6 * cycles_per_us),
+        time=jnp.repeat(
+            jnp.array([200, 500]) / (1e6 * cycles_per_us),
             duplication,
             axis=0,
         ),
-        idx=np.arange(input_neurons),
+        idx=jnp.arange(input_neurons),
     )
 
     batched_inputs = Spike(
-        time=np.expand_dims(inputs.time, axis=0),
-        idx=np.expand_dims(inputs.idx, axis=0),
+        time=jnp.expand_dims(inputs.time, axis=0),
+        idx=jnp.expand_dims(inputs.idx, axis=0),
     )
 
     # setup hardware experiment
@@ -93,7 +93,7 @@ def main():
     inputs = EventPropSpike(
         idx=inputs.idx,
         time=inputs.time,
-        current=np.zeros_like(inputs.time),
+        current=jnp.zeros_like(inputs.time),
     )
 
     sw_spike = apply_fn(
@@ -121,13 +121,13 @@ def main():
         params.tau_syn_inv,
         inputs,
         weight,
-        np.arange(len) / (1e6 * cycles_per_us),
+        jnp.arange(len) / (1e6 * cycles_per_us),
     )
     sw_madc = sw_madc[:, 0] * 190 + 315
     prettified = fill_zeros_with_last(madc_recording[:, 0])
 
     # find first non zero
-    first_non_zero = np.argmax(prettified != 0)
+    first_non_zero = jnp.argmax(prettified != 0)
     prettified[:first_non_zero] = prettified[first_non_zero]
 
     hw_spike_time = hw_spike.time[0, 0] * 1e6 * cycles_per_us
@@ -143,22 +143,22 @@ def main():
         f"hw cycle correction: {HW_CYCLE_CORRECTION}, "
         f"weight scaling: {wafer_config.weight_scaling}"
     )
-    axs.plot(np.arange(len) + HW_CYCLE_CORRECTION, prettified)
-    axs.plot(np.arange(int(sw_spike_time)), sw_madc[: int(sw_spike_time)])
+    axs.plot(jnp.arange(len) + HW_CYCLE_CORRECTION, prettified)
+    axs.plot(jnp.arange(int(sw_spike_time)), sw_madc[: int(sw_spike_time)])
     axs.set_xlabel(f"FPGA Clock cycles")
     axs.set_ylabel("MADC value")
     fig.legend()
 
     dt_string = dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     fig.savefig(f"data/event/hardware/madc/{dt_string}_spike_times.png")
-    np.save(
+    jnp.save(
         f"data/event/hardware/madc/{dt_string}_trace.npy",
         madc_recording,
         allow_pickle=True,
     )
     log.info(
         f"Count: {len}, "
-        f"Non zero count: {np.count_nonzero(madc_recording[:, 0])}"
+        f"Non zero count: {jnp.count_nonzero(madc_recording[:, 0])}"
     )
 
 

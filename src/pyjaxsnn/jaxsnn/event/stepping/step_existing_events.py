@@ -1,7 +1,7 @@
 from typing import Callable, Tuple
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import EventPropSpike, Solver, StepState
 from jaxsnn.event.stepping.types import StepInput
 
@@ -29,7 +29,7 @@ def step_existing(  # pylint: disable=unused-argument,too-many-locals
     prev_layer_start = layer_start - weights.input.shape[0]
 
     empty_event = EventPropSpike(
-        time=np.array(np.inf), idx=np.array(-1), current=np.array(0.))
+        time=jnp.array(jnp.inf), idx=jnp.array(-1), current=jnp.array(0.))
 
     next_event, state = jax.lax.cond(
         state.input_queue.is_empty,
@@ -45,7 +45,7 @@ def step_existing(  # pylint: disable=unused-argument,too-many-locals
 
     # New neuron state
     evolved_neuron_state = dynamics(
-        state.neuron_state, np.minimum(next_event.time, t_max) - state.time)
+        state.neuron_state, jnp.minimum(next_event.time, t_max) - state.time)
 
     # Create new event
     current = jax.lax.cond(
@@ -60,7 +60,7 @@ def step_existing(  # pylint: disable=unused-argument,too-many-locals
         neuron_state=evolved_neuron_state,
         spike_times=state.spike_times,
         spike_mask=state.spike_mask,
-        time=np.minimum(next_event.time, t_max),
+        time=jnp.minimum(next_event.time, t_max),
         input_queue=state.input_queue)
 
     # Transition state
@@ -70,7 +70,7 @@ def step_existing(  # pylint: disable=unused-argument,too-many-locals
         tr_dynamics,
         evolved_state,
         weights,
-        np.zeros_like(state.spike_mask).at[
+        jnp.zeros_like(state.spike_mask).at[
             next_event.idx - layer_start].set(True),
         spike_in_layer,
         prev_layer_start)

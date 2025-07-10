@@ -1,7 +1,7 @@
 from typing import Callable, List, Tuple, Any, Optional
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.types import ArrayLike
 from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
@@ -16,16 +16,16 @@ from jaxsnn.event.types import (
 
 
 def max_over_time(output: LIFState) -> jax.Array:
-    return np.max(output.V, axis=0)
+    return jnp.max(output.V, axis=0)
 
 
 def nll_loss(output: jax.Array, targets: jax.Array) -> float:
     n_classes = targets.shape[0]
-    idx = np.argmin(targets)
-    targets = np.array(idx == np.arange(n_classes))
-    output = np.maximum(output, 0)
+    idx = jnp.argmin(targets)
+    targets = jnp.array(idx == jnp.arange(n_classes))
+    output = jnp.maximum(output, 0)
     preds = jax.nn.log_softmax(output)
-    loss = -np.sum(targets * preds)
+    loss = -jnp.sum(targets * preds)
     return loss
 
 
@@ -93,7 +93,7 @@ def loss_wrapper(  # pylint: disable=too-many-arguments,too-many-locals
     loss_value = loss_function(t_first_spike, target, tau_mem)
 
     if vmap:
-        loss_value = np.mean(loss_value)
+        loss_value = jnp.mean(loss_value)
 
     return loss_value, (t_first_spike, recording)
 
@@ -101,8 +101,8 @@ def loss_wrapper(  # pylint: disable=too-many-arguments,too-many-locals
 def target_time_loss(
     first_spikes: jax.Array, target: jax.Array, tau_mem: float
 ) -> float:
-    loss_value = -np.sum(
-        np.log(1 + np.exp(-np.abs(first_spikes - target) / tau_mem))
+    loss_value = -jnp.sum(
+        jnp.log(1 + jnp.exp(-jnp.abs(first_spikes - target) / tau_mem))
     )
     return loss_value
 
@@ -110,18 +110,18 @@ def target_time_loss(
 def ttfs_loss(
     first_spikes: jax.Array, target: jax.Array, tau_mem: float
 ) -> float:
-    idx = np.argmin(target)
-    first_spikes = np.minimum(np.abs(first_spikes), 2 * tau_mem)
-    return -np.log(
-        np.sum(np.exp((first_spikes[idx] - first_spikes) / tau_mem))
+    idx = jnp.argmin(target)
+    first_spikes = jnp.minimum(jnp.abs(first_spikes), 2 * tau_mem)
+    return -jnp.log(
+        jnp.sum(jnp.exp((first_spikes[idx] - first_spikes) / tau_mem))
     )
 
 
 def mse_loss(
     first_spikes: jax.Array, target: jax.Array, tau_mem: float
 ) -> float:
-    return np.sum(
-        np.square((np.minimum(first_spikes, 2 * tau_mem) - target) / tau_mem)
+    return jnp.sum(
+        jnp.square((jnp.minimum(first_spikes, 2 * tau_mem) - target) / tau_mem)
     )
 
 
@@ -130,9 +130,9 @@ def first_spike(
     size: int,
     n_outputs: int
 ) -> jax.Array:
-    return np.array(
+    return jnp.array(
         [
-            np.min(np.where(spikes.idx == idx, spikes.time, np.inf))
+            jnp.min(jnp.where(spikes.idx == idx, spikes.time, jnp.inf))
             for idx in range(size)
         ][size - n_outputs:]
     )
@@ -145,12 +145,12 @@ def loss_and_acc(
 ) -> TestResult:
     batched_loss = jax.vmap(loss_fn, in_axes=(None, 0))
     loss, (t_first_spike, recording) = batched_loss(weights, dataset)
-    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(
+    accuracy = jnp.argmin(dataset[1], axis=-1) == jnp.argmin(
         t_first_spike, axis=-1
     )
     return TestResult(
-        np.mean(loss),
-        np.mean(accuracy),
+        jnp.mean(loss),
+        jnp.mean(accuracy),
         t_first_spike,
         recording,
     )
@@ -164,12 +164,12 @@ def loss_and_acc_scan(
     weights, (loss, (t_first_spike, recording)) = custom_lax.scan(
         loss_fn, weights, dataset
     )
-    accuracy = np.argmin(dataset[1], axis=-1) == np.argmin(
+    accuracy = jnp.argmin(dataset[1], axis=-1) == jnp.argmin(
         t_first_spike, axis=-1
     )
     return TestResult(
-        np.mean(loss),
-        np.mean(accuracy),
+        jnp.mean(loss),
+        jnp.mean(accuracy),
         t_first_spike,
         recording,
     )

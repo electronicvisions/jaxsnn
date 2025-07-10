@@ -1,7 +1,7 @@
 from functools import partial
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.modules.leaky_integrate import LIFState
 from jaxsnn.event.root.ttfs import ttfs_solver
@@ -18,7 +18,7 @@ class TestEventRootTtfs(unittest.TestCase):
             state.V = state.V * weight
             return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
 
-        weight = np.array(1.0)
+        weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertEqual(value, t_max)
         self.assertEqual(grad, 0)
@@ -29,7 +29,7 @@ class TestEventRootTtfs(unittest.TestCase):
             state.I = state.I * weight
             return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
 
-        weight = np.array(1.0)
+        weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertEqual(value, t_max)
         self.assertEqual(grad, 0)
@@ -40,7 +40,7 @@ class TestEventRootTtfs(unittest.TestCase):
             state.I = state.I * weight
             return ttfs_solver(params.tau_mem, params.v_th, state, t_max)
 
-        weight = np.array(1.0)
+        weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertAlmostEqual(value, 0.00323507, 8)
         self.assertAlmostEqual(grad, -0.00618034, 8)
@@ -48,8 +48,8 @@ class TestEventRootTtfs(unittest.TestCase):
     def test_nan(self):
         t_max = 4.0 * params.tau_syn
         neuron_state = LIFState(
-            V=np.zeros(60),
-            I=np.array(
+            V=jnp.zeros(60),
+            I=jnp.array(
                 [
                     0.45193174,
                     3.19146,
@@ -121,9 +121,9 @@ class TestEventRootTtfs(unittest.TestCase):
         def loss_fn(weight):
             neuron_state.I = neuron_state.I * weight
             times = batched_solver(neuron_state, t_max)
-            return np.sum(times)
+            return jnp.sum(times)
 
-        value, grad = jax.value_and_grad(loss_fn)(np.array(1.0))
+        value, grad = jax.value_and_grad(loss_fn)(jnp.array(1.0))
         self.assertAlmostEqual(value, 1.04246, 4)
         self.assertAlmostEqual(grad, -0.12974, 4)
 

@@ -1,6 +1,6 @@
 # pylint: disable=invalid-name
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 
 
 def linear_interpolation(f_a, f_b, a, b, x):
@@ -68,17 +68,17 @@ def bisection(f, x_min, x_max, tol):
 
     def cond(state):
         _, x_min, _ = state
-        return np.abs(f(x_min)) > tol  # it > 10
+        return jnp.abs(f(x_min)) > tol  # it > 10
 
     def body(state):
         it, x_min, x_max = state
         x = (x_min + x_max) / 2
 
-        sfxm = np.sign(f(x_min))
-        sfx = np.sign(f(x))
+        sfxm = jnp.sign(f(x_min))
+        sfx = jnp.sign(f(x))
 
-        x_min = np.where(sfx == sfxm, x, x_min)
-        x_max = np.where(sfx == sfxm, x_max, x)
+        x_min = jnp.where(sfx == sfxm, x, x_min)
+        x_max = jnp.where(sfx == sfxm, x_max, x)
 
         new_state = (it + 1, x_min, x_max)
         return new_state

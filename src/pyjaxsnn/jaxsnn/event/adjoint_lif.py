@@ -3,7 +3,7 @@ from functools import partial
 from typing import Callable, Tuple, Optional, List
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
 from jaxsnn.event.stepping import StepInput
@@ -42,8 +42,8 @@ def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
         input_queue_head: int,
     ):
         epsilon = 1e-6
-        safe_denominator = np.where(
-            np.abs(spike.current - params.v_th) > epsilon,
+        safe_denominator = jnp.where(
+            jnp.abs(spike.current - params.v_th) > epsilon,
             spike.current - params.v_th,
             epsilon,
         )
@@ -77,7 +77,7 @@ def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
                         -params.tau_syn * adjoint_state.neuron_state.I
                     ),
                 ),
-                np.dot(
+                jnp.dot(
                     weights.input[index_for_layer],
                     (
                         adjoint_state.neuron_state.V
@@ -135,12 +135,12 @@ def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
     ):
         index_for_layer = spike.idx - layer_start
         epsilon = 1e-6
-        safe_denominator = np.where(
-            np.abs(spike.current - params.v_th) > epsilon,
+        safe_denominator = jnp.where(
+            jnp.abs(spike.current - params.v_th) > epsilon,
             spike.current - params.v_th,
             epsilon,
         )
-        new_term = np.dot(
+        new_term = jnp.dot(
             weights.recurrent[index_for_layer, :],
             (adjoint_state.neuron_state.V - adjoint_state.neuron_state.I),
         )
@@ -184,7 +184,7 @@ def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
             ),
             grads.recurrent,
         )
-        dt = np.dot(
+        dt = jnp.dot(
             weights.input[index_for_layer],
             (adjoint_state.neuron_state.V - adjoint_state.neuron_state.I),
         )
@@ -215,16 +215,16 @@ def adjoint_transition_with_recurrence(  # pylint: disable=too-many-arguments
 
 
 def adjoint_lif_exponential_flow(params: LIFParameters):
-    A = np.array(
+    A = jnp.array(
         [[- 1. / params.tau_mem, 0.0],
          [1. / params.tau_syn, -1. / params.tau_syn]])
     return exponential_flow(A)
 
 
 def adjoint_lif_dynamic(params: LIFParameters, lambda_0: jax.Array, t: float):
-    tau_exp = np.exp(-t / params.tau_mem)
-    syn_exp = np.exp(-t / params.tau_syn)
-    A = np.array(
+    tau_exp = jnp.exp(-t / params.tau_mem)
+    syn_exp = jnp.exp(-t / params.tau_syn)
+    A = jnp.array(
         [
             [tau_exp, 0],
             [
@@ -235,7 +235,7 @@ def adjoint_lif_dynamic(params: LIFParameters, lambda_0: jax.Array, t: float):
             ],
         ]
     )
-    return np.dot(A, lambda_0)
+    return jnp.dot(A, lambda_0)
 
 
 # define hybrid adjoint dynamics (EventProp)
@@ -249,7 +249,7 @@ def step_bwd(  # pylint: disable=too-many-locals
     (_, weights, layer_start), spike = res
     (adjoint_state, grads, _), adjoint_spike = g
 
-    reversed_time = t_max - np.minimum(spike.time, t_max)
+    reversed_time = t_max - jnp.minimum(spike.time, t_max)
     time_diff = reversed_time - adjoint_state.time
 
     # integrate lambdas to the spike
@@ -325,7 +325,7 @@ def construct_adjoint_apply_fn(
         layer_start: int
     ):
         state, spikes = jax.lax.scan(
-            step_fn, (s, weights, layer_start), np.arange(n_spikes))
+            step_fn, (s, weights, layer_start), jnp.arange(n_spikes))
         return state, spikes
 
     def custom_trajectory_fwd(*args):
@@ -357,8 +357,8 @@ def construct_adjoint_apply_fn(
         # input, e.g., not all input spikes are returned because n_spikes is
         # too small
         n_spikes = len(adjoint_state.input_queue.spikes.time)
-        adjoint_state.input_queue.spikes.time = np.roll(
-            np.flip(adjoint_state.input_queue.spikes.time),
+        adjoint_state.input_queue.spikes.time = jnp.roll(
+            jnp.flip(adjoint_state.input_queue.spikes.time),
             -(n_spikes - (adjoint_state.input_queue.head % n_spikes)),
         )
 
@@ -386,9 +386,9 @@ def construct_adjoint_apply_fn(
             known_spikes = EventPropSpike(
                 time=known_spikes.time,
                 idx=known_spikes.idx,
-                current=np.zeros_like(known_spikes.time))
+                current=jnp.zeros_like(known_spikes.time))
             input_spikes = jax.tree_util.tree_map(
-                lambda x, y: np.concatenate([x, y], axis=0),
+                lambda x, y: jnp.concatenate([x, y], axis=0),
                 input_spikes, known_spikes)
 
         this_layer_weights = weights[layer_index]
@@ -398,9 +398,9 @@ def construct_adjoint_apply_fn(
         input_spikes = filter_spikes(input_spikes, layer_start - input_size)
 
         s = StepState(
-            neuron_state=LIFState(np.zeros(size), np.zeros(size)),
-            spike_times=-1 * np.ones(size),
-            spike_mask=np.zeros(size, dtype=bool),
+            neuron_state=LIFState(jnp.zeros(size), jnp.zeros(size)),
+            spike_times=-1 * jnp.ones(size),
+            spike_mask=jnp.zeros(size, dtype=bool),
             time=0.0,
             input_queue=InputQueue(input_spikes))
 

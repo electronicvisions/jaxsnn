@@ -5,8 +5,9 @@ from functools import partial
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+import numpy as np
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset.yinyang import yinyang_dataset
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
@@ -128,8 +129,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         def loss_fn(apply_fn, weights, times, idxs, currents):
             input_spikes = EventPropSpike(times, idxs, currents)
             ret = apply_fn(weights, input_spikes)
-            return np.sum(
-                np.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
+            return jnp.sum(
+                jnp.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
 
         loss_fn_1 = partial(loss_fn, apply_fn_1)
         loss_fn_2 = partial(loss_fn, apply_fn_2)
@@ -158,22 +159,22 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
             trainset[0].time[sample_idx],
             trainset[0].idx[sample_idx],
             trainset[0].current[sample_idx])
-        
+
         _, axs = plt.subplots(nrows=4)
         axs[0].plot(grad_t_1)
         axs[0].plot(grad_t_2)
-        axs[1].plot(np.abs(grad_t_1 - grad_t_2))
+        axs[1].plot(jnp.abs(grad_t_1 - grad_t_2))
         axs[0].set_ylabel("grad_t_1, grad_t_2")
         axs[1].set_ylabel("|grad_t_1 - grad_t_2|")
         axs[1].set_xlabel("Flat index")
         axs[2].plot(grad_w_1[0].input.reshape(-1))
         axs[2].plot(grad_w_2[0].input.reshape(-1))
-        axs[3].plot(np.abs(grad_w_1[0].input - grad_w_2[0].input).reshape(-1))
+        axs[3].plot(jnp.abs(grad_w_1[0].input - grad_w_2[0].input).reshape(-1))
         axs[2].set_ylabel("grad_w_1, grad_w_2")
         axs[3].set_ylabel("|grad_w_1 - grad_w_2|")
         axs[3].set_xlabel("Flat index")
         plt.savefig(self.plot_path.joinpath("./lif_vs_eventproplif_grads.png"))
-        
+
         self.assertIsNone(assert_array_almost_equal(
             grad_t_1, grad_t_2, 1))
         self.assertIsNone(assert_array_almost_equal(
@@ -328,7 +329,7 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         def loss_fn(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(np.where(ret[-1][1].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][1].idx >= hidden_size + input_size,
                                    ret[-1][1].time, 0))
 
         loss_fn_1 = partial(loss_fn, apply_fn_1)
@@ -381,7 +382,7 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         def loss_fn_batched(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = jax.vmap(apply_fn, in_axes=(None, 0))(weights, input_spikes)
-            return np.sum(np.where(ret[-1][1].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][1].idx >= hidden_size + input_size,
                                    ret[-1][1].time, 0))
 
         # test multiple iterations
@@ -482,7 +483,7 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
 
         # Make sure we actually have more then one spike for any neuron
-        _, counts = np.unique(res_1[0].idx, return_counts=True)
+        _, counts = jnp.unique(res_1[0].idx, return_counts=True)
         self.assertTrue(True in (counts > 1))
 
         # they all produce the same output
@@ -500,8 +501,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         def loss_fn(apply_fn, weights, times, idxs, currents):
             input_spikes = EventPropSpike(times, idxs, currents)
             ret = apply_fn(weights, input_spikes)
-            return np.sum(
-                np.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
+            return jnp.sum(
+                jnp.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
 
         loss_fn_1 = partial(loss_fn, apply_fn_1)
         loss_fn_2 = partial(loss_fn, apply_fn_2)
@@ -664,7 +665,7 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
 
         # Make sure we actually have more then one spike for any neuron
-        _, counts = np.unique(res_1[0].idx, return_counts=True)
+        _, counts = jnp.unique(res_1[0].idx, return_counts=True)
         self.assertTrue(True in (counts > 1))
 
         # they all produce the same output
@@ -696,7 +697,7 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         def loss_fn(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(np.where(ret[-1][1].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][1].idx >= hidden_size + input_size,
                                    ret[-1][1].time, 0))
 
         loss_fn_1 = partial(loss_fn, apply_fn_1)
@@ -749,7 +750,7 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         def loss_fn_batched(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = jax.vmap(apply_fn, in_axes=(None, 0))(weights, input_spikes)
-            return np.sum(np.where(ret[-1][1].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][1].idx >= hidden_size + input_size,
                                    ret[-1][1].time, 0))
 
         # test multiple iterations

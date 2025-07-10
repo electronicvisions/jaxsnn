@@ -1,7 +1,7 @@
 from functools import partial
-import numpy as np
 
 import jax
+import numpy as np
 import jax.numpy as jnp
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.flow import exponential_flow
@@ -47,7 +47,7 @@ class TestStep(unittest.TestCase):
         step_fn = partial(step, dynamics, transition, t_max, batched_solver)
 
         state = StepState(
-            neuron_state=LIFState(jnp.zeros(n_hidden), np.zeros(n_hidden)),
+            neuron_state=LIFState(jnp.zeros(n_hidden), jnp.zeros(n_hidden)),
             spike_times=-1 * jnp.ones(n_hidden),
             spike_mask=jnp.zeros(n_hidden, dtype=bool),
             time=0.0,
@@ -96,7 +96,7 @@ class TestStep(unittest.TestCase):
         state = StepState(
             neuron_state=LIFState(
                 jnp.zeros(n_hidden), jnp.zeros(n_hidden)),
-            spike_times=-1 * np.ones(n_hidden),
+            spike_times=-1 * jnp.ones(n_hidden),
             spike_mask=jnp.zeros(n_hidden, dtype=bool),
             time=0.0,
             input_queue=InputQueue(spikes))
@@ -108,7 +108,7 @@ class TestStep(unittest.TestCase):
         self.assertEqual(step_state.input_queue.head, 1)
         self.assertIsNone(
             np.testing.assert_array_equal(
-                step_state.neuron_state.I, np.ones(2)))
+                step_state.neuron_state.I, jnp.ones(2)))
 
         # input spike of previous layer, neuron current should not increase
         state = StepState(
@@ -127,7 +127,7 @@ class TestStep(unittest.TestCase):
         self.assertEqual(step_state.input_queue.head, 1)
         self.assertIsNone(
             np.testing.assert_array_equal(
-                step_state.neuron_state.I, np.zeros(2)))
+                step_state.neuron_state.I, jnp.zeros(2)))
 
 
 if __name__ == '__main__':

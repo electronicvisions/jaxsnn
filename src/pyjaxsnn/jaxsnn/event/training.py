@@ -2,7 +2,7 @@
 from typing import Callable, Tuple
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 import optax
 import jaxsnn
 from jaxsnn.base.params import LIFParameters
@@ -56,7 +56,7 @@ def epoch(
         f"Epoch {i}, "
         f"loss: {test_result[0]:.4f}, "
         f"acc: {test_result[1]:.3f}, "
-        f"spikes: {np.sum(recording[1][1][0].idx >= 0, axis=-1).mean():.1f}, "
+        f"spikes: {jnp.sum(recording[1][1][0].idx >= 0, axis=-1).mean():.1f}, "
         f"grad: {grad[0].input.mean():.5f}, "
         f"in {duration:.2f} s"
     )

@@ -1,7 +1,7 @@
 from typing import Optional, Tuple, Callable
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import EventPropSpike
 
 
@@ -11,20 +11,20 @@ def spatio_temporal_encode(
     duplication: Optional[int],
     duplicate_neurons: bool,
 ) -> EventPropSpike:
-    spike_idx = np.arange(inputs.shape[-1])
+    spike_idx = jnp.arange(inputs.shape[-1])
 
     if duplication is not None:
-        inputs = np.repeat(inputs, duplication, axis=-1)
+        inputs = jnp.repeat(inputs, duplication, axis=-1)
         if duplicate_neurons:
             # duplicate over multiple neurons
-            spike_idx = np.arange(spike_idx.shape[0] * duplication)
+            spike_idx = jnp.arange(spike_idx.shape[0] * duplication)
         else:
-            spike_idx = np.repeat(spike_idx, duplication, axis=-1)
+            spike_idx = jnp.repeat(spike_idx, duplication, axis=-1)
 
     assert spike_idx.shape == inputs.shape
 
     # sort spikes
-    sort_idx = np.argsort(inputs, axis=-1)
+    sort_idx = jnp.argsort(inputs, axis=-1)
     inputs = inputs[sort_idx]
     spike_idx = spike_idx[sort_idx]
 
@@ -32,7 +32,7 @@ def spatio_temporal_encode(
 
     # Add zero current
     input_spikes = EventPropSpike(
-        inputs, spike_idx, np.zeros_like(spike_idx, dtype=inputs.dtype)
+        inputs, spike_idx, jnp.zeros_like(spike_idx, dtype=inputs.dtype)
     )
     return input_spikes
 
@@ -43,8 +43,8 @@ def target_temporal_encode(
     wrong_target_time: float,
     n_classes: int
 ) -> jax.Array:
-    encoding = np.full((n_classes, n_classes), wrong_target_time)
-    diag_indices = np.diag_indices_from(encoding)
+    encoding = jnp.full((n_classes, n_classes), wrong_target_time)
+    diag_indices = jnp.diag_indices_from(encoding)
     encoding = encoding.at[diag_indices].set(correct_target_time)
 
     target_spike_times = encoding[targets]
@@ -57,7 +57,7 @@ def target_one_hot_encode(
     scale: float,
     n_classes: int
 ) -> jax.Array:
-    encoding = np.zeros((n_classes))
+    encoding = jnp.zeros((n_classes))
     encoding = encoding.at[target].set(scale)
     return encoding
 

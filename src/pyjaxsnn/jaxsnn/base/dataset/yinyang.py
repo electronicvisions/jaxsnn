@@ -1,20 +1,20 @@
 from typing import Optional, Tuple
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jax import random
 
 
 def outside_circle(x_coord: float, y_coord: float, r_big) -> bool:
-    return np.sqrt((x_coord - r_big) ** 2 + (y_coord - r_big) ** 2) >= r_big
+    return jnp.sqrt((x_coord - r_big) ** 2 + (y_coord - r_big) ** 2) >= r_big
 
 
 def dist_to_right_dot(x_coord: int, y_coord: int, r_big) -> float:
-    return np.sqrt((x_coord - 1.5 * r_big) ** 2 + (y_coord - r_big) ** 2)
+    return jnp.sqrt((x_coord - 1.5 * r_big) ** 2 + (y_coord - r_big) ** 2)
 
 
 def dist_to_left_dot(x_coord: int, y_coord: int, r_big) -> float:
-    return np.sqrt((x_coord - 0.5 * r_big) ** 2 + (y_coord - r_big) ** 2)
+    return jnp.sqrt((x_coord - 0.5 * r_big) ** 2 + (y_coord - r_big) ** 2)
 
 
 def get_class(coords, r_big: float, r_small: float):
@@ -25,13 +25,13 @@ def get_class(coords, r_big: float, r_small: float):
     d_right = dist_to_right_dot(x_coord, y_coord, r_big)
     d_left = dist_to_left_dot(x_coord, y_coord, r_big)
     criterion1 = d_right <= r_small
-    criterion2 = np.logical_and(d_left > r_small, d_left <= 0.5 * r_big)
-    criterion3 = np.logical_and(y_coord > r_big, d_right > 0.5 * r_big)
-    is_yin = np.logical_or(np.logical_or(criterion1, criterion2), criterion3)
-    is_circles = np.logical_or(d_right < r_small, d_left < r_small)
+    criterion2 = jnp.logical_and(d_left > r_small, d_left <= 0.5 * r_big)
+    criterion3 = jnp.logical_and(y_coord > r_big, d_right > 0.5 * r_big)
+    is_yin = jnp.logical_or(jnp.logical_or(criterion1, criterion2), criterion3)
+    is_circles = jnp.logical_or(d_right < r_small, d_left < r_small)
     return (
         is_circles.astype(int) * 2
-        + np.invert(is_circles).astype(int) * is_yin.astype(int)
+        + jnp.invert(is_circles).astype(int) * is_yin.astype(int)
         + outside_circle(x_coord, y_coord, r_big) * 10
     )
 
@@ -53,8 +53,8 @@ def yinyang_dataset(
 
     # Evenly distribute classes
     n_per_class = [size // 3, size // 3, size - 2 * (size // 3)]
-    idx = np.concatenate(
-        [np.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)]
+    idx = jnp.concatenate(
+        [jnp.where(classes == i)[0][:n] for i, n in enumerate(n_per_class)]
     )
 
     idx = random.permutation(subkey, idx, axis=0)
@@ -62,10 +62,10 @@ def yinyang_dataset(
     classes = classes[idx]
 
     if mirror:
-        coords = np.hstack((coords, 1 - coords))
+        coords = jnp.hstack((coords, 1 - coords))
 
     if bias_spike is not None:
-        bias = np.full((len(coords), 1), bias_spike)
-        coords = np.hstack((coords, bias))
+        bias = jnp.full((len(coords), 1), bias_spike)
+        coords = jnp.hstack((coords, bias))
 
     return coords, classes, "yinyang"

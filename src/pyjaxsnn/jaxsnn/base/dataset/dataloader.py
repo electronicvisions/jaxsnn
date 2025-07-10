@@ -2,7 +2,7 @@ from typing import Tuple, Optional, Any
 
 import jax
 from jax import random
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import EventPropSpike
 
 Dataset = Tuple[EventPropSpike, jax.Array, str]
@@ -18,7 +18,7 @@ def data_loader(
     permutation = (
         random.permutation(rng, total_length)
         if rng is not None
-        else np.arange(total_length)
+        else jnp.arange(total_length)
     )
     # Perform permutation of dataset
     dataset = jax.tree_map(lambda x: x[permutation], dataset)

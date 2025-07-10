@@ -1,7 +1,7 @@
 from typing import Callable, Tuple
 
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.event.types import EventPropSpike, Solver, StepState
 from jaxsnn.event.stepping.types import StepInput
 
@@ -34,7 +34,7 @@ def step(  # pylint: disable=unused-argument,too-many-locals
 
         TODO: Think about spikes later than t_max
         """
-        idx = np.argmin(current_state.spike_times)
+        idx = jnp.argmin(current_state.spike_times)
         time = current_state.spike_times[idx]
 
         no_event = time >= t_max
@@ -56,15 +56,15 @@ def step(  # pylint: disable=unused-argument,too-many-locals
     def find_new_events(current_state):
         next_times = solver(
             current_state.neuron_state, current_state.time, t_max)
-        next_internal_idx = np.argmin(next_times)
-        next_internal_time = np.minimum(next_times[next_internal_idx], t_max)
+        next_internal_idx = jnp.argmin(next_times)
+        next_internal_time = jnp.minimum(next_times[next_internal_idx], t_max)
 
         # determine spike nature and spike time
         input_time = jax.lax.cond(
             current_state.input_queue.is_empty,
             lambda: t_max,
             lambda: current_state.input_queue.peek().time)
-        t_dyn = np.minimum(next_internal_time, input_time)
+        t_dyn = jnp.minimum(next_internal_time, input_time)
 
         # comparing only makes sense if exactly dt is returned from solver
         spike_in_layer = next_internal_time < input_time
@@ -77,9 +77,9 @@ def step(  # pylint: disable=unused-argument,too-many-locals
         # Detect where neurons have spiked
         # TODO: EA 2025-04-23: This is problematic for hardware because the
         # threshold test is not working reliably anymore
-        spike_mask = np.zeros_like(
+        spike_mask = jnp.zeros_like(
             current_state.spike_mask).at[next_internal_idx].set(True)
-        spike_mask = np.where(
+        spike_mask = jnp.where(
             # Sometimes other neurons cross threshold in evolved state because
             # of numerical differences
             (evolved_neuron_state.V >= 1.)
@@ -87,9 +87,9 @@ def step(  # pylint: disable=unused-argument,too-many-locals
             # multiple neurons spike simultaneously
             | (next_times == next_internal_time),
             True, spike_mask)
-        spike_mask = np.where(
+        spike_mask = jnp.where(
             no_event | ~spike_in_layer,
-            np.zeros_like(current_state.spike_times, dtype=bool),
+            jnp.zeros_like(current_state.spike_times, dtype=bool),
             spike_mask)
 
         # Create new event
@@ -135,7 +135,7 @@ def step(  # pylint: disable=unused-argument,too-many-locals
         return (transitioned_state, weights, layer_start), new_event
 
     return jax.lax.cond(
-        np.any(state.spike_mask),
+        jnp.any(state.spike_mask),
         return_existing_event,
         find_new_events,
         state)

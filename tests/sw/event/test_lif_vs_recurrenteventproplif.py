@@ -5,8 +5,9 @@ from functools import partial
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+import numpy as np
 import jax
-import jax.numpy as np
+import jax.numpy as jnp
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import yinyang_dataset
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
@@ -129,8 +130,8 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         def loss_fn(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(
-                np.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
+            return jnp.sum(
+                jnp.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
 
         loss_fn_1 = partial(loss_fn, apply_fn_1)
         loss_fn_2 = partial(loss_fn, apply_fn_2)
@@ -265,50 +266,50 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
             trainset[1][0])
         res_1 = apply_fn_1(weights_1, sample[0])[-1]
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
-        
+
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[0].time[res_1[0].idx >= input_size]),
-            np.sort(res_2[0].time[
+            jnp.sort(res_1[0].time[res_1[0].idx >= input_size]),
+            jnp.sort(res_2[0].time[
                 (res_2[0].idx >= input_size) &
                 (res_2[0].idx < hidden_size + input_size)]), 4))
 
         self.assertIsNone(assert_array_equal(
-            np.sort(res_1[0].idx[res_1[0].idx >= input_size]),
-            np.sort(res_2[0].idx[
+            jnp.sort(res_1[0].idx[res_1[0].idx >= input_size]),
+            jnp.sort(res_2[0].idx[
                 (res_2[0].idx >= input_size) &
                 (res_2[0].idx < hidden_size + input_size)])))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[0].current[res_1[0].idx >= input_size]),
-            np.sort(res_2[0].current[
+            jnp.sort(res_1[0].current[res_1[0].idx >= input_size]),
+            jnp.sort(res_2[0].current[
                 (res_2[0].idx >= input_size) &
                 (res_2[0].idx < hidden_size + input_size)]), 1))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[1].time[res_1[1].idx >= input_size + hidden_size]),
-            np.sort(res_2[0].time[res_2[0].idx >= input_size + hidden_size]),
+            jnp.sort(res_1[1].time[res_1[1].idx >= input_size + hidden_size]),
+            jnp.sort(res_2[0].time[res_2[0].idx >= input_size + hidden_size]),
             4))
 
         self.assertIsNone(assert_array_equal(
-            np.sort(res_1[1].idx[res_1[1].idx >= input_size + hidden_size]),
-            np.sort(res_2[0].idx[res_2[0].idx >= input_size + hidden_size])))
+            jnp.sort(res_1[1].idx[res_1[1].idx >= input_size + hidden_size]),
+            jnp.sort(res_2[0].idx[res_2[0].idx >= input_size + hidden_size])))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[1].current[res_1[1].idx >= input_size + hidden_size]),
-            np.sort(res_2[0].current[res_2[0].idx >= input_size + hidden_size]),
+            jnp.sort(res_1[1].current[res_1[1].idx >= input_size + hidden_size]),
+            jnp.sort(res_2[0].current[res_2[0].idx >= input_size + hidden_size]),
             0))
 
         # now check grads
         def loss_fn1(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(np.where(ret[-1][1].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][1].idx >= hidden_size + input_size,
                                    ret[-1][1].time, 0))
 
         def loss_fn2(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(np.where(ret[-1][0].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][0].idx >= hidden_size + input_size,
                                    ret[-1][0].time, 0))
 
         loss_fn_1 = partial(loss_fn1, apply_fn_1)
@@ -368,7 +369,7 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         def loss_fn_batched(apply_fn, idx, weights, batch):
             input_spikes, _ = batch
             ret = jax.vmap(apply_fn, in_axes=(None, 0))(weights, input_spikes)
-            return np.sum(np.where(ret[-1][idx].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][idx].idx >= hidden_size + input_size,
                                    ret[-1][idx].time, 0))
 
         # test multiple iterations
@@ -470,7 +471,7 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
 
         # Make sure we actually have more then one spike for any neuron
-        _, counts = np.unique(res_1[0].idx, return_counts=True)
+        _, counts = jnp.unique(res_1[0].idx, return_counts=True)
         self.assertTrue(True in (counts > 1))
 
         # they all produce the same output
@@ -488,8 +489,8 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         def loss_fn(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(
-                np.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
+            return jnp.sum(
+                jnp.where(ret[-1][0].idx >= input_size, ret[-1][0].time, 0))
 
         loss_fn_1 = partial(loss_fn, apply_fn_1)
         loss_fn_2 = partial(loss_fn, apply_fn_2)
@@ -626,52 +627,52 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
 
         # Make sure we actually have more then one spike for any neuron
-        _, counts = np.unique(res_1[0].idx, return_counts=True)
+        _, counts = jnp.unique(res_1[0].idx, return_counts=True)
         self.assertTrue(True in (counts > 1))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[0].time[res_1[0].idx >= input_size]),
-            np.sort(res_2[0].time[
+            jnp.sort(res_1[0].time[res_1[0].idx >= input_size]),
+            jnp.sort(res_2[0].time[
                 (res_2[0].idx >= input_size) &
                 (res_2[0].idx < hidden_size + input_size)]), 4))
 
         self.assertIsNone(assert_array_equal(
-            np.sort(res_1[0].idx[res_1[0].idx >= input_size]),
-            np.sort(res_2[0].idx[
+            jnp.sort(res_1[0].idx[res_1[0].idx >= input_size]),
+            jnp.sort(res_2[0].idx[
                 (res_2[0].idx >= input_size) &
                 (res_2[0].idx < hidden_size + input_size)])))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[0].current[res_1[0].idx >= input_size]),
-            np.sort(res_2[0].current[
+            jnp.sort(res_1[0].current[res_1[0].idx >= input_size]),
+            jnp.sort(res_2[0].current[
                 (res_2[0].idx >= input_size) &
                 (res_2[0].idx < hidden_size + input_size)]), 1))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[1].time[res_1[1].idx >= input_size + hidden_size]),
-            np.sort(res_2[0].time[res_2[0].idx >= input_size + hidden_size]),
+            jnp.sort(res_1[1].time[res_1[1].idx >= input_size + hidden_size]),
+            jnp.sort(res_2[0].time[res_2[0].idx >= input_size + hidden_size]),
             4))
 
         self.assertIsNone(assert_array_equal(
-            np.sort(res_1[1].idx[res_1[1].idx >= input_size + hidden_size]),
-            np.sort(res_2[0].idx[res_2[0].idx >= input_size + hidden_size])))
+            jnp.sort(res_1[1].idx[res_1[1].idx >= input_size + hidden_size]),
+            jnp.sort(res_2[0].idx[res_2[0].idx >= input_size + hidden_size])))
 
         self.assertIsNone(assert_array_almost_equal(
-            np.sort(res_1[1].current[res_1[1].idx >= input_size + hidden_size]),
-            np.sort(res_2[0].current[res_2[0].idx >= input_size + hidden_size]),
+            jnp.sort(res_1[1].current[res_1[1].idx >= input_size + hidden_size]),
+            jnp.sort(res_2[0].current[res_2[0].idx >= input_size + hidden_size]),
             0))
 
         # now check grads
         def loss_fn1(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(np.where(ret[-1][1].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][1].idx >= hidden_size + input_size,
                                    ret[-1][1].time, 0))
 
         def loss_fn2(apply_fn, weights, batch):
             input_spikes, _ = batch
             ret = apply_fn(weights, input_spikes)
-            return np.sum(np.where(ret[-1][0].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][0].idx >= hidden_size + input_size,
                                    ret[-1][0].time, 0))
 
         loss_fn_1 = partial(loss_fn1, apply_fn_1)
@@ -732,7 +733,7 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         def loss_fn_batched(apply_fn, idx, weights, batch):
             input_spikes, _ = batch
             ret = jax.vmap(apply_fn, in_axes=(None, 0))(weights, input_spikes)
-            return np.sum(np.where(ret[-1][idx].idx >= hidden_size + input_size,
+            return jnp.sum(jnp.where(ret[-1][idx].idx >= hidden_size + input_size,
                                    ret[-1][idx].time, 0))
 
         # test multiple iterations
