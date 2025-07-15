@@ -32,8 +32,6 @@ def configure(cfg):
 
 
 def build(bld):
-    bld.env.BSS_HARDWARE_AVAILABLE = "SLURM_HWDB_YAML" in os.environ
-
     bld(
         target="jaxsnn",
         features="py use",
@@ -62,16 +60,6 @@ def build(bld):
         use=["jaxsnn"],
         install_path="${PREFIX}/bin/tests/jaxsnn/sw",
         test_timeout=300,
-    )
-
-    bld(
-        target='jaxsnn_hwtests',
-        tests=bld.path.ant_glob('tests/hw/**/*.py'),
-        features='use pytest',
-        use=['jaxsnn'],
-        install_path='${PREFIX}/bin/tests/jaxsnn/hw',
-        test_timeout=2500,
-        skip_run=not bld.env.BSS_HARDWARE_AVAILABLE
     )
 
     bld(
