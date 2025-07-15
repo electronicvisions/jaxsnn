@@ -1,4 +1,5 @@
 from jax import config
+from jaxsnn.event.from_nir import from_nir, ConversionConfig
 
 try:
     # Try to import pylogging
