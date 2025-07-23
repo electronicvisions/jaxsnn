@@ -5,7 +5,7 @@ import numpy as np
 import nir
 from jaxsnn.base.compose import serial
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
-    LIF, HardwareLIF, LIFParameters)
+    LIF, EventPropLIF, HardwareLIF, LIFParameters)
 from jaxsnn.event.types import WeightInput
 
 
@@ -26,11 +26,14 @@ class ConversionConfig:
         n_spikes: Dictionary with number of spikes to simulate per layer.
         external: If True, forward pass is executed externally.
         duplication: Number of duplications for the external hardware LIF.
+        solver: Solver to use for the LIF neuron. Either "eventprop" for the
+        EventProp algorithm or "analytical" for the time-to-first-spike solver.
     """
     t_max: float
     n_spikes: Dict[str, int]
     external: bool = False
     duplication: Optional[int] = None
+    solver: str = "eventprop"
 
 
 def bias_is_zero(obj):
@@ -97,7 +100,7 @@ def get_prev_node(graph, node_key):
 def convert_cuba_lif(graph, node_key, config: ConversionConfig):  # pylint: disable=too-many-locals
     '''
     Convert nir.CubaLIF to jaxsnn representation (init_fn, apply_fn)
-    jaxsnn representation is either a HardwareLIF or LIF layer
+    jaxsnn representation is either a HardwareLIF, EventPropLIF or LIF layer
     '''
     node = graph.nodes[node_key]
     n_spikes = config.n_spikes[node_key]
@@ -123,9 +126,18 @@ def convert_cuba_lif(graph, node_key, config: ConversionConfig):  # pylint: disa
     )
 
     if config.external:
+        assert config.solver == "eventprop", \
+            "For external inputs, only the EventProp solver is supported"
         CubaLIF = HardwareLIF  # pylint: disable=invalid-name
     else:
-        CubaLIF = LIF  # pylint: disable=invalid-name
+        assert config.solver in ["eventprop", "analytical"], \
+            f"Solver {config.solver} not supported. Use 'eventprop' or \
+            'analytical'."
+
+        if config.solver == "analytical":
+            CubaLIF = LIF  # pylint: disable=invalid-name
+        elif config.solver == "eventprop":
+            CubaLIF = EventPropLIF  # pylint: disable=invalid-name
 
     init, apply = CubaLIF(
         size=size,
@@ -149,6 +161,7 @@ def from_nir(graph: nir.NIRGraph, config: ConversionConfig):  # pylint: disable=
     - CubaLIF and Linear layers are supported
     - Affine layers with bias==0 are currently supported
     - In terms of parameters, only homogeneous layers are supported
+    - The analytical solver is only supported for non-external inputs
 
     Example:
     ```python
