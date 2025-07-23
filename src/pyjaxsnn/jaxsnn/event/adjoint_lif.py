@@ -338,8 +338,7 @@ def construct_adjoint_apply_fn(
 
         # EA, 2025-06-23: For jax 0.5.2 input_queue.head (int) will be
         #   up-casted to float0, which breaks arithmetic operations
-        adjoint_state.input_queue.head = adjoint_state.input_queue.head.astype(
-            int)
+        adjoint_state.input_queue.head = 0
 
         (adjoint_state, grads, layer_start), _ = jax.lax.scan(
             partial(step_bwd_wrapper, weights),
