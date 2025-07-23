@@ -20,7 +20,7 @@ class YinYangRecurrentEventPropExampleTest(unittest.TestCase):
             "--tau-syn=5e-03",
             "--threshold=1.0",
             "--n-spikes-output=53",
-            "--epochs=10",
+            "--epochs=30",
             "--batch-size=64",
             "--lr=0.005",
             "--lr-decay=0.99",
