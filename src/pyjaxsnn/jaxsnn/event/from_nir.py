@@ -12,7 +12,7 @@ from jaxsnn.event.types import WeightInput
 NUMBER_TYPES = (int, float, np.float32)
 
 DUMMY_LAYER = (nir.Input, nir.Output)
-NEURON_LAYER = (nir.CubaLIF, nir.IF, nir.LIF, nir.LI)
+NEURON_LAYER = (nir.CubaLIF,)
 SYN_LAYER = (nir.Affine, nir.Linear)
 
 
