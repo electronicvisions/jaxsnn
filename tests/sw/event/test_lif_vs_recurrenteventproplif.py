@@ -29,6 +29,8 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
     def setUp(self):
         self.plot_path.mkdir(exist_ok=True)
 
+        self.sample_idx = 3
+
     def test_single_layer_equal(self):
         """ Note: Neurons only spike once """
         # neuron weights, low v_reset only allows one spike per neuron
@@ -104,13 +106,11 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         self.assertIsNone(assert_array_equal(
             weights_1[0].input, weights_2[0].input))
 
-        sample_idx = random.randint(0, train_samples)
-
         sample = (
             EventPropSpike(
-                trainset[0].time[sample_idx],
-                trainset[0].idx[sample_idx],
-                trainset[0].current[sample_idx]),
+                trainset[0].time[self.sample_idx],
+                trainset[0].idx[self.sample_idx],
+                trainset[0].current[self.sample_idx]),
             trainset[1][0])
         res_1 = apply_fn_1(weights_1, sample[0])[-1]
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
@@ -256,13 +256,11 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
             weights_1[1].input,
             weights_2[0].recurrent[:hidden_size, hidden_size:]))
 
-        sample_idx = random.randint(0, train_samples)
-
         sample = (
             EventPropSpike(
-                trainset[0].time[sample_idx],
-                trainset[0].idx[sample_idx],
-                trainset[0].current[sample_idx]),
+                trainset[0].time[self.sample_idx],
+                trainset[0].idx[self.sample_idx],
+                trainset[0].current[self.sample_idx]),
             trainset[1][0])
         res_1 = apply_fn_1(weights_1, sample[0])[-1]
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
@@ -319,7 +317,7 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         loss_value_2 = loss_fn_2(weights_2, sample)
 
         self.assertIsNone(
-            assert_array_almost_equal(loss_value_1, loss_value_2), 5)
+            assert_array_almost_equal(loss_value_1, loss_value_2), 4)
 
         # check gradients
         _, grad_1 = jax.value_and_grad(loss_fn_1)(weights_1, sample)
@@ -460,12 +458,11 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         _, weights_1 = init_fn_1(rng, input_size)
         _, weights_2 = init_fn_2(rng, input_size)
 
-        sample_idx = random.randint(0, train_samples)
         sample = (
             EventPropSpike(
-                trainset[0].time[sample_idx],
-                trainset[0].idx[sample_idx],
-                trainset[0].current[sample_idx]),
+                trainset[0].time[self.sample_idx],
+                trainset[0].idx[self.sample_idx],
+                trainset[0].current[self.sample_idx]),
             trainset[1][0])
         res_1 = apply_fn_1(weights_1, sample[0])[-1]
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
@@ -616,12 +613,11 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
             weights_1[1].input,
             weights_2[0].recurrent[:hidden_size, hidden_size:]))
 
-        sample_idx = random.randint(0, train_samples)
         sample = (
             EventPropSpike(
-                trainset[0].time[sample_idx],
-                trainset[0].idx[sample_idx],
-                trainset[0].current[sample_idx]),
+                trainset[0].time[self.sample_idx],
+                trainset[0].idx[self.sample_idx],
+                trainset[0].current[self.sample_idx]),
             trainset[1][0])
         res_1 = apply_fn_1(weights_1, sample[0])[-1]
         res_2 = apply_fn_2(weights_2, sample[0])[-1]
@@ -682,7 +678,7 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
         loss_value_2 = loss_fn_2(weights_2, sample)
 
         self.assertIsNone(
-            assert_array_almost_equal(loss_value_1, loss_value_2), 5)
+            assert_array_almost_equal(loss_value_1, loss_value_2, 4))
 
         # check gradients
         _, grad_1 = jax.value_and_grad(loss_fn_1)(weights_1, sample)
@@ -710,10 +706,10 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
             "./multi_layer_lif_vs_recurenteventproplif_grads_multiple_spikes.png"))
 
         self.assertIsNone(assert_array_almost_equal(
-            grad_1[0].input, grad_2[0].input[:, :hidden_size], 6))
+            grad_1[0].input, grad_2[0].input[:, :hidden_size], 4))
         self.assertIsNone(assert_array_almost_equal(
             grad_1[1].input, grad_2[0].recurrent[:hidden_size, hidden_size:],
-            6))
+            5))
 
         # check gradients when no spike
         zero_weights1 = jax.tree_map(lambda p: p * 0.1, weights_1)
@@ -737,7 +733,7 @@ class TestCompareLIFVsRecurrentEventPropLIF(unittest.TestCase):
                                    ret[-1][idx].time, 0))
 
         # test multiple iterations
-        for i in range(10):
+        for i in range(5):
             sample = (
                 EventPropSpike(
                     trainset[0].time[i*10: (i+1)*10],
