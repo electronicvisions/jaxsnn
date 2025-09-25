@@ -7,6 +7,7 @@ Once the information about the synaptic current is also returned with the
 event-based observations from BSS-2, this second forward pass in software
 can be emitted.
 """
+from typing import Callable, List, Tuple
 import argparse
 from functools import partial
 
@@ -27,10 +28,24 @@ from jaxsnn.event.hardware.neuron import Neuron
 from jaxsnn.event.hardware.utils import add_linear_noise, sort_batch
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
     HardwareRecurrentLIF, LIFParameters)
-from jaxsnn.event.loss import (
-    loss_and_acc_scan, loss_wrapper, mse_loss)
-from jaxsnn.event.types import Spike
+from jaxsnn.event.loss import mse_loss
+from jaxsnn.event.types import Spike, Weight, EventPropSpike
 from jaxsnn.event.hardware.calib import WaferConfig
+from jaxsnn.examples.event.utils import loss_wrapper
+
+
+def loss_and_acc_scan(
+    loss_fn: Callable,
+    weights: List[Weight],
+    dataset: Tuple[EventPropSpike, jax.Array],
+) -> Tuple:
+    weights, (loss, (t_first_spike, recording)) = custom_lax.scan(
+        loss_fn, weights, dataset
+    )
+    accuracy = jnp.argmin(dataset[1], axis=-1) == jnp.argmin(
+        t_first_spike, axis=-1
+    )
+    return jnp.mean(loss), jnp.mean(accuracy), t_first_spike, recording
 
 
 def get_parser() -> argparse.ArgumentParser:

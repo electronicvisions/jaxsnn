@@ -1,5 +1,5 @@
 # pylint: disable=logging-fstring-interpolation
-from typing import Callable, Tuple
+from typing import Any, Callable, Tuple, List
 
 import jax
 import jax.numpy as jnp
@@ -7,8 +7,7 @@ import optax
 import jaxsnn
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.dataset import data_loader
-from jaxsnn.event.loss import loss_and_acc
-from jaxsnn.event.types import LossFn, OptState, Spike
+from jaxsnn.event.types import OptState, Spike
 from jaxsnn.event.utils import time_it
 
 
@@ -34,7 +33,10 @@ def update(
 
 def epoch(
     update_fn: Callable,
-    loss_fn: LossFn,
+    test_fn: Callable[
+        [List[jax.Array], Tuple[jax.Array, jax.Array]],
+        Tuple[Any, str]
+    ],
     trainset,
     testset,
     opt_state: OptState,
@@ -52,13 +54,11 @@ def epoch(
     opt_state = OptState(opt_state.opt_state, opt_state.weights, rng)
 
     testset_batched = data_loader(testset, 64, rng=test_rng)
-    test_result = loss_and_acc(loss_fn, opt_state.weights, testset_batched)
+    test_result, test_str = test_fn(opt_state.weights, testset_batched)
+    mean_spikes = jnp.sum(recording[1][1][0].idx >= 0, axis=-1).mean()
+    mean_grad = grad[0].input.mean()
     log.info(
-        f"Epoch {i}, "
-        f"loss: {test_result[0]:.4f}, "
-        f"acc: {test_result[1]:.3f}, "
-        f"spikes: {jnp.sum(recording[1][1][0].idx >= 0, axis=-1).mean():.1f}, "
-        f"grad: {grad[0].input.mean():.5f}, "
-        f"in {duration:.2f} s"
+        f"Epoch {i}, test: {test_str}, spikes: {mean_spikes:.1f}, "
+        f"grad: {mean_grad:.5f}, time: {duration:.2f}s"
     )
     return opt_state, (test_result, opt_state.weights, duration)

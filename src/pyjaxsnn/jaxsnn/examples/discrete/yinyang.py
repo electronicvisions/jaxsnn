@@ -1,3 +1,4 @@
+from typing import Callable, Dict, Tuple
 import argparse
 import time
 from functools import partial
@@ -14,7 +15,8 @@ from jaxsnn.discrete.modules.leaky_integrate import LI
 from jaxsnn.discrete.modules.leaky_integrate_and_fire import LIF
 from jaxsnn.discrete.decode import max_over_time_decode
 from jaxsnn.discrete.encode import spatio_temporal_encode
-from jaxsnn.discrete.loss import nll_loss, acc_and_loss
+from jaxsnn.discrete.loss import nll_loss
+from jaxsnn.discrete.encode import one_hot
 
 
 log = jaxsnn.get_logger("jaxsnn.examples.discrete.yinyang")
@@ -48,7 +50,16 @@ def get_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def train_step(optimizer, state, batch, loss_fn):
+def train_step(
+    apply_fn: Callable,
+    decoder: Callable,
+    optimizer: optax.GradientTransformation,
+    rho: float,
+    target_rate: float,
+    state: Tuple[optax.OptState, optax.Params],
+    batch: Tuple[Dict[str, jax.Array], jax.Array],
+) -> Tuple[Tuple[optax.OptState, optax.Params],
+           Tuple[jax.Array, Dict[str, jax.Array]]]:
     """A single step in the training process.
 
     1. Run the sample and calculate the gradient
@@ -58,14 +69,50 @@ def train_step(optimizer, state, batch, loss_fn):
     The step function is compliant with the syntax of `jaxlax.scan`,
     making it easy to be looped over.
     """
-    opt_state, weights, i = state
-    inputs, output = batch
+    opt_state, weights = state
+
+    def loss_fn(params, batch):
+        inputs, targets = batch
+        _, _, preds, recording = apply_fn(params, inputs, None, None)
+        preds_decoded = decoder(preds)
+        loss = nll_loss(preds_decoded, targets)
+        regularization = rho * jnp.sum(
+            jnp.square(jnp.sum(recording[0].z, axis=0) - target_rate)
+        )
+        return loss + regularization, recording
 
     (loss, recording), grads = jax.value_and_grad(loss_fn, has_aux=True)(
-        weights, (inputs, output), max_over_time_decode)
+        weights, batch,
+    )
     updates, opt_state = optimizer.update(grads, opt_state)
     weights = optax.apply_updates(weights, updates)
-    return (opt_state, weights, i + 1), recording
+
+    return (opt_state, weights), recording
+
+
+def test_step(
+    apply_fn: Callable,
+    decoder: Callable,
+    parameters: optax.Params,
+    testset: Tuple[Dict[str, jax.Array], jax.Array],
+) -> Tuple[jax.Array, jax.Array]:
+    """
+    Computes the accuracy and loss for a single test step.
+    :param apply_fn: The model's apply function.
+    :param decoder: The decoder function to compute loss and predictions from
+        model output.
+    :param parameters: The trained model parameters.
+    :param testset: A batch of test data, as a tuple of (inputs, targets).
+    :return: A tuple containing the computed accuracy and loss.
+    """
+    inputs, targets = testset
+    _, _, preds, _ = apply_fn(parameters, inputs, None, None)
+    preds_decoded = decoder(preds)
+    correct = (jnp.argmax(preds_decoded, axis=1) == targets).sum()
+    accuracy = correct / len(targets)
+    targets = one_hot(targets, preds_decoded.shape[1])
+    loss = -jnp.mean(jnp.sum(targets * preds_decoded, axis=1))
+    return jnp.mean(accuracy), jnp.mean(loss)
 
 
 def main(args: argparse.Namespace):
@@ -113,9 +160,14 @@ def main(args: argparse.Namespace):
     optimizer = optax.adam(scheduler)
 
     # define loss and train function
-    loss_fn = partial(
-        nll_loss, snn_apply, expected_spikes=args.expected_spikes, rho=1e-5)
-    train_step_fn = partial(train_step, optimizer, loss_fn=loss_fn)
+    train_step_fn = partial(
+        train_step,
+        snn_apply,
+        max_over_time_decode,
+        optimizer,
+        1e-5,
+        args.expected_spikes,
+    )
 
     overall_time = time.time()
     _, weights = snn_init(init_rng, input_size=5)
@@ -132,16 +184,17 @@ def main(args: argparse.Namespace):
         trainset_batched = (
             jnp.swapaxes(trainset_batched[0], 1, 2),
             trainset_batched[1])
-        (opt_state, weights, i), recording = jax.lax.scan(
-            train_step_fn, (opt_state, weights, 0), trainset_batched)
+        (opt_state, weights), recording = jax.lax.scan(
+            train_step_fn, (opt_state, weights), trainset_batched)
         end = time.time() - start
 
         spikes_per_item = jnp.count_nonzero(recording[0].z) / train_samples
-        accuracy, test_loss = acc_and_loss(
+        accuracy, test_loss = test_step(
             snn_apply,
+            max_over_time_decode,
             weights,
             (testset[0], testset[1]),
-            max_over_time_decode)
+        )
 
         accuracies.append(accuracy)
         loss.append(test_loss)

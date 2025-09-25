@@ -14,9 +14,10 @@ from jaxsnn.event.encode import (
 from jaxsnn.event import custom_lax
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
     EventPropLIF, LIFParameters)
-from jaxsnn.event.loss import loss_wrapper, mse_loss
+from jaxsnn.event.loss import mse_loss
 from jaxsnn.event.training import epoch, update
 from jaxsnn.event.types import OptState
+from jaxsnn.examples.event.utils import test_step, loss_wrapper
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -126,7 +127,8 @@ def main(args: argparse.Namespace):
         n_neurons, output_size)
 
     update_fn = jax.jit(partial(update, optimizer, loss_fn, params))
-    epoch_fn = partial(epoch, update_fn, loss_fn, trainset, testset)
+    test_fn = partial(test_step, loss_fn)
+    epoch_fn = partial(epoch, update_fn, test_fn, trainset, testset)
 
     # iterate over epochs
     res = custom_lax.scan(
@@ -134,7 +136,7 @@ def main(args: argparse.Namespace):
     state, (test_result, weights_over_time, duration) = res
 
     # save experiment data
-    acc = round(test_result.accuracy[-1], 3)
+    acc = round(test_result[1][-1], 3)
     log.info(f"Acc: {acc} after {args.epochs} epochs")
 
     return acc

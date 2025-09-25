@@ -141,24 +141,3 @@ class OptState(NamedTuple):
 # define the interface that a root solver has
 # take the LIFState, current time and t_max and return a Spike
 Solver = Callable[[LIFState, float, float], Spike]
-
-
-class TestResult(NamedTuple):
-    loss: float
-    accuracy: float
-    t_first_spike: jax.Array
-    recording: jax.Array
-
-
-# loss function return loss and some recording
-LossAndRecording = Tuple[float, Tuple[jax.Array, List[EventPropSpike]]]
-LossFn = Callable[
-    [List[Weight], Tuple[EventPropSpike, jax.Array]], LossAndRecording
-]
-
-
-# when working with hw, we also have the known spikes as input
-HWLossFn = Callable[
-    [List[Weight], Tuple[EventPropSpike, jax.Array], List[EventPropSpike]],
-    LossAndRecording,
-]

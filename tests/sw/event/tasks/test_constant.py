@@ -1,6 +1,6 @@
 from functools import partial
 import unittest
-from typing import Callable, List, Tuple
+from typing import Any, Callable, List, Tuple, Optional
 
 import jax
 import jax.numpy as jnp
@@ -9,11 +9,45 @@ from jaxsnn.base.params import LIFParameters
 from jaxsnn.base.compose import serial
 from jaxsnn.base.dataset import constant_dataset, data_loader
 from jaxsnn.event.modules.leaky_integrate_and_fire import LIF
-from jaxsnn.event.loss import loss_wrapper, target_time_loss
-from jaxsnn.event.types import Spike, Weight, EventPropSpike
+from jaxsnn.event.loss import target_time_loss, first_spike
+from jaxsnn.event.types import (
+    Apply,
+    EventPropSpike,
+    Weight,
+    Spike,
+)
 
 
 class TestEventTasksContant(unittest.TestCase):
+
+    def loss_wrapper(
+            self,
+            apply_fn: Apply,
+            loss_fn: Callable[[jax.Array, jax.Array, float], float],
+            tau_mem: float,
+            n_neurons: int,
+            n_outputs: int,
+            weights: List[Weight],
+            batch: Tuple[Spike, jax.Array],
+        ) -> Tuple[jax.Array, Tuple[jax.Array, Any]]:
+        input_spikes, target = batch
+
+        apply_fn = jax.vmap(apply_fn, in_axes=(None, 0, None, None))
+        first_spike_function = jax.vmap(first_spike, in_axes=(0, None, None))
+        loss_function = jax.vmap(loss_fn, in_axes=(0, 0, None))
+
+        _, _, output, recording = apply_fn(
+            weights,
+            input_spikes,
+            None,
+            None,
+        )
+
+        t_first_spike = first_spike_function(output, n_neurons, n_outputs)
+        loss_value = jnp.mean(loss_function(t_first_spike, target, tau_mem))
+
+        return loss_value, (t_first_spike, recording)
+
     def update(
             self,
             loss_fn: Callable,
@@ -50,14 +84,13 @@ class TestEventTasksContant(unittest.TestCase):
         _, weights = init_fn(rng, input_shape)
 
         loss_fn = partial(
-            loss_wrapper,
+            self.loss_wrapper,
             apply_fn,
             target_time_loss,
             params.tau_mem,
             n_neurons,
             n_output,
-            external=None,
-            carry=None)
+        )
         update_fn = partial(self.update, loss_fn)
 
         # train the net
