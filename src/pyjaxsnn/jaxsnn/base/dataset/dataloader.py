@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, Any, List
 
 import jax
 from jax import random
@@ -9,14 +9,14 @@ Dataset = Tuple[EventPropSpike, jax.Array, str]
 
 
 def data_loader(
-    dataset: Any,
+    dataset: Tuple[Any, Any],
     batch_size: int,
     num_batches: Optional[int] = None,
     rng: Optional[jax.Array] = None,
 ):
     # Determine number of batches
     if num_batches is None:
-        num_batches_list = jax.vmap(
+        num_batches_list: List[int] = jax.vmap(
             lambda data: data.shape[0] // batch_size
         )(jnp.array(jax.tree_util.tree_leaves(dataset[0])))
         assert jnp.all(num_batches_list == num_batches_list[0]), \
