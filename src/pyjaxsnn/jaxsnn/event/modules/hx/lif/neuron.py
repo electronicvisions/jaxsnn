@@ -258,8 +258,9 @@ def build_step_function(
     """
     # Vectorized flow dynamics
     single_flow = lif_exponential_flow(
-        jnp.array(lif_params.tau_syn),
-        jnp.array(lif_params.tau_mem),
+        lif_params.tau_syn,
+        lif_params.tau_mem,
+        lif_params.v_leak,
     )
     dynamics_fn = jax.vmap(single_flow, in_axes=(0, None))
 

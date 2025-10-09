@@ -69,11 +69,11 @@ class TestStep(unittest.TestCase):
         }
 
         # Solver for next event
-        solver = partial(
-            ttfs_solver,
+        solver = ttfs_solver(
             10.0,
             10.0,
             1.0,
+            0.0,
         )
         solver_fn = partial(
             next_event,
@@ -87,6 +87,7 @@ class TestStep(unittest.TestCase):
         single_flow = lif_exponential_flow(
             jnp.array(10.),
             jnp.array(10.),
+            jnp.array(0.0),
         )
         dynamics_fn = jax.vmap(
             single_flow,

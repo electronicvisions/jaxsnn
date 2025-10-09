@@ -1,14 +1,13 @@
 import unittest
-
-from functools import partial
 import numpy as np
 
 import jax
 import jax.numpy as jnp
 
-from jaxsnn.event.solver import ttfs_solver
-from jaxsnn.event.modules import LIFParameters
+from jaxsnn.event.modules.lif import LIFParameters
+from jaxsnn.event.solver.lif_analytical import ttfs_solver
 from jaxsnn.event.states import LIFState
+
 
 params = LIFParameters()
 t_max = 0.2
@@ -20,8 +19,12 @@ class TestEventRootTTFS(unittest.TestCase):
         expected_time = 0.003235072
         # Single neuron
         population_size = 10
-        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
-                         params.v_th)
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
         state = LIFState(V=0.0, I=3.0)
         event = solver(state, t_max)
 
@@ -30,8 +33,12 @@ class TestEventRootTTFS(unittest.TestCase):
 
         # Map over a population
         population_size = 10
-        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
-                         params.v_th)
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
         pop_solver = jax.vmap(solver, in_axes=(0, None))
         state = LIFState(
             V=jnp.zeros(population_size), I=3.0 * jnp.ones(population_size))
@@ -60,11 +67,16 @@ class TestEventRootTTFS(unittest.TestCase):
 
 class TestEventRootTTFSGrads(unittest.TestCase):
     def test_ttfs_solver_vanishing_denomniator(self):
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_mem / 2,
+            params.v_th,
+            params.v_leak,
+        )
         def loss(weight):
             state = LIFState(V=-551.6683959960938, I=0.0006204545497894287)
             state.V = state.V * weight
-            return ttfs_solver(params.tau_mem, params.tau_syn, params.v_th,
-                               state, t_max)
+            return solver(state, t_max)
 
         weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
@@ -73,11 +85,16 @@ class TestEventRootTTFSGrads(unittest.TestCase):
 
     def test_ttfs_solver_no_spike(self):
         # case tau_mem = 2*tau_syn
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_mem / 2,
+            params.v_th,
+            params.v_leak,
+        )
         def loss(weight):
             state = LIFState(V=0.0, I=2.0)
             state.I = state.I * weight
-            return ttfs_solver(params.tau_mem, params.tau_syn, params.v_th,
-                               state, t_max)
+            return solver(state, t_max)
 
         weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
@@ -85,33 +102,50 @@ class TestEventRootTTFSGrads(unittest.TestCase):
         self.assertEqual(grad, 0)
 
         # case tau_mem = tau_syn
+        solver = ttfs_solver(
+            params.tau_syn,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
         def loss(weight):
             state = LIFState(V=0.0, I=1.0)
             state.I = state.I * weight
-            return ttfs_solver(params.tau_syn, params.tau_syn, params.v_th,
-                               state, t_max)
+            return solver(state, t_max)
 
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertEqual(value, t_max)
         self.assertEqual(grad, 0)
 
     def test_ttfs_solver_spike(self):
+        # test tau_mem = 2 * tau_syn
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_mem / 2,
+            params.v_th,
+            params.v_leak,
+        )
         def loss(weight):
             state = LIFState(V=0.0, I=3.0)
             state.I = state.I * weight
-            return ttfs_solver(params.tau_mem, params.tau_syn, params.v_th,
-                               state, t_max)
+            return solver(state, t_max)
 
         weight = jnp.array(1.0)
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertAlmostEqual(value, 0.00323507, 8)
         self.assertAlmostEqual(grad, -0.00618034, 8)
 
+        # test tau_mem = tau_syn
+        solver = ttfs_solver(
+            params.tau_syn,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
         def loss(weight):
             state = LIFState(V=0.0, I=3.0)
             state.I = state.I * weight
-            return ttfs_solver(params.tau_syn, params.tau_syn, params.v_th,
-                               state, t_max)
+            return solver(state, t_max)
 
         value, grad = jax.value_and_grad(loss)(weight)
         self.assertAlmostEqual(value, 0.00129586, 8)
@@ -187,8 +221,12 @@ class TestEventRootTTFSGrads(unittest.TestCase):
             ),
         )
 
-        solver = partial(ttfs_solver, params.tau_mem, params.tau_syn,
-                         params.v_th)
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
         batched_solver = jax.jit(jax.vmap(solver, in_axes=(0, None)))
 
         def loss_fn(weight):
@@ -199,6 +237,68 @@ class TestEventRootTTFSGrads(unittest.TestCase):
         value, grad = jax.value_and_grad(loss_fn)(jnp.array(1.0))
         self.assertAlmostEqual(value, 1.04246, 4)
         self.assertAlmostEqual(grad, -0.12974, 4)
+
+    def test_leak_over_threshold(self):
+        params = LIFParameters(
+            tau_mem=0.02,
+            tau_syn=0.01,
+            v_th=1.0,
+            v_leak=2.0,
+        )
+
+        neuron_state = LIFState(
+            V=0.0,
+            I=0.0,
+        )
+
+        # no input current
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
+        time = solver(
+            neuron_state,
+            t_max,
+        )
+        self.assertAlmostEqual(time, 0.01386294, 7)
+
+        # no input, voltage != 0
+        neuron_state = LIFState(
+            V=0.3,
+            I=0.0,
+        )
+        # no input current
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
+        time = solver(
+            neuron_state,
+            t_max,
+        )
+        self.assertAlmostEqual(time, 0.01061257, 7)
+
+        # with input current
+        neuron_state = LIFState(
+            V=0.3,
+            I=0.001,
+        )
+        # no input current
+        solver = ttfs_solver(
+            params.tau_mem,
+            params.tau_syn,
+            params.v_th,
+            params.v_leak,
+        )
+        time = solver(
+            neuron_state,
+            t_max,
+        )
+        self.assertAlmostEqual(time, 0.01061257, 5)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 from typing import Callable, Union
+from functools import partial
 import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
@@ -17,18 +18,26 @@ def lif_wrap(func: Callable) -> Callable[[LIFState, jax.Array], LIFState]:
 
 def exponential_flow(
     kernel: jax.Array,
+    v_leak: Union[jax.Array, float],
 ) -> Callable[[LIFState, jax.Array], LIFState]:
-    def flow(initial_state: jax.Array, time: jax.Array) -> jax.Array:
-        return jnp.dot(linalg.expm(kernel * time), initial_state)
-
-    return lif_wrap(flow)
+    def flow(
+        v_leak: Union[jax.Array, float],
+        initial_state: jax.Array,
+        time: jax.Array,
+    ) -> jax.Array:
+        initial_state = initial_state.at[0].add(-v_leak)
+        new_state = jnp.dot(linalg.expm(kernel * time), initial_state)
+        new_state = new_state.at[0].add(v_leak)
+        return new_state
+    return lif_wrap(partial(flow, v_leak))
 
 
 def lif_exponential_flow(
     tau_syn: Union[jax.Array, float],
     tau_mem: Union[jax.Array, float],
+    v_leak: Union[jax.Array, float]
 ) -> Callable[[LIFState, jax.Array], LIFState]:
     kernel = jnp.array(
         [[-1. / tau_mem, 1. / tau_mem],
          [0, -1. / tau_syn]])
-    return exponential_flow(kernel)
+    return exponential_flow(kernel, v_leak)

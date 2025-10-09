@@ -166,15 +166,16 @@ def build_step_functions(
     single_flow = lif_exponential_flow(
         lif_params.tau_syn,
         lif_params.tau_mem,
+        lif_params.v_leak,
     )
     dynamics = jax.vmap(single_flow, in_axes=(0, None))
 
     # Solver for next event
-    solver = partial(
-        ttfs_solver,
+    solver = ttfs_solver(
         lif_params.tau_mem,
         lif_params.tau_syn,
         lif_params.v_th,
+        lif_params.v_leak,
     )
     batched_solver = partial(
         next_event,
@@ -297,6 +298,7 @@ def build_adjoint_step_function(
     single_adjoint_flow = adjoint_lif_exponential_flow(
         lif_params.tau_syn,
         lif_params.tau_mem,
+        lif_params.v_leak,
     )
     adjoint_dynamics = jax.vmap(single_adjoint_flow, in_axes=(0, None))
 

@@ -22,7 +22,7 @@ class TestLIF(unittest.TestCase):
         params = LIFParameters(
             v_reset=0.0,
             v_th=1.0,
-            tau_mem=20e-3,
+            tau_mem=10e-3,
             tau_syn=5e-3,
         )
         size = 3
@@ -44,7 +44,7 @@ class TestLIF(unittest.TestCase):
         params = LIFParameters(
             v_reset=0.0,
             v_th=1.0,
-            tau_mem=20e-3,
+            tau_mem=10e-3,
             tau_syn=5e-3,
         )
         size = 3
@@ -95,7 +95,7 @@ class TestLIF(unittest.TestCase):
         params = LIFParameters(
             v_reset=0.0,
             v_th=1.0,
-            tau_mem=20e-3,
+            tau_mem=10e-3,
             tau_syn=5e-3,
         )
         size = 2
@@ -166,7 +166,7 @@ class TestLIF(unittest.TestCase):
         params = LIFParameters(
             v_reset=0.0,
             v_th=1.0,
-            tau_mem=20e-3,
+            tau_mem=10e-3,
             tau_syn=5e-3,
         )
         size = 3

@@ -93,6 +93,7 @@ class TestStepExistingEvents(unittest.TestCase):
         single_flow = lif_exponential_flow(
             jnp.array(5),
             jnp.array(10),
+            jnp.array(0.0),
         )
         dynamics_fn = jax.vmap(single_flow, in_axes=(0, None))
 

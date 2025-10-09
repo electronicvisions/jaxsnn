@@ -9,8 +9,9 @@ from jaxsnn.event.states import LIFState
 def adjoint_lif_exponential_flow(
     tau_syn: Union[jax.Array, float],
     tau_mem: Union[jax.Array, float],
+    v_leak: Union[jax.Array, float]
 ) -> Callable[[LIFState, jax.Array], LIFState]:
     A = jnp.array(
         [[- 1. / tau_mem, 0.0],
          [1. / tau_syn, -1. / tau_syn]])
-    return exponential_flow(A)
+    return exponential_flow(A, v_leak)
