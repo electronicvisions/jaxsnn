@@ -22,7 +22,6 @@ dependencies = [
   "optax>=0.1.4",
   "tree-math>0.1.0",
   "matplotlib",
-  "nir==1.0.6",
 ]
 
 [project.urls]
