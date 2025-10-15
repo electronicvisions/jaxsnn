@@ -2,11 +2,11 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 import numpy as np
-import nir
 from jaxsnn.base.compose import serial
 from jaxsnn.event.modules.leaky_integrate_and_fire import (
     LIF, EventPropLIF, HardwareLIF, LIFParameters)
 from jaxsnn.event.types import WeightInput
+import nir
 
 
 NUMBER_TYPES = (int, float, np.float32)
