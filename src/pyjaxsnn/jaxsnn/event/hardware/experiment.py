@@ -347,7 +347,7 @@ class Experiment:
         ] * self._batch_size
         log.debug(f"Registered runtimes: {inputs.runtime}")
 
-        hooks = grenade.signal_flow.ExecutionInstanceHooks()
+        hooks = grenade.execution.ExecutionInstanceHooks()
 
         grenade_start = time.time()
         outputs = _hxtorch_spiking.run(
