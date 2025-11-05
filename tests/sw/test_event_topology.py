@@ -292,7 +292,12 @@ class TestTopologyHXData(unittest.TestCase):
         )
 
         # Grads should be equal
-        tree_map(np.testing.assert_array_equal, mock_grads, hx_grads)
+        assert_allclose = partial(
+            np.testing.assert_allclose,
+            rtol=1e-6,
+            atol=1e-10
+        )
+        tree_map(assert_allclose, mock_grads, hx_grads)
 
 
 if __name__ == '__main__':

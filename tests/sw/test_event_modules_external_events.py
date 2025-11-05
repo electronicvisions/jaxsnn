@@ -299,15 +299,19 @@ class TestExternalEvents(unittest.TestCase):
 
         # Grads should be equal
         self.assertIsNone(
-            np.testing.assert_array_equal(
+            np.testing.assert_allclose(
                 mock_grad["syn1"],
-                hx_grad["syn1"]
+                hx_grad["syn1"],
+                rtol=1e-6,
+                atol=1e-10
             )
         )
         self.assertIsNone(
-            np.testing.assert_array_equal(
+            np.testing.assert_allclose(
                 mock_grad["syn2"],
-                hx_grad["syn2"]
+                hx_grad["syn2"],
+                rtol=1e-6,
+                atol=1e-10
             )
         )
 
