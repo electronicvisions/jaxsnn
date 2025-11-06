@@ -45,8 +45,8 @@ class TestFromNIRConversion(unittest.TestCase):
                 "input": nir.Input(input_type=np.array([1])),
                 "linear": nir.Linear(weight=np.array([[x]])),
                 "lif": nir.CubaLIF(
-                    tau_mem=np.array([params.tau_mem]),
-                    tau_syn=np.array([params.tau_syn]),
+                    tau_mem=np.array([params.tau_mem * 1e3]),
+                    tau_syn=np.array([params.tau_syn * 1e3]),
                     r=np.array([1]),
                     v_leak=np.array([params.v_leak]),
                     v_reset=np.array([params.v_reset]),

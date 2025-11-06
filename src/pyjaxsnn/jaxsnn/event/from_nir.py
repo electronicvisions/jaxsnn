@@ -106,8 +106,8 @@ def convert_cuba_lif(graph, node_key, config: ConversionConfig):  # pylint: disa
     n_spikes = config.n_spikes[node_key]
 
     size = np.size(node.tau_mem)
-    tau_mem = convert_to_number(node.tau_mem)
-    tau_syn = convert_to_number(node.tau_syn)
+    tau_mem = convert_to_number(node.tau_mem) * 1e-3  # convert ms to s
+    tau_syn = convert_to_number(node.tau_syn) * 1e-3  # convert ms to s
     r = convert_to_number(node.r)  # pylint: disable=invalid-name
     v_leak = convert_to_number(node.v_leak)
     v_reset = convert_to_number(node.v_reset)
