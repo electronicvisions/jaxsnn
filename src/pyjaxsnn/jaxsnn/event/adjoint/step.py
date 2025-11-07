@@ -1,6 +1,7 @@
 from typing import Callable, Tuple, Dict, List
 
 import jax
+from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
     EventState,
     StepState,
@@ -131,20 +132,25 @@ def adjoint_step(
 
     no_event = spike.idx == -1
 
-    tr_states, new_grads, adjoint_spikes = jax.lax.cond(
+    def unchanged(
+        adjoint_state, spike, adjoint_spike, queue_index, grads, weights,
+        adjoint_spikes,
+    ):  # pylint: disable=unused-argument
+        return adjoint_state, grads, adjoint_spikes
+
+    tr_states, new_grads, adjoint_spikes = custom_lax.cond(
         no_event,
-        lambda *args: (adjoint_state, grads, adjoint_spikes),
+        unchanged,
         adjoint_tr_dynamics,
-        *(
-            adjoint_state,
-            spike,
-            adjoint_spike,
-            queue_index,
-            grads,
-            weights,
-            adjoint_spikes,
-        ),
+        adjoint_state,
+        spike,
+        adjoint_spike,
+        queue_index,
+        grads,
+        weights,
+        adjoint_spikes,
     )
+
     return (weights, adjoint_spikes, tr_states, new_grads)
 
 

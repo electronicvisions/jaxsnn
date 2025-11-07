@@ -9,6 +9,7 @@ from dataclasses import replace
 import jax
 import jax.numpy as jnp
 
+from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
     EventT,
     DynamicsFn,
@@ -160,79 +161,99 @@ def step(  # pylint: disable=unused-argument,too-many-locals,too-many-arguments
     t_dyn = jnp.minimum(next_internal.time, input_spike.time)
 
     spike_allowed, safe_time = min_delay_check_fn(step_input.spikes, t_dyn)
-    t_dyn = jax.lax.cond(
-        spike_allowed, lambda: t_dyn, lambda: safe_time,
+    t_dyn = jnp.where(
+        spike_allowed,
+        t_dyn,
+        safe_time,
     )
 
     spike_in_layer = next_internal.time < input_spike.time
 
     no_event = jnp.logical_or(
-        t_dyn >= t_max, jnp.logical_not(spike_allowed))
+        t_dyn >= t_max,
+        jnp.logical_not(spike_allowed),
+    )
 
-    internal = jnp.logical_and(jnp.logical_not(no_event), spike_in_layer)
+    internal = jnp.logical_and(
+        jnp.logical_not(no_event),
+        spike_in_layer,
+    )
 
-    queue_head = jax.lax.cond(
+    updated_queue_head = step_input.queue_head.at[rel_input_layer_idx].set(
+        spike_queue_idx + 1
+    )
+    queue_head = jnp.where(
         jnp.logical_or(spike_in_layer, no_event),
-        lambda: step_input.queue_head,
-        lambda: step_input.queue_head.at[rel_input_layer_idx].set(
-            spike_queue_idx + 1,
+        step_input.queue_head,
+        updated_queue_head
+    )
+
+    stored_layer_idx = jnp.where(
+        no_event,
+        -1,
+        jnp.where(
+            spike_in_layer,
+            step_input.layer_idx,
+            input_spike.layer_idx,
+        ),
+    )
+    stored_internal_idx = jnp.where(
+        no_event,
+        -1,
+        jnp.where(
+            spike_in_layer,
+            next_internal.idx,
+            input_spike.idx,
         ),
     )
 
-    stored_layer_idx = jax.lax.cond(
-        no_event,
-        lambda: -1,
-        lambda: jax.lax.cond(
-            spike_in_layer,
-            lambda: step_input.layer_idx,
-            lambda: input_spike.layer_idx,
-        ),
-    )
-    stored_internal_idx = jax.lax.cond(
-        no_event,
-        lambda: -1,
-        lambda: jax.lax.cond(
-            spike_in_layer,
-            lambda: next_internal.idx,
-            lambda: input_spike.idx,
-        ),
-    )
+    def unchanged_state():
+        return step_input.state
 
-    state: StepState = jax.lax.cond(
-        no_event,
-        lambda: step_input.state,
-        lambda: StepState(
+    def advanced_state():
+        return StepState(
             neuron_state=dynamics(
                 step_input.state.neuron_state,
-                t_dyn - step_input.state.time,
+                t_dyn - step_input.state.time
             ),
             time=t_dyn,
-        ),
-    )
+        )
 
-    current = jax.lax.cond(
-        spike_in_layer,
-        lambda: state.neuron_state.I[next_internal.idx],
-        lambda: input_spike.current,
-    )
-
-    transitioned_state = jax.lax.cond(
+    state = custom_lax.cond(
         no_event,
-        lambda: state,
-        lambda: jax.lax.switch(
+        unchanged_state,
+        advanced_state,
+    )
+
+    current = jnp.where(
+        spike_in_layer,
+        state.neuron_state.I[next_internal.idx],
+        input_spike.current
+    )
+
+    def unchanged_transitioned_state():
+        return state
+
+    def transitioned():
+        return custom_lax.switch(
             rel_input_layer_idx,
             tr_dynamics,
             state,
             step_input.parameters,
             stored_internal_idx,
             spike_in_layer,
-        ),
+        )
+
+    transitioned_state = custom_lax.cond(
+        no_event,
+        unchanged_transitioned_state,
+        transitioned,
     )
 
-    stored_time = jax.lax.cond(
+    stored_time = jnp.where(
         no_event,
-        lambda: t_max,
-        lambda: t_dyn,
+        t_max,
+        t_dyn,
     )
 
     return (

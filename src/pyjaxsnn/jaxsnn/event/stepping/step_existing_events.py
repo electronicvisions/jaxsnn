@@ -9,6 +9,7 @@ from dataclasses import replace
 import jax
 import jax.numpy as jnp
 
+from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
     Spike,
     QueueHead,
@@ -171,13 +172,19 @@ def step_existing(  # pylint: disable=too-many-locals,too-many-arguments
     )
 
     # Updates neuron state
-    neuron_state = jax.lax.cond(
-        no_event,
-        lambda: step_input.state.neuron_state,
-        lambda: dynamics(
+    def unchanged_neuron_state():
+        return step_input.state.neuron_state
+
+    def advanced_neuron_state():
+        return dynamics(
             step_input.state.neuron_state,
             event_time - step_input.state.time,
-        ),
+        )
+
+    neuron_state = custom_lax.cond(
+        no_event,
+        unchanged_neuron_state,
+        advanced_neuron_state,
     )
     updated_step_state = StepState(
         neuron_state=neuron_state,
@@ -195,17 +202,23 @@ def step_existing(  # pylint: disable=too-many-locals,too-many-arguments
         ),
     )
 
-    transitioned_neuron_state = jax.lax.cond(
-        no_event,
-        lambda: neuron_state,
-        lambda: jax.lax.switch(
+    def unchanged_transitioned_state():
+        return neuron_state
+
+    def transitioned():
+        return custom_lax.switch(
             layer_idx,
             transition_fns,
             updated_step_state,
             step_input.parameters,
             idx,
             is_internal_event,
-        ).neuron_state,
+        ).neuron_state
+
+    transitioned_neuron_state = custom_lax.cond(
+        no_event,
+        unchanged_transitioned_state,
+        transitioned,
     )
 
     return (

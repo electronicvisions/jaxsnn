@@ -37,7 +37,7 @@ def add_grads(
     :returns: Updated grads and adjoint_spikes.
     """
 
-    grads[pre_param_node] = grads[pre_param_node].at[
+    new_grad = grads[pre_param_node].at[
         index_for_layer
     ].add(
         - tau_syn * adjoint_states.neuron_state.I
@@ -50,8 +50,12 @@ def add_grads(
             - adjoint_states.neuron_state.I
         ),
     )
+    new_spike_time = adjoint_spikes[pre_pop_node].time.at[queue_index].add(
+        new_term
+    )
 
-    adjoint_spikes[pre_pop_node].time = adjoint_spikes[
-        pre_pop_node].time.at[queue_index].add(new_term)
+    new_grads = {**grads, pre_param_node: new_grad}
+    new_adj_spikes = jax.tree_util.tree_map(lambda x: x, adjoint_spikes)
+    new_adj_spikes[pre_pop_node].time = new_spike_time
 
-    return grads, adjoint_spikes
+    return new_grads, new_adj_spikes

@@ -1,7 +1,10 @@
 """Implement functionality of lax for easier debugging"""
-from typing import Callable, Optional
+from typing import Callable, Sequence, Optional
 
 import jax
+import jax.numpy as jnp
+
+from jaxsnn.event.utils import is_branch_free
 
 try:
     from jax.tree import flatten as tree_flatten
@@ -41,12 +44,46 @@ def scan(
     return carry, stacked_y
 
 
-def cond(pred: bool, true_fun: Callable, false_fun: Callable, *operands):
-    """Call both function to evaluate compiled behaviour of `jax.lax.scan`"""
+def cond(
+    pred: bool,
+    true_fun: Callable,
+    false_fun: Callable,
+    *operands,
+):
+    """
+    Drop-in replacement for `jax.lax.cond`.
+
+    Dispatches to `jax.lax.cond` or, in branch-free mode (see
+    `jaxsnn.event.set_branch_free`), evaluates both branches and selects the
+    result with `jnp.where`.
+    """
+    if not is_branch_free():
+        return jax.lax.cond(pred, true_fun, false_fun, *operands)
+
     true_result = true_fun(*operands)
     false_result = false_fun(*operands)
     return tree_map(
-        lambda t_item, f_item: jax.lax.select(pred, t_item, f_item),
+        lambda t_item, f_item: jnp.where(pred, t_item, f_item),
         true_result,
         false_result,
     )
+
+
+def switch(
+    index: jax.Array,
+    branches: Sequence[Callable],
+    *operands,
+):
+    """
+    Drop-in replacement for `jax.lax.switch`.
+
+    Dispatches to `jax.lax.switch` or, in branch-free mode (see
+    `jaxsnn.event.set_branch_free`), evaluates every branch and selects the
+    result at `index` with `jnp.where`.
+    """
+    if not is_branch_free():
+        return jax.lax.switch(index, branches, *operands)
+
+    all_results = [branch(*operands) for branch in branches]
+    stacked = tree_map(lambda *xs: jnp.stack(xs), *all_results)
+    return tree_map(lambda arr: arr[index], stacked)

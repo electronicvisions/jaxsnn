@@ -1,7 +1,9 @@
+from dataclasses import replace
 from typing import Union
 
 import jax
 
+from jaxsnn.event import custom_lax
 from jaxsnn.event.types import StepState
 
 
@@ -25,31 +27,27 @@ def transition(  # pylint: disable=too-many-arguments
 
     :returns: Updated step state after transition.
     """
-    def input_transition(
-        state: StepState,
-        weights: jax.Array,
-        spike_idx: int,  # pylint: disable=unused-argument
-    ) -> StepState:
-
-        state.neuron_state.I = (
-            state.neuron_state.I + weights[input_node][spike_idx]
+    def no_transition(state: StepState) -> StepState:
+        return replace(
+            state,
+            neuron_state=replace(
+                state.neuron_state,
+                V=state.neuron_state.V.at[spike_idx].set(v_reset),
+            ),
         )
 
-        return state
-
-    def no_transition(
-        state: StepState, *args
-    ) -> StepState:  # pylint: disable=unused-argument
-        state.neuron_state.V = state.neuron_state.V.at[spike_idx].set(
-            v_reset
+    def input_transition(state: StepState) -> StepState:
+        return replace(
+            state,
+            neuron_state=replace(
+                state.neuron_state,
+                I=state.neuron_state.I + weights[input_node][spike_idx],
+            ),
         )
-        return state
 
-    return jax.lax.cond(
+    return custom_lax.cond(
         spike_in_layer,
         no_transition,
         input_transition,
         state,
-        weights,
-        spike_idx,
     )
