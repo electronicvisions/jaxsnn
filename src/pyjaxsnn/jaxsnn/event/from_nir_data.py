@@ -16,12 +16,16 @@ from nir.data_ir import (
 
 
 def from_nir_data(nir_graph_data: NIRGraphData, jaxsnn_model,
-                  ) -> Dict[str, EventPropSpike]:
+                  observables=('spikes',)) -> Dict[str, EventPropSpike]:
     """
     Convert NIRGraphData to a dict of EventPropSpikes (jax-snn representation)
 
-    A linear noise is added on the spike times if the incoming data is
-    time-gridded.
+    :param nir_graph_data:
+        NIRGraphData to be converted.
+    :param jaxsnn_model:
+        jaxsnn model tuple (init, apply).
+    :param observables:
+        Observables to be converted, by default ('spikes',)
     """
 
     _, apply = jaxsnn_model
@@ -29,26 +33,33 @@ def from_nir_data(nir_graph_data: NIRGraphData, jaxsnn_model,
 
     for node_key, nir_node_data in nir_graph_data.nodes.items():
         if isinstance(nir_node_data, NIRNodeData):
-            for observable, data in nir_node_data.observables.items():
-                if observable == 'spikes':
-                    if isinstance(data, TimeGriddedData):
-                        data = data.to_event(n_spikes=apply.nodes[node_key])
+            if "spikes" in nir_node_data.observables and \
+                    "spikes" in observables:
+                spikes = nir_node_data.observables["spikes"]
+                if isinstance(spikes, TimeGriddedData):
+                    spikes = spikes.to_event(n_events=apply.nodes[node_key])
 
-                    data.time = jnp.asarray(data.time)
-                    jaxsnn_time = jnp.where(data.time == np.inf,
-                                            2 * data.t_max,
-                                            data.time)
-                    jaxsnn_spikes = EventPropSpike(
-                        jaxsnn_time,
-                        jnp.asarray(data.idx),
-                        jnp.zeros_like(jnp.asarray(data.idx),
-                                       dtype=jaxsnn_time.dtype)  # pylint: disable=no-member
-                    )
+                spikes.time = jnp.asarray(spikes.time)
+                jaxsnn_time = jnp.where(spikes.time == np.inf,
+                                        2 * spikes.t_max,
+                                        spikes.time)
 
-                    jaxsnn_dict[node_key] = jaxsnn_spikes
+                if "current" in nir_node_data.observables and \
+                        "current" in observables:
+                    events = nir_node_data.observables["current"]
+                    if isinstance(events, TimeGriddedData):
+                        raise NotImplementedError(
+                            'Conversion of valued TimeGriddedData is not'
+                            'supported yet.')
+                    current = jnp.asarray(events.values)
                 else:
-                    raise NotImplementedError('Only spikes are supported as '
-                                              'observables yet.')
+                    current = jnp.zeros_like(jnp.asarray(spikes.idx),
+                                             dtype=jaxsnn_time.dtype)
+                jaxsnn_spikes = EventPropSpike(
+                    jaxsnn_time, jnp.asarray(spikes.idx), current)
+
+                jaxsnn_dict[node_key] = jaxsnn_spikes
+
         else:
             raise NotImplementedError('The translation of nested NIRGraphData'
                                       'is not supported.')

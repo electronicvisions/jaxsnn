@@ -143,15 +143,17 @@ class TestNIRDataConversion(unittest.TestCase):
         original_spikes = {"lif": EventPropSpike(
             time=jnp.array([[0.0, 1e-4, 2.5e-4, 3e-4, 4e-4], [0.0, 1.5e-4, 2.5e-4, 3e-4, 4e-4]]),
             idx=jnp.array([[0, 1, 3, 5, 2], [4, 3, 2, 1, 0]]),
-            current=jnp.array([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]))}
+            current=jnp.array([[0.0, 3.0, 4.5, 0.0, 2.7], [0.5, 0.9, 2.0, 2.6, 1.9]]))}
 
         apply.nodes = cfg.n_spikes
         apply.t_max = cfg.t_max
         jaxsnn_model = (init, apply)
-        nir_data = to_nir_data(original_spikes, jaxsnn_model)
-        converted_spikes = from_nir_data(nir_data, jaxsnn_model)
+        nir_data = to_nir_data(original_spikes, jaxsnn_model, ('spikes', 'current'))
+        converted_spikes = from_nir_data(nir_data, jaxsnn_model, ('spikes', 'current'))
 
         self.assertTrue(jnp.equal(original_spikes["lif"].idx, converted_spikes["lif"].idx).all(),
-                        "Mismatch in spike times for node 'lif'")
+                        "Mismatch in spike indices for node 'lif'")
         self.assertTrue(jnp.equal(original_spikes["lif"].time, converted_spikes["lif"].time).all(),
                         "Mismatch in spike times for node 'lif'")
+        self.assertTrue(jnp.equal(original_spikes["lif"].current, converted_spikes["lif"].current).all(),
+                        "Mismatch in current for node 'lif'")
