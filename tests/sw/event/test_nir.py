@@ -115,7 +115,9 @@ class TestNIRDataConversion(unittest.TestCase):
                 "lif": nir.NIRNodeData(
                     observables={
                         "spikes": nir.TimeGriddedData(
-                            data=np.random.randint(0, 2, (4, 20, 10)), dt=0.001)
+                            data=np.random.randint(0, 2, (4, 20, 10)).astype(bool),
+                            dt=0.001
+                        )
                     }
                 )
             }
