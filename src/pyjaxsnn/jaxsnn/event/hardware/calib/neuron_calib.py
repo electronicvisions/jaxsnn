@@ -65,12 +65,6 @@ def custom_calibrate(args: argparse.Namespace) -> None:
             pass
         log.INFO("Opened file and got no error... now calibrate")
         with hxcomm.ManagedConnection() as connection:
-            # init
-            log.TRACE("builder")
-            builder, _ = sta.ExperimentInit().generate()
-            log.TRACE("sta.run(..)")
-            sta.run(connection, builder.done())
-
             # create neuron calib target
             log.TRACE("create neuron calib target")
             target = calix.spiking.neuron.NeuronCalibTarget()
@@ -128,10 +122,6 @@ def hw_calibration(args):
                          "i_synin_gm": I_sg}
 
         with hxcomm.ManagedConnection() as connection:
-            # init
-            builder, _ = sta.ExperimentInit().generate()
-            sta.run(connection, builder.done())
-
             # create neuron calib target
             target = calix.spiking.neuron.NeuronCalibTarget()
             target.tau_mem = neuron_params["tau_mem"]
