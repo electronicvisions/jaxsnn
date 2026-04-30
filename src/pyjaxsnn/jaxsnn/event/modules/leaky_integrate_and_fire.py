@@ -23,11 +23,13 @@ solving. The adjoint system of the EventProp algorithm is added as a custom
 Vector-Jacobian-Product (VJP).
 """
 
+import math
 from functools import partial
 from typing import List, Optional
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jaxsnn.base.params import LIFParameters
 from jaxsnn.event.adjoint_lif import (
     adjoint_lif_exponential_flow,
@@ -40,7 +42,7 @@ from jaxsnn.event.construct import (
     construct_init_fn,
     construct_recurrent_init_fn,
 )
-from jaxsnn.event.flow import lif_exponential_flow
+from jaxsnn.event.flow import lif_exponential_flow, lif_exponential_flow_vec
 from jaxsnn.event.stepping import step, step_existing
 from jaxsnn.event.trajectory import trajectory
 from jaxsnn.event.root import ttfs_solver
@@ -114,6 +116,149 @@ def RecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
     step_fn = partial(step, dynamics, transition, t_max, batched_solver)
 
     hidden_size = jnp.sum(jnp.array(layers))
+    apply_fn = trajectory(step_fn, hidden_size, n_spikes)
+    init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
+
+    return init_fn, apply_fn
+
+
+def MultiPopulationRecurrentLIF(  # pylint: disable=too-many-arguments,too-many-locals
+    layers: List[int],
+    n_spikes: int,
+    t_max: float,
+    params_per_population: List[LIFParameters],
+    mean: List[float],
+    std: List[float],
+    duplication: Optional[int] = None,
+) -> SingleInitApply:
+    """Recurrent LIF graph with one `LIFParameters` per population.
+
+    Like `RecurrentLIF`, but each population in `layers` has its own
+    `LIFParameters`. Per-population `tau_mem`, `tau_syn`, `v_th`, `v_leak`,
+    and `v_reset` are concatenated into per-neuron arrays and threaded
+    through a vec'd dynamics flow (`lif_exponential_flow_vec`) plus a
+    per-neuron-vmapped TTFS solver.
+
+    Constraints (v1):
+      - Each population must satisfy `tau_mem == tau_syn` or
+        `tau_mem == 2 * tau_syn` exactly (within 1e-6 relative tolerance).
+        The analytical TTFS solver in `event.root.ttfs` only handles those
+        two ratios; arbitrary ratios return `t_max` (no spike). Closing
+        this constraint requires a Newton-based solver (planned as a
+        separate follow-up).
+      - Each population is internally homogeneous (one params per population,
+        not per-neuron). Per-neuron heterogeneity within a population is also
+        deferred to the same follow-up.
+      - `v_th` must be 1.0 for every population. jaxsnn's `step` hard-codes
+        a `V >= 1.0` threshold check that the TTFS solver's `v_th` cannot
+        override; off-1.0 values silently desynchronise spike detection.
+
+    Args:
+        layers: Number of neurons per population.
+        n_spikes: Maximum number of spikes simulated in the trajectory.
+        t_max: Maximum simulation time.
+        params_per_population: One `LIFParameters` per entry in `layers`.
+        mean: Per-population weight init mean (forwarded to
+            `construct_recurrent_init_fn`).
+        std: Per-population weight init std (forwarded to
+            `construct_recurrent_init_fn`).
+        duplication: Optional input-weight duplication factor.
+
+    Returns:
+        SingleInitApply: Pair of init/apply functions, callable like
+        `RecurrentLIF`.
+
+    Raises:
+        ValueError: If `layers` is empty or contains non-positive sizes,
+            if `params_per_population` length does not match `layers`, if
+            any population has non-positive `tau_mem` / `tau_syn`, if any
+            population's `tau_mem / tau_syn` ratio is not 1 or 2 (within
+            1e-6 relative tolerance), or if any population's `v_th` is
+            not 1.0.
+    """
+    if not layers:
+        raise ValueError("layers must be non-empty.")
+    if any(not isinstance(n, (int, np.integer)) or n <= 0 for n in layers):
+        raise ValueError(
+            f"Each entry in layers must be a positive integer; got {list(layers)}."
+        )
+    if len(params_per_population) != len(layers):
+        raise ValueError(
+            f"params_per_population length ({len(params_per_population)}) "
+            f"must match layers length ({len(layers)})."
+        )
+
+    for i, p in enumerate(params_per_population):
+        tm = float(p.tau_mem)
+        ts = float(p.tau_syn)
+        if tm <= 0 or ts <= 0:
+            raise ValueError(
+                f"Population {i} has non-positive time constant(s): "
+                f"tau_mem={p.tau_mem}, tau_syn={p.tau_syn}. Both must be > 0."
+            )
+        r = tm / ts
+        if not (math.isclose(r, 1.0, rel_tol=1e-6)
+                or math.isclose(r, 2.0, rel_tol=1e-6)):
+            raise ValueError(
+                f"Population {i} has tau_mem/tau_syn ratio {r} "
+                f"(tau_mem={p.tau_mem}, tau_syn={p.tau_syn}); the analytical "
+                "TTFS solver only handles ratios exactly 1 or 2 (within 1e-6 "
+                "relative tolerance). Use tau_mem == tau_syn or tau_mem == 2 * "
+                "tau_syn per population, or wait for the Newton-solver follow-up."
+            )
+        # v_th must be exactly 1.0: jaxsnn's `step.py` hard-codes `V >= 1.`
+        # for spike detection (see jaxsnn.event.stepping.step:85). The TTFS
+        # solver is configurable via params.v_th, but the trajectory layer
+        # is not. Off-1.0 v_th silently desynchronises the two layers.
+        if not math.isclose(float(p.v_th), 1.0, rel_tol=1e-6):
+            raise ValueError(
+                f"Population {i} has v_th={p.v_th}; only v_th=1.0 is "
+                "supported (jaxsnn's `step` hard-codes a V>=1.0 threshold "
+                "check that the TTFS solver's v_th cannot override). "
+                "Off-1.0 values produce inconsistent spike detection."
+            )
+
+    # Concatenate per-population fields into per-neuron arrays.
+    def _expand(field):
+        chunks = [
+            jnp.full((n,), float(getattr(p, field)))
+            for n, p in zip(layers, params_per_population)
+        ]
+        return jnp.concatenate(chunks)
+
+    per_neuron_params = LIFParameters(
+        tau_syn=_expand("tau_syn"),
+        tau_mem=_expand("tau_mem"),
+        v_th=_expand("v_th"),
+        v_leak=_expand("v_leak"),
+        v_reset=_expand("v_reset"),
+    )
+
+    # Vec'd dynamics: per-neuron kernel built once, expm applied per neuron.
+    dynamics = lif_exponential_flow_vec(per_neuron_params)
+
+    # Per-neuron solver: vmap ttfs_solver over (tau_mem, tau_syn, v_th, state).
+    def _per_neuron_solver(tau_mem_n, tau_syn_n, v_th_n, state_n, t_max_):
+        return ttfs_solver(tau_mem_n, tau_syn_n, v_th_n, state_n, t_max_)
+
+    _vec_solver = jax.vmap(_per_neuron_solver, in_axes=(0, 0, 0, 0, None))
+
+    def step_solver(state, t_max_):
+        return _vec_solver(
+            per_neuron_params.tau_mem,
+            per_neuron_params.tau_syn,
+            per_neuron_params.v_th,
+            state,
+            t_max_,
+        )
+
+    batched_solver = partial(next_event, step_solver)
+
+    # Transition uses per-neuron `v_reset` via broadcasting in `jnp.where`.
+    transition = partial(transition_with_recurrence, per_neuron_params)
+    step_fn = partial(step, dynamics, transition, t_max, batched_solver)
+
+    hidden_size = int(sum(layers))
     apply_fn = trajectory(step_fn, hidden_size, n_spikes)
     init_fn = construct_recurrent_init_fn(layers, mean, std, duplication)
 
