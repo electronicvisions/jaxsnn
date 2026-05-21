@@ -1,8 +1,11 @@
 [build-system]
-requires = ["setuptools"]
+# dynamic version
+requires = ["setuptools>=61", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "jaxsnn"
+dynamic = ["version"]
 authors = [
   { name="Electronic Vision(s)", email="visions-dev@kip.uni-heidelberg.de" },
 ]
@@ -31,3 +34,7 @@ dependencies = [
 where = ["src/pyjaxsnn"]
 include = ["jaxsnn*"]
 
+[tool.setuptools_scm]
+fallback_version = "0.2.0"
+version_scheme = "no-guess-dev"
+tag.prefix = "v"
