@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import _hxtorch_core
-import _hxtorch_spiking
 import hxtorch
 import jax.numpy as jnp
 import pygrenade_vx as grenade
@@ -350,9 +349,10 @@ class Experiment:
         hooks = grenade.execution.ExecutionInstanceHooks()
 
         grenade_start = time.time()
-        outputs = _hxtorch_spiking.run(
-            {self.execution_instance: self._chip},
+        outputs = grenade.network.run(
+            hxtorch._runtime.executor,  # pylint: disable=protected-access
             network,
+            {self.execution_instance: self._chip},
             inputs,
             {self.execution_instance: hooks},
         )
