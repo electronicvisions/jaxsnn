@@ -6,7 +6,7 @@ from waflib.extras.symwaf2ic import get_toplevel_path
 
 def depends(dep):
     dep("code-format")
-    dep("hxtorch")
+    dep("nir")
 
 
 def options(opt):
@@ -35,7 +35,7 @@ def build(bld):
     bld(
         target="jaxsnn",
         features="py use",
-        use=["hxtorch"],
+        use=["nir"],
         relative_trick=True,
         source=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         install_from="src/pyjaxsnn",
@@ -44,7 +44,7 @@ def build(bld):
     bld(
         target="jaxsnn_linting",
         features="use pylint pycodestyle",
-        use=["hxtorch", "_hxtorch_core"],
+        use=["nir"],
         tests=bld.path.ant_glob("src/pyjaxsnn/**/*.py"),
         pylint_config=os.path.join(
             get_toplevel_path(), "code-format", "pylintrc"),
