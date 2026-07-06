@@ -28,9 +28,9 @@ except ImportError:
     pass
 
 
-class TestFromNIRConversion(unittest.TestCase):
+class TestNIRConversion(unittest.TestCase):
 
-    def test_compare_nir_to_no_nir(self):
+    def test_from_nir_fixture(self):
         """
         Test that a jaxsnn model converted from NIR produces the same output
         as a manually constructed jaxsnn model without NIR.
@@ -95,11 +95,11 @@ class TestFromNIRConversion(unittest.TestCase):
 
         jaxsnn_init, jaxsnn_apply = builder.done()
 
-        config = ConversionConfig(
+        cfg = ConversionConfig(
             t_max=4 * params.tau_syn,
-            n_steps={"lif": 10},
+            n_steps={"input": 10, "lif": 10},
         )
-        nir_topology = from_nir(nir_graph, config)
+        nir_topology = from_nir(nir_graph, cfg)
         nir_init, nir_apply = nir_topology.done()
 
         input_spikes = {
@@ -126,25 +126,34 @@ class TestFromNIRConversion(unittest.TestCase):
             "There should be at least one spike in the output.",
         )
 
-        self.assertTrue(
-            jnp.allclose(
-                jaxsnn_output['lif'].time, nir_output['lif'].time,
+        for field in ("time", "current"):
+            self.assertTrue(
+                jnp.allclose(
+                    getattr(jaxsnn_output["lif"], field),
+                    getattr(nir_output["lif"], field),
+                ),
+                (
+                    "NIR to jaxsnn conversion did not produce the same output"
+                    f" for '{field}'. Got jaxsnn_output: "
+                    f"{getattr(jaxsnn_output['lif'], field)}, "
+                    f"nir_output: {getattr(nir_output['lif'], field)}"
+
+                ),
             )
-            and jnp.array_equal(
-                jaxsnn_output['lif'].idx, nir_output['lif'].idx,
+
+        for field in ("idx", "layer_idx", "internal"):
+            self.assertTrue(
+                jnp.array_equal(
+                    getattr(jaxsnn_output["lif"], field),
+                    getattr(nir_output["lif"], field),
+                ),
+                (
+                    "NIR to jaxsnn conversion did not produce the same output"
+                    f" for '{field}'. Got jaxsnn_output: "
+                    f"{getattr(jaxsnn_output['lif'], field)}, "
+                    f"nir_output: {getattr(nir_output['lif'], field)}"
+                ),
             )
-            and jnp.allclose(
-                jaxsnn_output['lif'].current, nir_output['lif'].current,
-            )
-            and jnp.array_equal(
-                jaxsnn_output['lif'].layer_idx, nir_output['lif'].layer_idx,
-            )
-            and jnp.array_equal(
-                jaxsnn_output['lif'].internal, nir_output['lif'].internal,
-            ),
-            "NIR to jaxsnn conversion did not produce the same output as the "
-            "manual jaxsnn model."
-        )
 
 
 class TestNIRDataConversion(unittest.TestCase):
@@ -171,7 +180,7 @@ class TestNIRDataConversion(unittest.TestCase):
     )
 
     def test_from_time_gridded_data(self):
-        cfg = ConversionConfig(t_max=0.02, n_steps={"lif": 10})
+        cfg = ConversionConfig(t_max=0.02, n_steps={"input": 10, "lif": 10})
         nir_data = nir.NIRGraphData(
             nodes={
                 "lif": nir.NIRNodeData(
@@ -207,7 +216,7 @@ class TestNIRDataConversion(unittest.TestCase):
         )
 
     def test_stable_conversion(self):
-        cfg = ConversionConfig(t_max=5e-4, n_steps={"lif": 10})
+        cfg = ConversionConfig(t_max=5e-4, n_steps={"input": 10, "lif": 20})
         topology = from_nir(self.nir_graph, cfg)
 
         original_spikes = {
@@ -222,7 +231,8 @@ class TestNIRDataConversion(unittest.TestCase):
                                      [0, 0, 0, 0, 0]]),
                 internal=jnp.array([[True, True, True, True, True],
                                     [True, True, True, True, True]])
-        )}
+            )
+        }
 
         nir_data = to_nir_data(
             original_spikes,
@@ -235,41 +245,31 @@ class TestNIRDataConversion(unittest.TestCase):
             ('spikes', 'current'),
         )
 
-        self.assertTrue(
-            jnp.array_equal(
-                original_spikes["lif"].idx,
-                converted_spikes["lif"].idx,
-            ),
-            "Mismatch in spike indices for node 'lif'",
-        )
-        self.assertTrue(
-            jnp.allclose(
-                original_spikes["lif"].time,
-                converted_spikes["lif"].time,
-            ),
-            "Mismatch in spike times for node 'lif'",
-        )
-        self.assertTrue(
-            jnp.allclose(
-                original_spikes["lif"].current,
-                converted_spikes["lif"].current,
-            ),
-            "Mismatch in current for node 'lif'",
-        )
-        self.assertTrue(
-            jnp.array_equal(
-                original_spikes["lif"].layer_idx,
-                converted_spikes["lif"].layer_idx,
-            ),
-            "Mismatch in layer_idx for node 'lif'",
-        )
-        self.assertTrue(
-            jnp.array_equal(
-                original_spikes["lif"].internal,
-                converted_spikes["lif"].internal,
-            ),
-            "Mismatch in internal for node 'lif'",
-        )
+        for field in ("time", "current"):
+            self.assertTrue(
+                jnp.allclose(
+                    getattr(original_spikes["lif"], field),
+                    getattr(converted_spikes["lif"], field),
+                ),
+                (
+                    f"Mismatch in '{field}' for node 'lif'. "
+                    f"Original: {getattr(original_spikes['lif'], field)}, "
+                    f"converted: {getattr(converted_spikes['lif'], field)}"
+                ),
+            )
+
+        for field in ("idx", "layer_idx", "internal"):
+            self.assertTrue(
+                jnp.array_equal(
+                    getattr(original_spikes["lif"], field),
+                    getattr(converted_spikes["lif"], field),
+                ),
+                (
+                    f"Mismatch in '{field}' for node 'lif'. "
+                    f"Original: {getattr(original_spikes['lif'], field)}, "
+                    f"converted: {getattr(converted_spikes['lif'], field)}"
+                ),
+            )
 
 
 if __name__ == "__main__":

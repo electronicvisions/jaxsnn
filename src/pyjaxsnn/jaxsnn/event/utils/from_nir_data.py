@@ -19,7 +19,7 @@ from nir.data_ir import (
 def from_nir_data(
     nir_graph_data: NIRGraphData,
     topology: Topology,
-    observables=('spikes',),
+    observables=("spikes",),
 ) -> Dict[str, Spike]:
     """
     Convert NIRGraphData to a dict of EventPropSpikes (jax-snn representation)
@@ -33,31 +33,45 @@ def from_nir_data(
 
     for node_key, nir_node_data in nir_graph_data.nodes.items():
         if isinstance(nir_node_data, NIRNodeData):
-            if "spikes" in nir_node_data.observables and \
-                    "spikes" in observables:
+            if (
+                "spikes" in nir_node_data.observables
+                and "spikes" in observables
+            ):
                 spikes = nir_node_data.observables["spikes"]
                 if isinstance(spikes, TimeGriddedData):
+                    if (
+                        not topology.graph.nodes[node_key]["module"].n_steps
+                        > 0
+                    ):
+                        raise ValueError(
+                            f"Number of steps for node {node_key} must be > 0."
+                        )
                     spikes = spikes.to_event(
-                        n_events=topology.graph.nodes[node_key]["module"]
-                        .n_steps,
+                        n_events=topology.graph.nodes[node_key][
+                            "module"
+                        ].n_steps,
                     )
 
                 spikes.time = jnp.asarray(spikes.time)
-                jaxsnn_time = jnp.where(spikes.time == np.inf,
-                                        2 * spikes.t_max,
-                                        spikes.time)
+                jaxsnn_time = jnp.where(
+                    spikes.time == np.inf, 2 * spikes.t_max, spikes.time
+                )
 
-                if "current" in nir_node_data.observables and \
-                        "current" in observables:
+                if (
+                    "current" in nir_node_data.observables
+                    and "current" in observables
+                ):
                     events = nir_node_data.observables["current"]
                     if isinstance(events, TimeGriddedData):
                         raise NotImplementedError(
-                            'Conversion of valued TimeGriddedData is not'
-                            'supported yet.')
+                            "Conversion of valued TimeGriddedData is not "
+                            "supported yet."
+                        )
                     current = jnp.asarray(events.value)
                 else:
-                    current = jnp.zeros_like(jnp.asarray(spikes.idx),
-                                             dtype=jaxsnn_time.dtype)
+                    current = jnp.zeros_like(
+                        jnp.asarray(spikes.idx), dtype=jaxsnn_time.dtype
+                    )
                 # TODO: handle layer_idx and internal properly
                 layer_idx = jnp.zeros_like(jaxsnn_time, dtype=int)
                 internal = jnp.ones_like(jaxsnn_time, dtype=bool)
@@ -72,7 +86,8 @@ def from_nir_data(
                 jaxsnn_dict[node_key] = jaxsnn_spikes
 
         else:
-            raise NotImplementedError('The translation of nested NIRGraphData'
-                                      'is not supported.')
+            raise NotImplementedError(
+                "The translation of nested NIRGraphData is not supported."
+            )
 
     return jaxsnn_dict
