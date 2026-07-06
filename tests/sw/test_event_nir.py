@@ -5,14 +5,6 @@ import numpy as np
 import jax.numpy as jnp
 from jax import random
 
-import nir
-
-from jaxsnn.event import (
-    ConversionConfig,
-    from_nir,
-    from_nir_data,
-    to_nir_data,
-)
 from jaxsnn.event.modules import (
     LIF,
     LIFParameters,
@@ -21,6 +13,19 @@ from jaxsnn.event.modules import (
 )
 from jaxsnn.event.topology import Topology
 from jaxsnn.event.types import Spike
+
+import pytest
+nir = pytest.importorskip("nir")
+
+try:
+    from jaxsnn.event import (
+        ConversionConfig,
+        from_nir,
+        from_nir_data,
+        to_nir_data,
+    )
+except ImportError:
+    pass
 
 
 class TestFromNIRConversion(unittest.TestCase):
