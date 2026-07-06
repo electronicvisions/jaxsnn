@@ -26,6 +26,12 @@ dependencies = [
   "networkx",
 ]
 
+[project.optional-dependencies]
+nir = [ "nir>1.0.7" ]
+nir-dev = [
+  "nir @ git+https://github.com/electronicvisions/nir.git"
+]
+
 [project.urls]
 "Homepage" = "https://github.com/electronicvisions/jaxsnn"
 "Bug Tracker" = "https://github.com/electronicvisions/jaxsnn/issues"
