@@ -22,6 +22,7 @@ try:
         ConversionConfig,
         from_nir,
         from_nir_data,
+        to_nir,
         to_nir_data,
     )
 except ImportError:
@@ -30,17 +31,13 @@ except ImportError:
 
 class TestNIRConversion(unittest.TestCase):
 
-    def test_from_nir_fixture(self):
-        """
-        Test that a jaxsnn model converted from NIR produces the same output
-        as a manually constructed jaxsnn model without NIR.
-        """
-
+    def test_from_nir(self):
         rng = random.PRNGKey(1234)
         # generate random number x as weight
         x = float(random.uniform(rng, shape=(), minval=2.0, maxval=3.0))
-        params = LIFParameters(v_reset=-1.0, v_th=1.0,
-                               tau_mem=1e-2, tau_syn=5e-3)
+        params = LIFParameters(
+            v_reset=-1.0, v_th=1.0, tau_mem=1e-2, tau_syn=5e-3
+        )
 
         builder = Topology(t_max=4.0 * params.tau_syn)
 
@@ -67,8 +64,9 @@ class TestNIRConversion(unittest.TestCase):
             ]
         )
 
-        params = LIFParameters(v_reset=-1.0, v_th=1.0,
-                               tau_mem=1e-2, tau_syn=5e-3)
+        params = LIFParameters(
+            v_reset=-1.0, v_th=1.0, tau_mem=1e-2, tau_syn=5e-3
+        )
 
         # Create a NIR graph that matches the LIF model and convert it
         # to jaxsnn init/apply functions
@@ -154,6 +152,141 @@ class TestNIRConversion(unittest.TestCase):
                     f"nir_output: {getattr(nir_output['lif'], field)}"
                 ),
             )
+
+
+    def test_to_nir(self):
+        params = LIFParameters(
+            v_reset=-1.0, v_th=1.0, tau_mem=1e-2, tau_syn=5e-3
+        )
+
+        builder = Topology(t_max=4.0 * params.tau_syn)
+
+        builder.add(
+            {
+                "input": Source(2),
+                "lif": LIF(
+                    3,
+                    10,
+                    params,
+                ),
+                "syn1": Linear(
+                    mean=2.5,
+                    std=0.,
+                    min_delay=0.000,
+                ),
+            }
+        )
+        edges = [
+            ("input", "syn1"),
+            ("syn1", "lif")
+        ]
+        builder.connect(edges)
+
+        init, apply = builder.done()
+        params = init(random.PRNGKey(1234))
+
+        nir_graph = to_nir(builder, params, output=["lif"])
+
+        # Check that nodes and edges are correctly converted
+        for node_key in ["input", "lif", "syn1"]:
+            self.assertIn(
+                node_key,
+                nir_graph.nodes,
+                f"NIR graph should contain '{node_key}' node.",
+            )
+
+        for edge in edges:
+            self.assertIn(
+                edge,
+                nir_graph.edges,
+                f"NIR graph should contain edge {edge}.",
+            )
+
+        # Check that params are correctly converted
+        self.assertTrue(
+            isinstance(nir_graph.nodes["lif"], nir.CubaLIF),
+            "LIF node should be converted to nir.CubaLIF.",
+        )
+        lif_params = builder.graph.nodes["lif"]["module"].parameters["lif_params"]
+        self.assertTrue(
+            nir_graph.nodes["lif"].tau_mem[0] == lif_params.tau_mem * 1e3
+            and nir_graph.nodes["lif"].tau_syn[0] == lif_params.tau_syn * 1e3
+            and nir_graph.nodes["lif"].v_reset[0] == lif_params.v_reset
+            and nir_graph.nodes["lif"].v_threshold[0] == lif_params.v_th,
+            "LIF parameters should be correctly converted to NIR.",
+        )
+        self.assertTrue(
+            isinstance(nir_graph.nodes["syn1"], nir.Linear),
+            "Linear node should be converted to nir.Linear.",
+        )
+        self.assertTrue(
+            (nir_graph.nodes["syn1"].weight == params["syn1"].T).all(),
+            "Linear weights should be correctly converted to NIR.",
+        )
+        self.assertTrue(
+            isinstance(nir_graph.nodes["input"], nir.Input),
+            "Source node should be converted to nir.Input.",
+        )
+
+    def test_stable_conversion(self):
+        params = LIFParameters(
+            v_reset=-1.0, v_th=1.0, tau_mem=1e-2, tau_syn=5e-3
+        )
+
+        nir_graph = nir.NIRGraph(
+            nodes={
+                "input": nir.Input(input_type=np.array([2])),
+                "linear": nir.Linear(weight=np.array([[1.0]*2]*3)),
+                "lif": nir.CubaLIF(
+                    tau_mem=np.array([params.tau_mem * 1e3]*3),
+                    tau_syn=np.array([params.tau_syn * 1e3]*3),
+                    r=np.array([1]*3),
+                    v_leak=np.array([params.v_leak]*3),
+                    v_reset=np.array([params.v_reset]*3),
+                    v_threshold=np.array([params.v_th]*3)
+                ),
+                "output": nir.Output(output_type=np.array([3]))
+            },
+            edges=[
+                ("input", "linear"),
+                ("linear", "lif"),
+                ("lif", "output")
+            ]
+        )
+        cfg = ConversionConfig(
+            t_max=4 * params.tau_syn,
+            n_steps={"input": 10, "lif": 10},
+        )
+
+        topology = from_nir(nir_graph, cfg)
+        init, apply = topology.done()
+        params = init(random.PRNGKey(1234))
+        converted_nir_graph = to_nir(topology, params)
+
+        for node_key in nir_graph.nodes.keys():
+            if node_key == "output":
+                continue  # skip output node since it's not explicitly represented in jaxsnn
+            original_node = nir_graph.nodes[node_key]
+            converted_node = converted_nir_graph.nodes[node_key]
+            self.assertEqual(
+                type(original_node),
+                type(converted_node),
+                f"Node {node_key} should be of the same type after conversion.",
+            )
+            if isinstance(original_node, nir.CubaLIF):
+                self.assertTrue(
+                    np.allclose(original_node.tau_mem, converted_node.tau_mem)
+                    and np.allclose(original_node.tau_syn, converted_node.tau_syn)
+                    and np.array_equal(original_node.v_leak, converted_node.v_leak)
+                    and np.array_equal(original_node.v_reset, converted_node.v_reset)
+                    and np.array_equal(original_node.v_threshold, converted_node.v_threshold),
+                    f"LIF parameters for node {node_key} should be the same after conversion.",
+                )
+            if isinstance(original_node, nir.Linear):
+                self.assertTrue(
+                    np.array_equal(original_node.weight, converted_node.weight),
+                    f"Linear weights for node {node_key} should be the same after conversion.",
+                )
 
 
 class TestNIRDataConversion(unittest.TestCase):
