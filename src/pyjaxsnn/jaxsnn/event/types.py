@@ -50,6 +50,12 @@ if TYPE_CHECKING:
 else:
     from tree_math import struct as _tm_struct
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 class EventT(Protocol):
     time: jax.Array
@@ -99,18 +105,18 @@ class Spike:
         return self.time.shape  # pylint: disable=no-member
 
     def __getitem__(self, key) -> Spike:
-        return jax.tree_util.tree_map(lambda leaf: leaf[key], self)
+        return tree_map(lambda leaf: leaf[key], self)
 
     @classmethod
     def empty(cls, shape) -> Spike:
         default_spike = Spike()
-        return jax.tree_util.tree_map(
+        return tree_map(
             lambda x: jnp.full(shape, x, dtype=x.dtype), default_spike
         )
 
     def where(self, cond: jax.Array) -> Spike:
         """Conditional selection like jnp.where."""
-        return jax.tree_util.tree_map(
+        return tree_map(
             lambda spike_leaf, empty_leaf: jnp.where(
                 cond, spike_leaf, empty_leaf
             ),
@@ -120,19 +126,19 @@ class Spike:
     def sort(self, axis: int = 0) -> Spike:
         """Sorts the spike events by time."""
         perm = jnp.argsort(self.time, axis=axis)
-        return jax.tree_util.tree_map(
+        return tree_map(
             lambda leaf: jnp.take_along_axis(leaf, perm, axis=axis), self
         )
 
     def set_item(self, key, new_value: Spike) -> Spike:
         """Returns a new Spike with values at key updated."""
-        return jax.tree_util.tree_map(
+        return tree_map(
             lambda leaf, new_leaf: leaf.at[key].set(new_leaf), self, new_value
         )
 
     def concatenate(self, other: Spike, axis: int = 0) -> Spike:
         """Concatenates two Spike objects along the specified axis."""
-        return jax.tree_util.tree_map(
+        return tree_map(
             lambda leaf,
             other_leaf: jnp.concatenate([leaf, other_leaf], axis=axis),
             self, other

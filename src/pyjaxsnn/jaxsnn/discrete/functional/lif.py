@@ -18,6 +18,12 @@ from jaxsnn.discrete.types import (
     Parameter,
 )
 
+try:
+    from jax.tree import reduce as tree_reduce
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_reduce
+
 
 @dataclass
 @_tm_struct
@@ -73,7 +79,7 @@ def lif_step(  # pylint: disable=too-many-arguments, too-many-locals
 
     :return: Tuple of updated neuron state and membrane potential
     """
-    inputs_sum = jax.tree_util.tree_reduce(jnp.add, list(inputs.values()))
+    inputs_sum = tree_reduce(jnp.add, list(inputs.values()))
 
     dv = dt / tau_mem * ((v_leak - state.V) + state.I)
     v_decayed = state.V + dv

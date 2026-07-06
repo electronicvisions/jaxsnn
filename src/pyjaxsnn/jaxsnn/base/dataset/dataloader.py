@@ -4,6 +4,14 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
+try:
+    from jax.tree import leaves as tree_leaves
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_leaves
+    from jax.tree_util import tree_map
+
 
 def data_loader(
     dataset: Tuple[Any, Any],
@@ -15,7 +23,7 @@ def data_loader(
     if num_batches is None:
         num_batches_list: List[int] = jax.vmap(
             lambda data: data.shape[0] // batch_size
-        )(jnp.array(jax.tree_util.tree_leaves(dataset[0])))
+        )(jnp.array(tree_leaves(dataset[0])))
         assert jnp.all(num_batches_list == num_batches_list[0]), \
             "All inputs must have equal size"
         num_batches = num_batches_list[0]
@@ -26,11 +34,11 @@ def data_loader(
         permutation = jnp.arange(num_batches * batch_size)
 
     # Perform permutation of dataset
-    dataset = jax.tree_map(lambda x: jnp.take(x, permutation, axis=0), dataset)
+    dataset = tree_map(lambda x: jnp.take(x, permutation, axis=0), dataset)
 
     # Function to split dataset into batches
     def batch_fn(i, data):
-        return jax.tree_map(
+        return tree_map(
             lambda x: jax.lax.dynamic_slice_in_dim(
                 x, i * batch_size, batch_size), data)
 
