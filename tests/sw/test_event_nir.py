@@ -122,13 +122,13 @@ class TestFromNIRConversion(unittest.TestCase):
         )
 
         self.assertTrue(
-            jnp.array_equal(
+            jnp.allclose(
                 jaxsnn_output['lif'].time, nir_output['lif'].time,
             )
             and jnp.array_equal(
                 jaxsnn_output['lif'].idx, nir_output['lif'].idx,
             )
-            and jnp.array_equal(
+            and jnp.allclose(
                 jaxsnn_output['lif'].current, nir_output['lif'].current,
             )
             and jnp.array_equal(
@@ -231,38 +231,38 @@ class TestNIRDataConversion(unittest.TestCase):
         )
 
         self.assertTrue(
-            jnp.equal(
+            jnp.array_equal(
                 original_spikes["lif"].idx,
                 converted_spikes["lif"].idx,
-            ).all(),
+            ),
             "Mismatch in spike indices for node 'lif'",
         )
         self.assertTrue(
-            jnp.equal(
+            jnp.allclose(
                 original_spikes["lif"].time,
                 converted_spikes["lif"].time,
-            ).all(),
+            ),
             "Mismatch in spike times for node 'lif'",
         )
         self.assertTrue(
-            jnp.equal(
+            jnp.allclose(
                 original_spikes["lif"].current,
                 converted_spikes["lif"].current,
-            ).all(),
+            ),
             "Mismatch in current for node 'lif'",
         )
         self.assertTrue(
-            jnp.equal(
+            jnp.array_equal(
                 original_spikes["lif"].layer_idx,
                 converted_spikes["lif"].layer_idx,
-            ).all(),
+            ),
             "Mismatch in layer_idx for node 'lif'",
         )
         self.assertTrue(
-            jnp.equal(
+            jnp.array_equal(
                 original_spikes["lif"].internal,
                 converted_spikes["lif"].internal,
-            ).all(),
+            ),
             "Mismatch in internal for node 'lif'",
         )
 

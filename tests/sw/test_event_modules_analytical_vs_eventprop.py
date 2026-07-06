@@ -23,6 +23,12 @@ from numpy.testing import (
     assert_array_almost_equal,
 )
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 class TestCompareLIFVsEventPropLIF(unittest.TestCase):
 
@@ -283,8 +289,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         ))
 
         # check gradients when no spike
-        zero_weights1 = jax.tree_map(lambda p: p * 0.0, params_1)
-        zero_weights2 = jax.tree_map(lambda p: p * 0.0, params_2)
+        zero_weights1 = tree_map(lambda p: p * 0.0, params_1)
+        zero_weights2 = tree_map(lambda p: p * 0.0, params_2)
 
         # check gradients
         _, grad_w_1 = jax.value_and_grad(loss_fn_1)(
@@ -462,8 +468,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         )
 
         # check gradients when no spike
-        zero_weights1 = jax.tree_map(lambda p: p * 0.0, params_1)
-        zero_weights2 = jax.tree_map(lambda p: p * 0.0, params_2)
+        zero_weights1 = tree_map(lambda p: p * 0.0, params_1)
+        zero_weights2 = tree_map(lambda p: p * 0.0, params_2)
 
         # check gradients
         _, grad_1 = jax.value_and_grad(loss_fn_1)(
@@ -643,8 +649,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         ))
 
         # check gradients when no spike
-        zero_weights1 = jax.tree_map(lambda p: p * 0.0, params_1)
-        zero_weights2 = jax.tree_map(lambda p: p * 0.0, params_2)
+        zero_weights1 = tree_map(lambda p: p * 0.0, params_1)
+        zero_weights2 = tree_map(lambda p: p * 0.0, params_2)
 
         # check gradients
         _, grad_w_1 = jax.value_and_grad(loss_fn_1)(
@@ -830,8 +836,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         )
 
         # check gradients when no spike
-        zero_weights1 = jax.tree_map(lambda p: p * 0.0, params_1)
-        zero_weights2 = jax.tree_map(lambda p: p * 0.0, params_2)
+        zero_weights1 = tree_map(lambda p: p * 0.0, params_1)
+        zero_weights2 = tree_map(lambda p: p * 0.0, params_2)
 
         # check gradients
         _, grad_1 = jax.value_and_grad(loss_fn_1)(
@@ -1021,8 +1027,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         ))
 
         # check gradients when no spike
-        zero_weights1 = jax.tree_map(lambda p: p * 0.0, params_1)
-        zero_weights2 = jax.tree_map(lambda p: p * 0.0, params_2)
+        zero_weights1 = tree_map(lambda p: p * 0.0, params_1)
+        zero_weights2 = tree_map(lambda p: p * 0.0, params_2)
 
         # check gradients
         _, grad_1 = jax.value_and_grad(loss_fn_1)(

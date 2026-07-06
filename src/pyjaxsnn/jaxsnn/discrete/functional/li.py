@@ -6,6 +6,12 @@ import jax.numpy as jnp
 from jaxsnn.base.types import _tm_struct, BaseState
 from jaxsnn.discrete.types import DenseData, Parameter
 
+try:
+    from jax.tree import reduce as tree_reduce
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_reduce
+
 
 @dataclass
 @_tm_struct
@@ -53,7 +59,7 @@ def li_step(  # pylint: disable=too-many-arguments
     :return: Tuple of updated neuron state and membrane potential
     """
     # sum all inputs
-    inputs_sum = jax.tree_util.tree_reduce(jnp.add, list(inputs.values()))
+    inputs_sum = tree_reduce(jnp.add, list(inputs.values()))
 
     i_jump = state.I + inputs_sum
     dv = dt / tau_mem * ((v_leak - state.V) + i_jump)  # pylint: disable=invalid-name

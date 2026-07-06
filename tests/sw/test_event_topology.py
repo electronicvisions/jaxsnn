@@ -31,6 +31,12 @@ from jaxsnn.event.modules import (
 )
 from jaxsnn.event.topology import Topology
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 class TestTopologyHXData(unittest.TestCase):
     tau_mem = 12e-6
@@ -286,9 +292,7 @@ class TestTopologyHXData(unittest.TestCase):
         )
 
         # Grads should be equal
-        jax.tree_util.tree_map(
-            np.testing.assert_array_equal, mock_grads, hx_grads
-        )
+        tree_map(np.testing.assert_array_equal, mock_grads, hx_grads)
 
 
 if __name__ == '__main__':

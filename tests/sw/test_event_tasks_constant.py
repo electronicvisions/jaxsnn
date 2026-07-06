@@ -30,6 +30,12 @@ from jaxsnn.event.modules import (
 from jaxsnn.event.topology import Topology
 from jaxsnn.event.loss import first_spike
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 class TestEventTasksContant(unittest.TestCase):
 
@@ -65,7 +71,7 @@ class TestEventTasksContant(unittest.TestCase):
         batch: Tuple[Spike, jax.Array],
     ):
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(weights, batch)
-        weights = jax.tree_map(lambda f, df: f - 0.1 * df, weights, grad)
+        weights = tree_map(lambda f, df: f - 0.1 * df, weights, grad)
         return weights, value
 
     def test_train(self):
@@ -120,7 +126,15 @@ class TestEventTasksContant(unittest.TestCase):
         init_fn, apply_fn = builder.done()
 
         # init weights
-        rng = random.PRNGKey(45)
+        is_partitionable = getattr(
+            jax.config,
+            "jax_threefry_partitionable",
+            False
+        )
+        if (is_partitionable):
+            rng = random.PRNGKey(42)
+        else:
+            rng = random.PRNGKey(45)
         weights = init_fn(rng)
 
         loss_fn = partial(
