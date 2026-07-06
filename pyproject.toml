@@ -36,14 +36,15 @@ addopts = "--import-mode=importlib"
 testpaths = ["tests/sw"]
 
 [project.urls]
-"Homepage" = "https://github.com/electronicvisions/jaxsnn"
+Homepage = "https://github.com/electronicvisions/jaxsnn"
 "Bug Tracker" = "https://github.com/electronicvisions/jaxsnn/issues"
+Changelog = "https://github.com/electronicvisions/jaxsnn/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src/pyjaxsnn"]
 include = ["jaxsnn*"]
 
 [tool.setuptools_scm]
-fallback_version = "0.2.0"
+fallback_version = "0.3.0"
 version_scheme = "no-guess-dev"
 tag.prefix = "v"
