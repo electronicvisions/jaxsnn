@@ -1,0 +1,11 @@
+Bootstrap: docker
+From: python:{{PYTHON_VERSION}}-slim
+
+%arguments
+    PYTHON_VERSION=3.10
+
+%post
+    apt-get update
+    apt-get install -y git
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*

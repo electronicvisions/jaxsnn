@@ -1,15 +1,41 @@
+"""
+This pipeline tests the pip build of jaxsnn, which does not has any
+BSS-2-related dependencies (simulator-only)
+"""
 @Library("jenlib") _
 
 import static java.util.UUID.randomUUID
 
+List<String> pythonVersions = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
 try {
 	runOnSlave(label: "frontend") {
-		stage("Checkout") {
-			checkout scm
+		Map<String, Closure> parallelBranches = pythonVersions.collectEntries { pythonVersion ->
+			[
+				(pythonVersion): {
+					dir("python-${pythonVersion}") {
+						stage("Checkout") {
+							checkout scm
+						}
+						stage("Build for Python ${pythonVersion}") {
+							println("Running Python ${pythonVersion}")
+							def imageName = ".ci/python${pythonVersion}.sif"
+							jesh "apptainer build --disable-cache --build-arg PYTHON_VERSION=${pythonVersion} ${imageName} .ci/python.def"
+							inSingularity(
+								image: imageName,
+							) {
+								pipelineFromMarkdown(
+									markdownFilePath: "INSTALL_PIP.md",
+									blockType: "shell"
+								)
+							}
+						}
+					}
+				}
+			]
 		}
 
-		pipelineFromMarkdown(markdownFilePath: "INSTALL_OLDSKOOL.md",
-		                     blockType: "shell")
+		parallel(parallelBranches)
 	}
 } catch (Throwable t) {
 	notifyFailure(mattermostChannel: "#dls-software")
