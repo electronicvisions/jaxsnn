@@ -28,6 +28,12 @@ dependencies = [
 
 [project.optional-dependencies]
 nir = ["nir>=1.0.8"]
+test = ["pytest"]
+test-nir = ["pytest", "nir>=1.0.8"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+testpaths = ["tests/sw"]
 
 [project.urls]
 Homepage = "https://github.com/electronicvisions/jaxsnn"
