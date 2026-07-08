@@ -1,14 +1,16 @@
 """Test the functionality of NIR and NIRData conversions"""
 import unittest
 import numpy as np
-import nir
 import jax.numpy as jnp
 from jax import random
-from jaxsnn import ConversionConfig, from_nir, from_nir_data, to_nir_data
 from jaxsnn.base.compose import serial
 from jaxsnn.event.modules.leaky_integrate_and_fire import LIF, LIFParameters
 from jaxsnn.event.types import EventPropSpike
 
+# NIR is optional
+import pytest
+nir = pytest.importorskip("nir")
+from jaxsnn import ConversionConfig, from_nir, from_nir_data, to_nir_data
 
 class TestFromNIRConversion(unittest.TestCase):
 
