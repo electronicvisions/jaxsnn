@@ -33,6 +33,13 @@ from jaxsnn.event.types import Spike, Weight, EventPropSpike
 from jaxsnn.event.hardware.calib import WaferConfig
 from jaxsnn.examples.event.utils import loss_wrapper
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
+
 
 def loss_and_acc_scan(
     loss_fn: Callable,
@@ -175,7 +182,7 @@ def main(args: argparse.Namespace):
         value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
             weights, batch, external=hw_spikes)
         # Kill recurrent grads
-        grad = jax.tree_util.tree_map(
+        grad = tree_map(
             lambda par, g: jnp.where(par == 0.0, 0.0, g), weights, grad)
 
         # Update weights

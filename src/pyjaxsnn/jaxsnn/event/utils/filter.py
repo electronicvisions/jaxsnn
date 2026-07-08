@@ -2,6 +2,12 @@ import jax
 import jax.numpy as jnp
 from jaxsnn.event.types import EventPropSpike
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 def filter_spikes(
     input_spikes: EventPropSpike,
@@ -17,5 +23,5 @@ def filter_spikes(
         idx=jnp.where(idx, input_spikes.idx, -1),
         current=jnp.zeros_like(input_spikes.current))
     idx = jnp.argsort(filtered_spikes.time)
-    input_spikes = jax.tree_map(lambda x: x[idx], filtered_spikes)
+    input_spikes = tree_map(lambda x: x[idx], filtered_spikes)
     return input_spikes

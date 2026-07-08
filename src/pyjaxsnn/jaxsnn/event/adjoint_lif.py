@@ -20,6 +20,12 @@ from jaxsnn.event.types import (
     WeightRecurrent,
 )
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 def adjoint_transition_without_recurrence(  # pylint: disable=too-many-arguments
     params: LIFParameters,
@@ -386,7 +392,7 @@ def construct_adjoint_apply_fn(
                 time=known_spikes.time,
                 idx=known_spikes.idx,
                 current=jnp.zeros_like(known_spikes.time))
-            input_spikes = jax.tree_util.tree_map(
+            input_spikes = tree_map(
                 lambda x, y: jnp.concatenate([x, y], axis=0),
                 input_spikes, known_spikes)
 

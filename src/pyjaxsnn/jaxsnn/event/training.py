@@ -10,6 +10,12 @@ from jaxsnn.base.dataset import data_loader
 from jaxsnn.event.types import OptState, Spike
 from jaxsnn.event.utils import time_it
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
 
 log = jaxsnn.get_logger("jaxsnn.event.training")
 
@@ -24,7 +30,7 @@ def update(
     value, grad = jax.value_and_grad(loss_fn, has_aux=True)(
         state.weights, batch
     )
-    grad = jax.tree_util.tree_map(lambda g: g / params.tau_syn, grad)
+    grad = tree_map(lambda g: g / params.tau_syn, grad)
 
     updates, opt_state = optimizer.update(grad, state.opt_state)
     weights = optax.apply_updates(state.weights, updates)
