@@ -2,7 +2,16 @@
 from typing import Callable, Optional
 
 import jax
-from jax.tree_util import tree_flatten, tree_map, tree_unflatten
+
+try:
+    from jax.tree import flatten as tree_flatten
+    from jax.tree import unflatten as tree_unflatten
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_flatten
+    from jax.tree_util import tree_unflatten
+    from jax.tree_util import tree_map
 
 
 def scan(
@@ -36,7 +45,7 @@ def cond(pred: bool, true_fun: Callable, false_fun: Callable, *operands):
     """Call both function to evaluate compiled behaviour of `jax.lax.scan`"""
     true_result = true_fun(*operands)
     false_result = false_fun(*operands)
-    return jax.tree_map(
+    return tree_map(
         lambda t_item, f_item: jax.lax.select(pred, t_item, f_item),
         true_result,
         false_result,

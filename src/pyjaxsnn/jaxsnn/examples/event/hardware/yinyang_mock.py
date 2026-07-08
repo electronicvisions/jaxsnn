@@ -51,6 +51,13 @@ from jaxsnn.event.types import Spike, Weight
 from jaxsnn.event.utils import load_weights_recurrent, save_weights_recurrent
 from jaxsnn.examples.plot import plt_and_save
 
+try:
+    from jax.tree import map as tree_map
+except ImportError:
+    # for compatibility with jax@:0.4.25
+    from jax.tree_util import tree_map
+
+
 
 log = jaxsnn.get_logger("jaxsnn.examples.event.hardware.yinyang_mock")
 
@@ -389,13 +396,13 @@ def train(
             weights, batch, external=hw_spikes
         )
 
-        grad = jax.tree_util.tree_map(
+        grad = tree_map(
             lambda par, g: jnp.where(par == 0.0, 0.0, g), weights, grad
         )
 
         # grad clipping
         if MAX_GRAD is not None:
-            grad = jax.tree_util.tree_map(
+            grad = tree_map(
                 lambda par, g: jnp.where(jnp.abs(g) > MAX_GRAD[1], 0.0, g),
                 weights,
                 grad,
