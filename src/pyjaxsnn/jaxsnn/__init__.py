@@ -1,7 +1,11 @@
 from jax import config
-from jaxsnn.event.from_nir import from_nir, ConversionConfig
-from jaxsnn.event.from_nir_data import from_nir_data
-from jaxsnn.event.to_nir_data import to_nir_data
+
+try:
+    from jaxsnn.event.from_nir import from_nir, ConversionConfig
+    from jaxsnn.event.from_nir_data import from_nir_data
+    from jaxsnn.event.to_nir_data import to_nir_data
+except ImportError:
+    pass
 
 try:
     # Try to import pylogging

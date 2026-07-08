@@ -26,8 +26,11 @@ dependencies = [
   "networkx",
 ]
 
+[project.optional-dependencies]
+nir = ["nir>=1.0.8"]
+
 [project.urls]
-"Homepage" = "https://github.com/electronicvisions/jaxsnn"
+Homepage = "https://github.com/electronicvisions/jaxsnn"
 "Bug Tracker" = "https://github.com/electronicvisions/jaxsnn/issues"
 
 [tool.setuptools.packages.find]
