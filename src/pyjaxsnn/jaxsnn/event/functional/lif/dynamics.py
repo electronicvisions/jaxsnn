@@ -11,9 +11,7 @@ from jaxsnn.event.states import LIFState
 def lif_wrap(func: Callable) -> Callable[[LIFState, jax.Array], LIFState]:
     def inner(*args):
         res = func(jnp.stack([args[0].V, args[0].I]), *args[1:])
-        args[0].V = res[0]
-        args[0].I = res[1]
-        return args[0]
+        return replace(args[0], V=res[0], I=res[1])
     return inner
 
 
