@@ -14,6 +14,7 @@ from jaxsnn.event.types import (
 
 def adjoint_transition(  # pylint: disable=too-many-arguments
     v_threshold: Union[jax.Array, float],
+    v_reset: Union[jax.Array, float],
     input_layers: List[int],
     add_grads_fns: List[AddGradFn],
     adjoint_states: StepState,
@@ -28,6 +29,7 @@ def adjoint_transition(  # pylint: disable=too-many-arguments
     Perform the adjoint transition step for a neuron or input spike.
 
     :param v_threshold: Membrane threshold potential.
+    :param v_reset: Membrane reset potential.
     :param input_layers: List of input layer indices.
     :param add_grads_fns: List of functions to add gradients for weights.
     :param adjoint_states: Current adjoint neuron states.
@@ -42,6 +44,7 @@ def adjoint_transition(  # pylint: disable=too-many-arguments
     """
     def adjoint_transition_in_layer(  # pylint: disable=too-many-arguments,unused-argument
         v_threshold: Union[float, jax.Array],
+        v_reset: Union[float, jax.Array],
         adjoint_states: StepState,
         spike: Spike,
         adjoint_spike: Spike,
@@ -63,7 +66,7 @@ def adjoint_transition(  # pylint: disable=too-many-arguments
         ].add(
             (
                 adjoint_spike.time
-                + v_threshold * adjoint_states.neuron_state.V[
+                + (v_threshold - v_reset) * adjoint_states.neuron_state.V[
                     spike.idx
                 ]) / safe_denominator)
 
@@ -71,6 +74,7 @@ def adjoint_transition(  # pylint: disable=too-many-arguments
 
     def adjoint_input_transition(  # pylint: disable=too-many-arguments,unused-argument
         v_threshold: Union[float, jax.Array],
+        v_reset: Union[float, jax.Array],
         adjoint_states: StepState,
         spike: Spike,
         adjoint_spike: Spike,
@@ -102,6 +106,7 @@ def adjoint_transition(  # pylint: disable=too-many-arguments
         adjoint_input_transition,
         *(
             v_threshold,
+            v_reset,
             adjoint_states,
             spike,
             adjoint_spike,

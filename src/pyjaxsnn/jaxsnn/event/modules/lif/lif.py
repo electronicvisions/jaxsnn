@@ -311,6 +311,7 @@ def build_adjoint_step_function(
     adjoint_tr_dynamics = partial(
         adjoint_transition,
         jnp.array(lif_params.v_th),
+        jnp.array(lif_params.v_reset),
         jnp.array([node_index_mapping[node] for node in pre_layer_pop_nodes]),
         add_grads_fns
     )
