@@ -28,7 +28,7 @@ class TestStep(unittest.TestCase):
     input_size = 10
     layer_size = 5
     t_max = 10.0
-    n_steps = 20
+    n_steps = 30
     n_inputs = 7
     n_outputs = 12
 
@@ -216,7 +216,7 @@ class TestStep(unittest.TestCase):
 
         # # All internal events should be empty (no spikes)
         spikes = spikes.get_internal()
-        self.assertEqual(spikes.shape_, (20,))
+        self.assertEqual(spikes.shape_, (30,))
         self.assertTrue(jnp.all(~spikes.internal))
 
         # States should be zero

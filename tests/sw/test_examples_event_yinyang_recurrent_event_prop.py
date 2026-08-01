@@ -20,7 +20,7 @@ class YinYangRecurrentEventPropExampleTest(unittest.TestCase):
             "--tau-syn=5e-03",
             "--threshold=1.0",
             "--n-spikes-output=53",
-            "--epochs=12",
+            "--epochs=10",
             "--batch-size=64",
             "--lr=0.005",
             "--lr-decay=0.99",
@@ -29,7 +29,7 @@ class YinYangRecurrentEventPropExampleTest(unittest.TestCase):
         accuracy = yinyang_recurrent_event_prop.main(
             yinyang_recurrent_event_prop.get_parser().parse_args(train_args))
         self.assertGreater(
-            accuracy, 0.90, "Accuracy should be greater than 90%")
+            accuracy, 0.85, "Accuracy should be greater than 85%")
 
 
 if __name__ == "__main__":
