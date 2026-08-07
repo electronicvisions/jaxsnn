@@ -229,7 +229,7 @@ class Topology(BaseTopology):
         step functions. These functions are then attached to the module
         instance stored in the graph node.
         """
-        self.log.info("Generate and attach layer functions to graph")
+        self.log.TRACE("Generate and attach layer functions to graph")
         for node, attrs in self.graph.nodes(data=True):
             module = attrs["module"]
             self.log.TRACE(f"Processing node: {node}")
