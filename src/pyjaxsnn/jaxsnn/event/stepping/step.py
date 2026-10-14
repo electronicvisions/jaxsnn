@@ -11,10 +11,10 @@ import jax.numpy as jnp
 
 from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
-    EventT,
     DynamicsFn,
     MinDelayCheckFn,
     NextInputFn,
+    Observables,
     Step,
     StepState,
     Spike,
@@ -27,7 +27,7 @@ from jaxsnn.event.types import (
 def next_input(  # pylint: disable=too-many-locals,too-many-arguments
     input_layers: List[str],
     min_delays: Dict[str, float],
-    spikes: Dict[str, Spike],
+    observables: Observables,
     queue_heads: jax.Array,
     time: float,
     t_max: float,
@@ -39,12 +39,12 @@ def next_input(  # pylint: disable=too-many-locals,too-many-arguments
     queue_idx = jnp.zeros(len(input_layers), dtype=int)
 
     # Create a template PyTree for each layer
-    spike_candidates = spikes[input_layers[0]].empty(
+    spike_candidates = observables[input_layers[0]].spike.empty(
         shape=(len(input_layers),)
     )
 
     for i, input_node in enumerate(input_layers):
-        layer_spikes = spikes[input_node]
+        layer_spikes = observables[input_node].spike
 
         mask = (
             layer_spikes.internal
@@ -76,7 +76,7 @@ def next_input(  # pylint: disable=too-many-locals,too-many-arguments
 def min_delay_check(
     input_nodes: List[str],
     min_delays: Dict[str, float],
-    spikes: Dict[str, EventT],
+    observables: Observables,
     spike_time: jax.Array,
 ) -> Tuple[jax.Array, jax.Array]:
     """
@@ -101,7 +101,7 @@ def min_delay_check(
 
     next_times = jnp.zeros(len(input_nodes))
     for i, input_node in enumerate(input_nodes):
-        layer_spikes = spikes[input_node]
+        layer_spikes = observables[input_node].spike
 
         mask = layer_spikes.idx != -1
         allowed_times = jnp.where(mask, layer_spikes.time, 0)
@@ -152,7 +152,7 @@ def step(  # pylint: disable=unused-argument,too-many-locals,too-many-arguments
 
     # Find next input spike
     rel_input_layer_idx, spike_queue_idx, input_spike = next_input_fn(
-        step_input.spikes,
+        step_input.observables,
         step_input.queue_head,
         step_input.state.time,
         t_max,
@@ -160,7 +160,7 @@ def step(  # pylint: disable=unused-argument,too-many-locals,too-many-arguments
 
     t_dyn = jnp.minimum(next_internal.time, input_spike.time)
 
-    spike_allowed, safe_time = min_delay_check_fn(step_input.spikes, t_dyn)
+    spike_allowed, safe_time = min_delay_check_fn(step_input.observables, t_dyn)
     t_dyn = jnp.where(
         spike_allowed,
         t_dyn,

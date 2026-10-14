@@ -118,7 +118,7 @@ def main(
     # Extract spike times for plotting
     spikes = apply_fn(input_spikes, weights)
     lif_spikes = spikes["lif"]
-    spike_times = lif_spikes.time[lif_spikes.internal]
+    spike_times = lif_spikes.spike.time[lif_spikes.spike.internal]
 
     if args.plot:
         plot(spike_times, args)

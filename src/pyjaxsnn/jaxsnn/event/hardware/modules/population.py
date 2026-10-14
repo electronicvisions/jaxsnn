@@ -3,6 +3,8 @@ from abc import abstractmethod
 import re
 from typing import Optional
 
+import numpy as np
+
 from hxtorch.core.modules.population import Population as CorePopulation
 from hxtorch.core.modules.population import (
     InputPopulation as CoreInputPopulation
@@ -11,7 +13,7 @@ from hxtorch.core.modules.population import (
 from jaxsnn.event.hardware.modules.base_module import BaseModule
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.observables import Observables
-from jaxsnn.event.types import Spike
+from jaxsnn.event.types import Spike, Observable
 
 from pyhalco_hicann_dls_vx_v3 import DLSGlobal
 
@@ -48,13 +50,15 @@ class InputPopulation(CoreInputPopulation, BaseModule):
         """ """
 
     @property
-    def expected_return_type(self) -> Spike:
+    def expected_return_type(self) -> Observable:
         """
         Returns the expected return type of the neuron.
         """
-        # if self.enable_spike_loopback:
         batch_size = self.experiment.batch_size
-        return Spike.empty((batch_size, self.n_events))
+        return Observable(
+            spike=Spike.empty((batch_size, self.n_events)),
+            rate=np.zeros((batch_size, self.size), dtype=np.float32)
+        )
 
 
 class Population(CorePopulation, BaseModule):
@@ -88,9 +92,12 @@ class Population(CorePopulation, BaseModule):
             self.n_hw_spikes = n_hw_spikes
 
     @property
-    def expected_return_type(self) -> Spike:
+    def expected_return_type(self) -> Observable:
         """
         Returns the expected return type of the neuron.
         """
         batch_size = self.experiment.batch_size
-        return Spike.empty((batch_size, self.n_events))
+        return Observable(
+            spike=Spike.empty((batch_size, self.n_events)),
+            rate=np.zeros((batch_size, self.size), dtype=np.float32)
+        )

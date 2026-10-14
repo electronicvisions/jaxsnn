@@ -3,7 +3,9 @@ from typing import Callable, List, Tuple, Dict, Optional
 import jax
 import jax.numpy as jnp
 from jaxsnn.event.types import (
-    Carry,
+    Observable,
+    Observables,
+    TrajectoryCarry,
     IOData,
     Parameters,
     States,
@@ -13,8 +15,9 @@ from jaxsnn.event.types import (
 def trajectory(  # pylint: disable=too-many-arguments
     multi_layer_step_fn: Callable,
     n_steps: int,
+    compute_rates: Dict[str, int],
     parameters: Parameters,
-    spikes: IOData,
+    observables: Observables,
     external_spikes: Optional[IOData],
     states: States,
     queue_heads: Dict[str, jax.Array],
@@ -37,9 +40,9 @@ def trajectory(  # pylint: disable=too-many-arguments
     queue_indices = {
         node: jnp.zeros(n_steps, dtype=int) for node in queue_heads
     }
-    carry = Carry(
+    carry = TrajectoryCarry(
         parameters,
-        spikes,
+        observables,
         external_spikes,
         states,
         queue_heads,
@@ -51,4 +54,21 @@ def trajectory(  # pylint: disable=too-many-arguments
         jnp.arange(n_steps),
     )
 
-    return carry.spikes, carry.states, carry.parameters, carry.queue_indices
+    # Compute firing rates if required
+    for node, value in carry.observables.items():
+        if value is None:
+            continue
+        rate = value.rate
+        if node in compute_rates:
+            rate, _ = jnp.histogram(
+                jnp.where(value.spike.internal, value.spike.idx, -1),
+                bins=jnp.arange(compute_rates[node] + 1),
+            )
+        carry.observables[node] = Observable(value.spike, rate)
+
+    return (
+        carry.observables,
+        carry.states,
+        carry.parameters,
+        carry.queue_indices,
+    )

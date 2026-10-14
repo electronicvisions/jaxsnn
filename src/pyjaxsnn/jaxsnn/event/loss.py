@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import jax
 import jax.numpy as jnp
 from jaxsnn.event.types import Spike
@@ -64,3 +66,14 @@ def first_spike(
         ]
     )
     return first_spikes
+
+
+def rate_loss(
+    spike_count: jax.Array,
+    targets: jax.Array,
+    target_count: jax.Array,
+) -> jax.Array:
+    ret = 0.5 * jnp.mean(
+        ((spike_count - targets * target_count) / target_count
+    ) ** 2)
+    return ret

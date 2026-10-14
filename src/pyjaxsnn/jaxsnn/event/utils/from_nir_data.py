@@ -37,20 +37,16 @@ def from_nir_data(
                 "spikes" in nir_node_data.observables
                 and "spikes" in observables
             ):
-                spikes = nir_node_data.observables["spikes"]
-                if isinstance(spikes, TimeGriddedData):
-                    if (
-                        not topology.graph.nodes[node_key]["module"].n_steps
-                        > 0
-                    ):
-                        raise ValueError(
-                            f"Number of steps for node {node_key} must be > 0."
-                        )
-                    spikes = spikes.to_event(
-                        n_events=topology.graph.nodes[node_key][
-                            "module"
-                        ].n_steps,
+                if (
+                    not topology.graph.nodes[node_key]["module"].n_steps
+                    > 0
+                ):
+                    raise ValueError(
+                        f"Number of steps for node {node_key} must be > 0."
                     )
+                spikes = nir_node_data.observables["spikes"].get_event(
+                    n_events=topology.graph.nodes[node_key]["module"].n_steps,
+                )
 
                 spikes.time = jnp.asarray(spikes.time)
                 jaxsnn_time = jnp.where(
@@ -73,8 +69,15 @@ def from_nir_data(
                         jnp.asarray(spikes.idx), dtype=jaxsnn_time.dtype
                     )
                 # TODO: handle layer_idx and internal properly
-                layer_idx = jnp.zeros_like(jaxsnn_time, dtype=int)
+                valid_events_mask = spikes.idx >= 0
+                this_layer_idx = next(
+                    i for i, t in enumerate(topology.sccs_ordered)
+                    if node_key in t
+                )
+                layer_idx = jnp.ones_like(jaxsnn_time, dtype=int) * this_layer_idx
+                layer_idx = jnp.where(valid_events_mask, layer_idx, -1)
                 internal = jnp.ones_like(jaxsnn_time, dtype=bool)
+                internal = jnp.where(valid_events_mask, internal, False)
                 jaxsnn_spikes = Spike(
                     jaxsnn_time,
                     jnp.asarray(spikes.idx),

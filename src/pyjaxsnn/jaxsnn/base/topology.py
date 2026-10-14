@@ -212,7 +212,7 @@ class BaseTopology(AbstractTopology[ModelInitFnT, ModelApplyFnT]):
             - init: function to initialize weights
             - apply: function to apply the topology to inputs
         """
-        sccs_ordered = self.pre_process()
-        init_fn = self.generate_init_fn(sccs_ordered)
-        apply_fn = self.generate_apply_fn(sccs_ordered)
+        self.sccs_ordered = self.pre_process()
+        init_fn = self.generate_init_fn(self.sccs_ordered)
+        apply_fn = self.generate_apply_fn(self.sccs_ordered)
         return init_fn, apply_fn

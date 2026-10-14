@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 from jaxsnn.event.modules.lif import LIF
 from jaxsnn.event.modules.lif.parameters import LIFParameters
-from jaxsnn.event.types import Spike, Step
+from jaxsnn.event.types import Observable, Spike, Step
 from jaxsnn.event.states import LIFState
 
 
@@ -84,11 +84,11 @@ class TestLIF(unittest.TestCase):
         self.assertEqual(state.neuron_state.V.shape, (size,))
         self.assertEqual(state.neuron_state.I.shape, (size,))
 
-        # Test event function
-        spike = functions.event(n_steps)
-        self.assertIsInstance(spike, Spike)
-        self.assertEqual(spike.time.shape, (n_steps,))
-        self.assertEqual(spike.idx.shape, (n_steps,))
+        # Test observable function
+        observable = functions.observable(n_steps)
+        self.assertIsInstance(observable.spike, Spike)
+        self.assertEqual(observable.spike.time.shape, (n_steps,))
+        self.assertEqual(observable.spike.idx.shape, (n_steps,))
 
     def test_lif_step_function(self):
         """Test that the step function produces correct spike outputs."""
@@ -128,7 +128,9 @@ class TestLIF(unittest.TestCase):
         input_spike = Spike.empty(n_steps)
         input_spike.time = input_spike.time.at[0].set(10e-3)
 
-        spikes_dict = {"input": input_spike}
+        spikes_dict = {
+            "input": Observable(spike=input_spike, rate=jnp.array(0.0))
+        }
         external_spikes_dict = {}
 
         # Create weights
@@ -141,7 +143,7 @@ class TestLIF(unittest.TestCase):
         # Test step function
         step_input = Step(
             parameters=weights,
-            spikes=spikes_dict,
+            observables=spikes_dict,
             external_spikes=external_spikes_dict,
             state=state,
             step_idx=0,

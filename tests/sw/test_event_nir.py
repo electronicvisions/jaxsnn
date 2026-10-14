@@ -322,6 +322,7 @@ class TestNIRDataConversion(unittest.TestCase):
                             data=np.random.randint(
                                 0, 2, (4, 20, 10),
                             ).astype(bool),
+                            dimension_order=("batch", "time", "neuron"),
                             dt=0.001
                         )
                     }

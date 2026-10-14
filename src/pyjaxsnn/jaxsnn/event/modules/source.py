@@ -1,5 +1,11 @@
 import jax
-from jaxsnn.event.types import SourcePopulation
+import jax.numpy as jnp
+
+from jaxsnn.event.types import (
+    SourcePopulation,
+    Spike,
+    Observable,
+)
 
 
 # pylint: disable=invalid-name
@@ -29,10 +35,13 @@ def Source(size: int) -> SourcePopulation:
             return None
 
         # pylint: disable=unused-argument
-        def event_fn(*args) -> None:
-            return None
+        def observable_fn(*args) -> Observable:
+            return Observable(
+                spike=Spike.empty(0),
+                rate=jnp.zeros(size)
+            )
 
-        return SourcePopulation.Functions(init_fn, state_fn, event_fn)
+        return SourcePopulation.Functions(init_fn, state_fn, observable_fn)
 
     parameters = {
         "size": size,

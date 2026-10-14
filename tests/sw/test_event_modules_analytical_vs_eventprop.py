@@ -159,7 +159,9 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
     ):
         input_spikes = Spike(times, idxs, currents, layer_idx, internal)
         ret = apply_fn({"inp": input_spikes}, weights)
-        return jnp.sum(jnp.where(ret[key].internal, ret[key].time, 0))
+        return jnp.sum(
+            jnp.where(ret[key].spike.internal, ret[key].spike.time, 0)
+        )
 
     def test_compare_single_layer_single_spike(self):
         """
@@ -190,8 +192,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         )
 
         # forward
-        res_1 = apply_fn_1({"inp": input_events}, params_1)["lif"]
-        res_2 = apply_fn_2({"inp": input_events}, params_2)["lif"]
+        res_1 = apply_fn_1({"inp": input_events}, params_1)["lif"].spike
+        res_2 = apply_fn_2({"inp": input_events}, params_2)["lif"].spike
 
         # they all produce the same output
         self.assertIsNone(assert_array_equal(
@@ -352,10 +354,10 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         res_1 = apply_fn_1({"inp": input_events}, params_1)
         res_2 = apply_fn_2({"inp": input_events}, params_2)
 
-        res1_lif1 = res_1["lif1"]
-        res1_lif2 = res_1["lif2"]
-        res2_lif1 = res_2["lif1"]
-        res2_lif2 = res_2["lif2"]
+        res1_lif1 = res_1["lif1"].spike
+        res1_lif2 = res_1["lif2"].spike
+        res2_lif1 = res_2["lif1"].spike
+        res2_lif2 = res_2["lif2"].spike
 
         # they all produce the same output
         self.assertIsNone(assert_array_equal(
@@ -549,8 +551,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         )
 
         # forward
-        res_1 = apply_fn_1({"inp": input_events}, params_1)["lif"]
-        res_2 = apply_fn_2({"inp": input_events}, params_2)["lif"]
+        res_1 = apply_fn_1({"inp": input_events}, params_1)["lif"].spike
+        res_2 = apply_fn_2({"inp": input_events}, params_2)["lif"].spike
 
         # Make sure we actually have more then one spike for any neuron
         _, counts = jnp.unique(res_1.idx, return_counts=True)
@@ -716,13 +718,13 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         res_1 = apply_fn_1({"inp": input_events}, params_1)
         res_2 = apply_fn_2({"inp": input_events}, params_2)
 
-        res1_lif1 = res_1["lif1"]
-        res1_lif2 = res_1["lif2"]
-        res2_lif1 = res_2["lif1"]
-        res2_lif2 = res_2["lif2"]
+        res1_lif1 = res_1["lif1"].spike
+        res1_lif2 = res_1["lif2"].spike
+        res2_lif1 = res_2["lif1"].spike
+        res2_lif2 = res_2["lif2"].spike
 
         # Make sure we actually have more then one spike for any neuron
-        _, counts = jnp.unique(res_1["lif1"].idx, return_counts=True)
+        _, counts = jnp.unique(res_1["lif1"].spike.idx, return_counts=True)
         self.assertTrue(True in (counts > 1))
 
         # they all produce the same output
@@ -928,8 +930,8 @@ class TestCompareLIFVsEventPropLIF(unittest.TestCase):
         )
 
         # forward
-        res_1 = apply_fn_1({"inp": input_events}, params_1)["lif"]
-        res_2 = apply_fn_2({"inp": input_events}, params_2)["lif"]
+        res_1 = apply_fn_1({"inp": input_events}, params_1)["lif"].spike
+        res_2 = apply_fn_2({"inp": input_events}, params_2)["lif"].spike
 
         # Make sure we actually have more then one spike for any neuron
         _, counts = jnp.unique(res_1.idx, return_counts=True)

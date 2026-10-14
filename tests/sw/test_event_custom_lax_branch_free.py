@@ -76,7 +76,9 @@ class TestBranchFreeVsBranched(unittest.TestCase):
             {"inp": input_spikes},
             weights,
         )
-        return jnp.sum(jnp.where(ret["lif"].internal, ret["lif"].time, 0))
+        return jnp.sum(
+            jnp.where(ret["lif"].spike.internal, ret["lif"].spike.time, 0)
+        )
 
     def test_forward_and_grads_match_between_modes(self):
         init_fn, apply_fn = self._network()
@@ -100,7 +102,7 @@ class TestBranchFreeVsBranched(unittest.TestCase):
                 forward = apply_fn(
                     {"inp": input_events},
                     params,
-                )["lif"]
+                )["lif"].spike
                 loss_value, (grad_w, grad_t) = jax.value_and_grad(
                     loss_fn,
                     argnums=(0, 1),

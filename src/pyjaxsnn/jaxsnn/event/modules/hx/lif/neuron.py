@@ -7,6 +7,9 @@ from typing import (
 )
 from functools import partial
 
+from jaxsnn.event.hardware.modules.base_module import BaseModule
+from jaxsnn.event.stepping.step_existing_events import step_existing
+
 from dlens_vx_v3 import halco
 from pyhalco_hicann_dls_vx_v3 import DLSGlobal
 
@@ -21,7 +24,14 @@ from jaxsnn.event.types import (
 )
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.modules.neuron import Neuron
-from jaxsnn.event.hardware.modules.base_module import BaseModule
+
+from jaxsnn.event.types import (
+    EventStepFn,
+    Spike,
+    Population,
+    StepState,
+    Observable,
+)
 from jaxsnn.event.states import LIFState
 from jaxsnn.event.stepping.step_existing_events import step_existing
 from jaxsnn.event.modules.lif.lif import build_adjoint_step_function
@@ -39,6 +49,7 @@ def HXLIF(  # pylint: disable=invalid-name, too-many-locals
     size: int,
     n_steps: int,
     params: NeuronParameters,
+    compute_rate: bool = False,
     time_offset: float = 0.0,
     n_hw_spikes: Optional[int] = None,
     chip_coordinate: Optional[DLSGlobal] = None,
@@ -124,17 +135,11 @@ def HXLIF(  # pylint: disable=invalid-name, too-many-locals
             )
             return state
 
-        def event_fn(
-            n_steps: int,
-        ) -> Spike:
-            """
-            Generate an empty Spike object for the given number of event steps.
-
-            :param n_steps: Number of event steps.
-
-            :return: Empty Spike object.
-            """
-            return Spike.empty(n_steps)
+        def observable_fn(n_steps: int) -> Observable:
+            return Observable(
+                spike=Spike.empty(n_steps),
+                rate=jnp.zeros(size)
+            )
 
         def generate_hx_module_fn(
             layer_idx: int,
@@ -153,6 +158,7 @@ def HXLIF(  # pylint: disable=invalid-name, too-many-locals
                 layer_idx=layer_idx,
                 n_events=n_steps,
                 n_hw_spikes=n_hw_spikes,
+                compute_rate=compute_rate,
                 size=size,
                 time_offset=time_offset,
                 experiment=experiment,
@@ -206,7 +212,7 @@ def HXLIF(  # pylint: disable=invalid-name, too-many-locals
             init=init_fn,
             state=state_fn,
             step=step_fn,
-            event=event_fn,
+            observable=observable_fn,
             adjoint_step=adjoint_step_fn,
             hx_module=generate_hx_module_fn,
         )
@@ -214,6 +220,7 @@ def HXLIF(  # pylint: disable=invalid-name, too-many-locals
     parameters = {
         "size": size,
         "n_steps": n_steps,
+        "lif_params": params,
         "time_offset": time_offset,
         "chip_coordinate": chip_coordinate,
         "enable_spike_recording": enable_spike_recording,
@@ -224,10 +231,17 @@ def HXLIF(  # pylint: disable=invalid-name, too-many-locals
         "record_neuron_id": record_neuron_id,
         "placement_constraint": placement_constraint,
         "neuron_structure": neuron_structure,
+        "compute_rate": compute_rate,
         **extra_params,
     }
 
-    return Population(generator, parameters, size, n_steps)
+    return Population(
+        generator,
+        parameters,
+        size,
+        n_steps,
+        compute_rate=compute_rate
+    )
 
 
 # pylint: disable=too-many-arguments, too-many-locals

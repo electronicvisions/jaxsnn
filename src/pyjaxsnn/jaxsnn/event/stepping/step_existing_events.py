@@ -2,7 +2,6 @@ from typing import (
     Callable,
     Tuple,
     List,
-    Dict,
 )
 from dataclasses import replace
 
@@ -11,17 +10,18 @@ import jax.numpy as jnp
 
 from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
+    Observables,
     Spike,
-    QueueHead,
     Step,
     StepState,
+    QueueHead,
     QueueIndex,
 )
 
 
 def next_input(  # pylint: disable=too-many-locals,too-many-arguments
     input_layers: List[str],
-    spikes: Dict[str, Spike],
+    observables: Observables,
     queue_heads: jax.Array,
     t: float,  # pylint: disable=invalid-name
     t_max: float,
@@ -33,11 +33,11 @@ def next_input(  # pylint: disable=too-many-locals,too-many-arguments
     queue_idx = jnp.zeros(len(input_layers), dtype=int)
 
     # Create a template PyTree for each layer
-    spike_candidates = spikes[input_layers[0]].empty(
+    spike_candidates = observables[input_layers[0]].spike.empty(
         shape=(len(input_layers),)
     )
     for i, input_node in enumerate(input_layers):
-        layer_spikes = spikes[input_node]
+        layer_spikes = observables[input_node].spike
 
         mask = (
             layer_spikes.internal
@@ -109,7 +109,7 @@ def step_existing(  # pylint: disable=too-many-locals,too-many-arguments
     # Find next input spike
     rel_input_layer_idx, input_queue_idx, input_spike = next_input(
         input_layers,
-        step_input.spikes,
+        step_input.observables,
         queue_head,
         step_input.state.time,
         t_max,

@@ -6,7 +6,8 @@ from typing import (
 )
 
 from jaxsnn.event.types import (
-    Carry,
+    Observable,
+    TrajectoryCarry,
     Step,
 )
 
@@ -15,9 +16,9 @@ def multi_layer_step(  # pylint: disable=too-many-locals,too-many-arguments
     step_fns: Dict[str, Callable],
     nodes: List[str],
     node_index_mapping: Dict[str, int],
-    carry: Carry,
+    carry: TrajectoryCarry,
     step_idx: int,
-) -> Tuple[Carry, int]:
+) -> Tuple[TrajectoryCarry, int]:
     """
     Perform one simulation step across multiple neuron layers.
 
@@ -39,7 +40,7 @@ def multi_layer_step(  # pylint: disable=too-many-locals,too-many-arguments
     for node in nodes:
         step_input = Step(
             carry.parameters,
-            carry.spikes,
+            carry.observables,
             carry.external_spikes,
             carry.states[node],
             step_idx,
@@ -54,9 +55,12 @@ def multi_layer_step(  # pylint: disable=too-many-locals,too-many-arguments
         carry.states[node] = transitioned_state
         carry.queue_heads[node] = this_queue_heads
 
-        carry.spikes[node] = carry.spikes[node].set_item(
-            key=step_idx,
-            new_value=new_spike,
+        carry.observables[node] = Observable(
+            spike=carry.observables[node].spike.set_item(
+                key=step_idx,
+                new_value=new_spike,
+            ),
+            rate=carry.observables[node].rate,
         )
 
         carry.queue_indices[node] = carry.queue_indices[node].at[step_idx].set(

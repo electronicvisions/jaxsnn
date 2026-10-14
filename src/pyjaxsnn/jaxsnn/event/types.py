@@ -152,12 +152,32 @@ class Spike:
         """Returns a new Spike containing only internal spikes."""
         return self.where(self.internal)
 
+    def copy(self) -> Spike:
+        """Returns a copy of the Spike object."""
+        return tree_map(lambda leaf: jnp.array(leaf), self)
+
 
 @dataclass
 @_tm_struct
-class Carry:
+class Observable:
+    spike: Spike
+    rate: jax.Array
+
+    def __getitem__(self, key: int) -> Observable:
+        return Observable(
+            spike=self.spike[key],
+            rate=self.rate,
+        )
+
+
+Observables = Dict[str, Observable]
+
+
+@dataclass
+@_tm_struct
+class TrajectoryCarry:
     parameters: Parameters
-    spikes: IOData
+    observables: Observables
     external_spikes: Optional[IOData]
     states: States
     queue_heads: Dict[str, jax.Array]
@@ -166,9 +186,20 @@ class Carry:
 
 @dataclass
 @_tm_struct
+class AdjointTrajectoryCarry:
+    parameters: Parameters
+    observables: Observables
+    queue_indices: List[jax.Array]
+    adjoint_observables: Observables
+    adjoint_states: States
+    parameters_grads: Parameters
+
+
+@dataclass
+@_tm_struct
 class Step:
     parameters: Parameters
-    spikes: IOData
+    observables: Observables
     external_spikes: Optional[IOData]
     state: StepState
     step_idx: int
@@ -244,18 +275,18 @@ EventStepFn = Callable[
     Tuple[EventData, StepState, QueueHead, QueueIndex],
 ]
 EventStateFn = Callable[[], Optional[StepState]]
-EventFn = Callable[[int], Optional[EventData]]
+ObservableFn = Callable[[int], Optional[Observable]]
 AdjointStepFn = Callable[
     [Tuple[
         Parameters,
-        EventData,
+        Observable,
         QueueIndex,
-        EventData,
+        Observable,
         StepState,
         Parameters,
-        EventData
+        Observables
     ]],
-    Tuple[Parameters, StepState, QueueHead, QueueIndex],
+    Tuple[States, QueueHead, Parameters],
 ]
 NextInputFn = Callable[
     [
@@ -293,7 +324,7 @@ class ProjectionFunctions:
     """Function container for event projection modules"""
     init: InitFn
     state: EventStateFn
-    event: EventFn  # Event-specific
+    observable: ObservableFn  # Event-specific
     hx_module: Optional[GenModuleFn] = None
 
 
@@ -303,8 +334,8 @@ class PopulationFunctions:
     init: InitFn
     step: EventStepFn
     state: EventStateFn
-    event: EventFn  # Event-specific
-    adjoint_step: Optional[AdjointStepFn] = None  # Event-specific
+    observable: ObservableFn
+    adjoint_step: Optional[AdjointStepFn] = None
     hx_module: Optional[GenModuleFn] = None
 
 
@@ -313,7 +344,7 @@ class SourcePopulationFunctions:
     """Function container for event source population modules"""
     init: InitFn
     state: EventStateFn
-    event: EventFn
+    observable: ObservableFn
     hx_module: Optional[GenModuleFn] = None
 
 
@@ -381,6 +412,7 @@ class Population(
     ]
     size: int
     n_steps: int
+    compute_rate: bool = False
 
 
 @dataclass

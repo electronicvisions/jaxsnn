@@ -6,11 +6,10 @@ from typing import Dict, Union
 import numpy as np
 import jax.numpy as jnp
 
-from jaxsnn.event.modules import (
-    Source,
-    LIF,
-    Linear
-)
+from jaxsnn.base.types import Parameter
+from jaxsnn.event.hardware.parameter import HXParameter
+from jaxsnn.event.modules import Source, LIF, Linear
+from jaxsnn.event.modules.hx import HXLIF, NeuronParameters
 from jaxsnn.event.modules.lif import LIFParameters
 from jaxsnn.event.topology import Topology
 from jaxsnn.event.types import (
@@ -30,11 +29,17 @@ class ConversionConfig:
     :param t_max: Maximum time for the simulation.
     :param backprop_method: Either "eventprop" for the EventProp algorithm or
         "analytical" for the time-to-first-spike solver.
+    :param compute_rate: Whether to compute firing rates for the neurons.
+    :param external: Whether an externally run forward pass will be injected.
+    :param mock: Whether the forward pass is simulated.
     """
 
     n_steps: Dict[str, int]
     t_max: float
     backprop_method: str = "analytical"
+    compute_rate: bool = False
+    external: bool = False
+    mock: bool = True
 
 
 def node_from_nir(
@@ -64,17 +69,33 @@ def node_from_nir(
             )
 
         size = np.size(node.tau_mem)
-        params = LIFParameters(
-            v_leak=node.v_leak[0],
-            v_reset=node.v_reset[0],
-            v_th=node.v_threshold[0],
-            tau_mem=node.tau_mem[0] * 1e-3,
-            tau_syn=node.tau_syn[0] * 1e-3,
+        if not config.external:
+            params = LIFParameters(
+                v_leak=node.v_leak[0],
+                v_reset=node.v_reset[0],
+                v_th=node.v_threshold[0],
+                tau_mem=node.tau_mem[0] * 1e-3,
+                tau_syn=node.tau_syn[0] * 1e-3,
+            )
+            return LIF(
+                size=size,
+                n_steps=config.n_steps[node_key],
+                params=params,
+                compute_rate=config.compute_rate
+            )
+
+        params = NeuronParameters(
+            v_leak=HXParameter(node.v_leak[0]),
+            v_reset=HXParameter(node.v_reset[0]),
+            v_th=HXParameter(node.v_threshold[0]),
+            tau_mem=HXParameter(node.tau_mem[0] * 1e-3),
+            tau_syn=HXParameter(node.tau_syn[0] * 1e-3),
         )
-        return LIF(
+        return HXLIF(
             size=size,
             n_steps=config.n_steps[node_key],
-            params=params
+            params=params,
+            compute_rate=config.compute_rate
         )
 
     if isinstance(node, nir.Linear):
@@ -106,6 +127,8 @@ def from_nir(
     topology = Topology(
         t_max=config.t_max,
         backprop_method=config.backprop_method,
+        mock=config.mock,
+        has_external_events=config.external,
     )
 
     # create modules

@@ -54,7 +54,10 @@ def epoch(
 
     spikes_info = ""
     for node in recording[1][1]:
-        spikes = recording[1][1][node]
+        observables = recording[1][1][node]
+        if observables is None:
+            continue
+        spikes = observables.spike
         spikes = spikes.where(spikes.internal) if spikes is not None else None
         spikes_mean = (
             f"{jnp.sum(spikes.idx >= 0, axis=-1).mean():.4f}"

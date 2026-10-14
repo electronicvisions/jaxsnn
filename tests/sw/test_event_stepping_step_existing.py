@@ -7,6 +7,7 @@ import jax.numpy as jnp
 
 from jaxsnn.event.states import LIFState
 from jaxsnn.event.types import (
+    Observable,
     Spike,
     StepState,
 )
@@ -42,10 +43,10 @@ class TestStepExistingEvents(unittest.TestCase):
         }
 
         output_spikes = Spike.empty(self.n_steps)
-        spikes = {
-            "inp": input_spikes,
+        observables = {
+            "inp": Observable(spike=input_spikes, rate=jnp.array(0.0)),
             "syn": None,
-            "nrn": output_spikes,
+            "nrn": Observable(spike=output_spikes, rate=jnp.array(0.0)),
         }
         external_spikes = {
             "nrn": external_spikes
@@ -73,7 +74,7 @@ class TestStepExistingEvents(unittest.TestCase):
             parameters["syn_rec"] = jnp.ones(
                 (self.layer_size, self.layer_size)
             )
-            spikes["syn_rec"] = None
+            observables["syn_rec"] = None
             states["syn_rec"] = None
             queue_heads["syn_rec"] = jnp.array(2 * [0])
 
@@ -114,17 +115,18 @@ class TestStepExistingEvents(unittest.TestCase):
             node_index_mapping,
         )
 
-        spikes, states, _, queue_idx = trajectory(
+        observables, states, _, queue_idx = trajectory(
             step_fn,
             self.n_steps,
+            {},
             parameters,
-            spikes,
+            observables,
             external_spikes,
             states,
             queue_heads,
         )
 
-        return spikes, states, queue_idx
+        return observables, states, queue_idx
 
     def generate_events(self):
         rng = jax.random.PRNGKey(np.random.randint(0, 10000))
@@ -162,12 +164,12 @@ class TestStepExistingEvents(unittest.TestCase):
         input_spikes, _, _ = self.generate_events()
         external_spikes = Spike.empty(self.n_steps)
 
-        spikes, states, _ = self.run_single_layer_scc(
+        observables, states, _ = self.run_single_layer_scc(
             input_spikes,
             external_spikes,
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # We should get n_steps spikes
@@ -218,12 +220,12 @@ class TestStepExistingEvents(unittest.TestCase):
         # Test random
         input_spikes, external_spikes, _ = self.generate_events()
 
-        spikes, states, _ = self.run_single_layer_scc(
+        observables, states, _ = self.run_single_layer_scc(
             input_spikes,
             external_spikes,
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # We should get n_steps spikes
@@ -297,12 +299,12 @@ class TestStepExistingEvents(unittest.TestCase):
         input_spikes = input_spikes.sort()
 
         # run
-        spikes, states, _ = self.run_single_layer_scc(
+        observables, states, _ = self.run_single_layer_scc(
             input_spikes,
             external_spikes,
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # Input events should stay the same
@@ -353,13 +355,13 @@ class TestStepExistingEvents(unittest.TestCase):
         # Test random
         input_spikes, external_spikes, _ = self.generate_events()
 
-        spikes, states, _ = self.run_single_layer_scc(
+        observables, states, _ = self.run_single_layer_scc(
             input_spikes,
             external_spikes,
             recurrent=True,
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # We should get n_steps spikes

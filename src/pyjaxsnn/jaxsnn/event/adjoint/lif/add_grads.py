@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from jaxsnn.base.types import Parameter
-from jaxsnn.event.types import StepState, IOData
+from jaxsnn.event.types import StepState, Observables
 
 
 def add_grads(
@@ -15,9 +15,9 @@ def add_grads(
     index_for_layer: int,
     adjoint_states: StepState,
     weights: jax.Array,
-    adjoint_spikes: IOData,
+    adjoint_observables: Observables,
     queue_index: int,
-) -> Tuple[Dict[str, Parameter], IOData]:
+) -> Tuple[Dict[str, Parameter], Observables]:
     """
     Add gradients with respect to synaptic weights and update adjoint spikes
     time for backpropagating the gradient.
@@ -50,12 +50,16 @@ def add_grads(
             - adjoint_states.neuron_state.I
         ),
     )
-    new_spike_time = adjoint_spikes[pre_pop_node].time.at[queue_index].add(
-        new_term
-    )
+    new_spike_time = \
+        adjoint_observables[pre_pop_node].spike.time.at[queue_index].add(
+            new_term
+        )
 
     new_grads = {**grads, pre_param_node: new_grad}
-    new_adj_spikes = jax.tree_util.tree_map(lambda x: x, adjoint_spikes)
-    new_adj_spikes[pre_pop_node].time = new_spike_time
+    new_adj_observables = jax.tree_util.tree_map(
+        lambda x: x,
+        adjoint_observables
+    )
+    new_adj_observables[pre_pop_node].spike.time = new_spike_time
 
-    return new_grads, new_adj_spikes
+    return new_grads, new_adj_observables

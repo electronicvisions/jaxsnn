@@ -53,10 +53,10 @@ def Linear(
         def state_fn(*args) -> None:
             return None
 
-        def event_fn(*args) -> None:
+        def observable_fn(*args) -> None:
             return None
 
-        return Projection.Functions(init_fn, state_fn, event_fn)
+        return Projection.Functions(init_fn, state_fn, observable_fn)
 
     parameters = {
         "mean": mean,

@@ -6,7 +6,10 @@ import numpy as np
 
 from jaxsnn.event.hardware.observables import Observables
 from jaxsnn.event.hardware.modules.population import Population
-from jaxsnn.event.types import Spike
+from jaxsnn.event.types import (
+    Spike,
+    Observable,
+)
 
 
 class Neuron(Population):
@@ -17,6 +20,7 @@ class Neuron(Population):
         n_events: int,
         n_hw_spikes: Optional[int] = None,
         *args,
+        compute_rate: bool = False,
         time_offset: float = 0.0,
         **kwargs
     ) -> None:
@@ -28,10 +32,13 @@ class Neuron(Population):
             *args,
             **kwargs,
         )
+        self.compute_rate = compute_rate
         self.hw_observables: Observables
 
-    def get_post_processed(self) -> Spike:
+    def get_post_processed(self) -> Observable:
         """ """
+        observable = self.expected_return_type
+
         spikes = self.hw_observables.get_spikes(
             self.n_events,
             self.n_hw_spikes,
@@ -57,12 +64,19 @@ class Neuron(Population):
         current = np.zeros_like(idx, dtype=np.float32)
         internal = np.where(idx != -1, True, False)
 
-        spikes = Spike(
+        observable.spike = Spike(
             time=time,
             idx=idx,
             current=current,
             layer_idx=layer_idx,
             internal=internal,
         )
+        if self.compute_rate:
+            rate = np.apply_along_axis(
+                lambda x: np.histogram(x, bins=np.arange(self.size + 1))[0],
+                axis=1,
+                arr=observable.event.idx,
+            )
+            observable.rate = rate.astype(np.float32)
 
-        return spikes
+        return observable

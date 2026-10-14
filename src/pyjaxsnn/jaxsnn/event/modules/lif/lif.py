@@ -20,6 +20,7 @@ from jaxsnn.event.modules.lif.parameters import LIFParameters
 from jaxsnn.event.solver import ttfs_solver
 from jaxsnn.event.states import LIFState
 from jaxsnn.event.types import (
+    Observable,
     Spike,
     StepState,
     Population,
@@ -32,6 +33,7 @@ def LIF(  # pylint: disable=invalid-name
     size: int,
     n_steps: int,
     params: LIFParameters,
+    compute_rate: bool = False,
 ) -> Population:
     """
     Creates a LIF layer for event-based simulation and backpropagation.
@@ -87,10 +89,11 @@ def LIF(  # pylint: disable=invalid-name
             )
             return state
 
-        def event_fn(
-            n_steps: int,
-        ) -> Spike:
-            return Spike.empty(n_steps)
+        def observable_fn(n_steps: int) -> Observable:
+            return Observable(
+                spike=Spike.empty(n_steps),
+                rate=jnp.zeros(size, dtype=int)
+            )
 
         # Initialize step function
         step_fn = build_step_functions(
@@ -118,7 +121,7 @@ def LIF(  # pylint: disable=invalid-name
             init=init_fn,
             state=state_fn,
             step=step_fn,
-            event=event_fn,
+            observable=observable_fn,
             adjoint_step=adjoint_step_fn,
         )
 
@@ -126,9 +129,16 @@ def LIF(  # pylint: disable=invalid-name
         "size": size,
         "n_steps": n_steps,
         "lif_params": params,
+        "compute_rate": compute_rate,
     }
 
-    return Population(generator, parameters, size, n_steps)
+    return Population(
+        generator,
+        parameters,
+        size,
+        n_steps,
+        compute_rate=compute_rate,
+    )
 
 
 # pylint: disable=too-many-arguments, too-many-locals

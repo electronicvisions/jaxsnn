@@ -49,7 +49,7 @@ def HXLinear(  # pylint: disable=invalid-name, too-many-arguments
         ) -> None:
             return None
 
-        def event_fn(
+        def observable_fn(
             *args,  # pylint: disable=unused-argument
         ) -> None:
             return None
@@ -72,7 +72,7 @@ def HXLinear(  # pylint: disable=invalid-name, too-many-arguments
         return Projection.Functions(
             init_fn,
             state_fn,
-            event_fn,
+            observable_fn,
             generate_hx_module_fn,
         )
 

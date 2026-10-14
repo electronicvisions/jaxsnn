@@ -7,23 +7,21 @@ from jaxsnn import get_logger
 from jaxsnn.base.topology import BaseTopology
 try:
     from jaxsnn.event.hardware.experiment import Experiment
-except ImportError:
-    Experiment = Any  # Fallback if the module is not available
-
-try:
     from jaxsnn.event.hardware.modules.population import (
         Population as HXPopulation,
         InputPopulation as HXInputPopulation
     )
 except ImportError:
+    Experiment = Any  # Fallback if the module is not available
     HXPopulation = Any  # Fallback if the module is not available
     HXInputPopulation = Any  # Fallback if the module is not available
+
+from jaxsnn.event.types import Observables
 from jaxsnn.event.adjoint.trajectory import adjoint_trajectory
 from jaxsnn.event.adjoint.step import multi_layer_adjoint_step
 from jaxsnn.event.functional import trajectory
 from jaxsnn.event.stepping import multi_layer_step
 from jaxsnn.event.types import (
-    Spike,
     AdjointStepFn,
     Parameters,
     IOData,
@@ -31,6 +29,8 @@ from jaxsnn.event.types import (
     Projection,
     Population,
     SourcePopulation,
+    Observables,
+    Observable,
     EventStepFn,
     ModelApplyFn,
 )
@@ -118,16 +118,21 @@ class Topology(BaseTopology):
         ) -> Tuple[Optional[States], IOData]:
             # Generate layer states
             states = {}
-            events: Dict[str, Optional[Spike]] = {}
+            observables: Observables = {}
             for scc in sccs_ordered:
                 for node in scc:
                     module = self.graph.nodes[node]["module"]
                     states[node] = module.fns.state()
-                    events[node] = module.fns.event(module.n_steps)
+                    observables[node] = module.fns.observable(module.n_steps)
 
             # Insert input events at corresponding places
             for node, input_events in inputs.items():
-                events[node] = input_events
+                assert observables[node] is not None
+                # TODO: Set layer idx
+                observables[node] = Observable(
+                    spike=input_events,
+                    rate=observables[node].rate,
+                )
 
             # Loop over SCCs while skipping input layers
             for scc in sccs_ordered:
@@ -143,15 +148,15 @@ class Topology(BaseTopology):
                     for node in scc
                 }
 
-                events, states, _, _ = trajectories[scc](
+                observables, states, _, _ = trajectories[scc](
                     parameters,
-                    events,
+                    observables,
                     external_events,
                     states,
                     queue_heads,
                 )
 
-            return events
+            return observables
 
         if self.mock:
             if self.has_external_events:
@@ -167,11 +172,11 @@ class Topology(BaseTopology):
         def hx_dispatch(
             input_spikes: IOData,
             params: Parameters,
-        ) -> IOData:
+        ) -> Observables:
             expected_return_type = self.experiment.expected_return_type(
                 input_spikes
             )
-            hx_result = jax.pure_callback(
+            hx_observables = jax.pure_callback(
                 hx_run,
                 expected_return_type,
                 input_spikes,
@@ -201,7 +206,8 @@ class Topology(BaseTopology):
                 apply_fn_batched,
                 input_spikes,
                 params,
-                hx_result,
+                hx_observables,
+                False,
             )
             return hx_observables, vjp_fn
 
@@ -212,7 +218,9 @@ class Topology(BaseTopology):
             grad_spikes = g
             vjp_fn = res
 
-            grad_model_spikes, grad_model_params, _ = vjp_fn(grad_spikes)
+            grad_model_spikes, grad_model_params, _, _ = vjp_fn(
+                grad_observables
+            )
 
             return grad_model_spikes, grad_model_params
 
@@ -300,10 +308,13 @@ class Topology(BaseTopology):
 
             step_fns: Dict[str, EventStepFn] = {}
             pop_nodes: List[str] = []
+            compute_rates: Dict[str, int] = {}
             for node, module in pop_modules.items():
                 module.n_steps = n_steps
-                step_fns[node] = module.fns.step
                 pop_nodes.append(node)
+                step_fns[node] = module.fns.step
+                if module.compute_rate:
+                    compute_rates[node] = module.size
 
             this_trajectory = partial(
                 trajectory,
@@ -314,6 +325,7 @@ class Topology(BaseTopology):
                     self.node_index_mapping,
                 ),
                 n_steps,
+                compute_rates,
             )
 
             if self.backprop_method == "eventprop":

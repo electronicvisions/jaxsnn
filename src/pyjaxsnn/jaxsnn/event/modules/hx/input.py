@@ -1,10 +1,11 @@
 from typing import Optional
 
 import jax
+import jax.numpy as jnp
 
 from pyhalco_hicann_dls_vx_v3 import DLSGlobal
 
-from jaxsnn.event.types import SourcePopulation
+from jaxsnn.event.types import SourcePopulation, Spike, Observable
 from jaxsnn.event.hardware.experiment import Experiment
 from jaxsnn.event.hardware.modules.base_module import BaseModule
 from jaxsnn.event.hardware.modules.input_neuron import InputNeuron
@@ -44,10 +45,11 @@ def HXSource(  # pylint: disable=invalid-name
             # TODO: Should set layer_idx to inputs because not known beforehand
             return None
 
-        def event_fn(
-            *args,  # pylint: disable=unused-argument
-        ) -> None:
-            return None
+        def observable_fn(*args) -> Observable:
+            return Observable(
+                spike=Spike.empty((n_events,)),
+                rate=jnp.zeros(size)
+            )
 
         def generate_hx_module_fn(
             layer_idx: int,
@@ -67,7 +69,7 @@ def HXSource(  # pylint: disable=invalid-name
         return SourcePopulation.Functions(
             init_fn,
             state_fn,
-            event_fn,
+            observable_fn,
             generate_hx_module_fn,
         )
 

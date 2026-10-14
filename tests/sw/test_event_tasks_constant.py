@@ -57,7 +57,7 @@ class TestEventTasksContant(unittest.TestCase):
         output = apply_fn(input_spikes, weights)
 
         t_first_spike = first_spike_function(
-            output[output_layer],
+            output[output_layer].spike,
             n_outputs,
         )
         loss_value = jnp.mean(loss_function(t_first_spike, target, tau_mem))

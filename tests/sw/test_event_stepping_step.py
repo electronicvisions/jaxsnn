@@ -7,6 +7,7 @@ import jax.numpy as jnp
 
 from jaxsnn.event.states import LIFState
 from jaxsnn.event.types import (
+    Observable,
     Spike,
     StepState,
 )
@@ -45,10 +46,10 @@ class TestStep(unittest.TestCase):
         }
 
         output_spikes = Spike.empty(self.n_steps)
-        spikes = {
-            "inp": input_spikes,
+        observables = {
+            "inp": Observable(spike=input_spikes, rate=jnp.array(0.0)),
             "syn": None,
-            "nrn": output_spikes
+            "nrn": Observable(spike=output_spikes, rate=jnp.array(0.0)),
         }
 
         states = {
@@ -124,26 +125,27 @@ class TestStep(unittest.TestCase):
             node_index_mapping,
         )
 
-        spikes, states, _, queue_idx = trajectory(
+        observables, states, _, queue_idx = trajectory(
             step_fn,
             self.n_steps,
+            {},
             parameters,
-            spikes,
+            observables,
             None,
             states,
             queue_heads,
         )
 
-        return spikes, states, queue_idx
+        return observables, states, queue_idx
 
     def test_step_feedforward_no_inputs(self):
         input_spikes = Spike().empty((self.n_inputs,))
 
-        spikes, states, queue_idx = self.run_single_layer_scc(
+        observables, states, queue_idx = self.run_single_layer_scc(
             input_spikes
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # Input event should stay the same
@@ -183,12 +185,12 @@ class TestStep(unittest.TestCase):
         )
         input_spikes = input_spikes.sort()
 
-        spikes, states, queue_idx = self.run_single_layer_scc(
+        observables, states, queue_idx = self.run_single_layer_scc(
             input_spikes,
             weight=0.0,
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # Input event should stay the same
@@ -240,12 +242,12 @@ class TestStep(unittest.TestCase):
         )
         input_spikes = input_spikes.sort()
 
-        spikes, states, queue_idx = self.run_single_layer_scc(
+        observables, states, queue_idx = self.run_single_layer_scc(
             input_spikes,
             weight=1.5,
         )
-        inputs = spikes["inp"]
-        spikes = spikes["nrn"]
+        inputs = observables["inp"].spike
+        spikes = observables["nrn"].spike
         states = states["nrn"]
 
         # Input event should stay the same

@@ -3,7 +3,11 @@ from typing import (
     TYPE_CHECKING,
     Optional,
 )
-import time
+from time import time
+import pylogging as logger
+
+from hxtorch.core.experiment import BaseExperiment
+from jaxsnn.event.types import Observables
 
 from jaxsnn import get_logger
 from hxtorch.core.experiment import BaseExperiment
@@ -47,9 +51,9 @@ class Experiment(BaseExperiment):
     def expected_return_type(
         self,
         input_spikes: IOData
-    ) -> IOData:
+    ) -> Observables:
         self.batch_size = input_spikes
-        return_type: IOData = {}
+        return_type: Observables = {}
         for node, attrs in self.topology.graph.nodes(data=True):
             hx_module = attrs["hx_module"]
             return_type[node] = hx_module.expected_return_type
@@ -92,11 +96,11 @@ class Experiment(BaseExperiment):
         self._batch_size = batch_sizes[0]
         self.log.TRACE(f"Batch size: {self._batch_size}")
 
-    def run(  # pylint: disable=arguments-differ
+    def run(
         self,
         input_spikes: IOData,
         parameters: Parameters,
-    ) -> IOData:
+    ) -> Observables:
         """
         Executes the experiment in mock-mode or on hardware using the
         information added to the experiment for a time given by `runtime` and
@@ -119,18 +123,19 @@ class Experiment(BaseExperiment):
         super().run(self.runtime_in_s)
 
         tic = time.perf_counter()
-        hx_spikes: IOData = {}
+        hx_observables: Observables = {}
         for node, attrs in self.topology.graph.nodes(data=True):
             hx_module = attrs["hx_module"]
-            hx_spikes[node] = hx_module.get_post_processed()
+            hx_observables[node] = hx_module.get_post_processed()
+
         for key, spikes in input_spikes.items():
-            if hx_spikes[key] is None:
-                hx_spikes[key] = spikes
+            # TODO: catch loop-back spikes
+            if hx_observables[key] is None:
+                hx_observables[key].event = spikes
 
         toc = time.perf_counter()
         self.log.TRACE(
             f"Post-processing spike merging runtime: {(toc - tic):.4f} "
             "seconds."
         )
-
-        return hx_spikes
+        return hx_observables

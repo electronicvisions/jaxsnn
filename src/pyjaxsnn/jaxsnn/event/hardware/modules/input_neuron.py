@@ -5,7 +5,7 @@ import numpy as np
 import _hxtorch_core
 
 from jaxsnn.event.hardware.modules.population import InputPopulation
-from jaxsnn.event.types import Spike
+from jaxsnn.event.types import Spike, Observable
 
 
 class InputNeuron(InputPopulation):
@@ -38,24 +38,26 @@ class InputNeuron(InputPopulation):
         spike_times = _hxtorch_core.dense_spikes_to_list(spike_tuple, self.size)
         return spike_times
 
-    def get_post_processed(self) -> Optional[Spike]:
+    def get_post_processed(self) -> Observable:
         """ """
+        observable = self.expected_return_type
         if self.enable_spike_loopback:
             spikes = self.hw_observables.get_spikes(self.n_events)
             time = spikes[1] * 1e-6  # Convert to seconds
             perm = np.argsort(time, axis=1)
             time = np.take_along_axis(time, perm, axis=1).astype(np.float32)
             idx = np.take_along_axis(spikes[0].astype(np.int32), perm, axis=1)
-            layer_idx = np.where(idx != -1, self.layer_idx, -2).astype(np.int32)
+            layer_idx = np.where(idx != -1, self.layer_idx, -1).astype(np.int32)
             current = np.zeros_like(idx, dtype=np.float32)
             internal = np.where(idx != -1, True, False)
 
-            return Spike(
+            observable.spike = Spike(
                 time=time,
                 idx=idx,
                 current=current,
                 layer_idx=layer_idx,
                 internal=internal,
             )
+            # TODO: Add measured rate
 
-        return None
+        return observable

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from jaxsnn.event.hardware.observables import Observables
 
 if TYPE_CHECKING:
-    from jaxsnn.event.types import Spike
+    from jaxsnn.event.types import Observable
 
 
 class BaseModule:
@@ -19,11 +19,11 @@ class BaseModule:
         """ Set parameters for the module """
         pass
 
-    def get_post_processed(self) -> Optional[Spike]:
+    def get_post_processed(self) -> Optional[Observable]:
         """ Get post-processed spikes from the module """
         return None
 
     @property
-    def expected_return_type(self) -> Optional[Spike]:
+    def expected_return_type(self) -> Optional[Observable]:
         """ Returns the expected return type of the module """
         return None

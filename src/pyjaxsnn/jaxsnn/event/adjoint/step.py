@@ -3,14 +3,16 @@ from typing import Callable, Tuple, Dict, List
 import jax
 from jaxsnn.event import custom_lax
 from jaxsnn.event.types import (
+    AdjointTrajectoryCarry,
     EventState,
+    Observable,
+    Observables,
     StepState,
     Parameters,
     EventData,
     QueueHead,
     QueueIndex,
     IOData,
-    States,
     AdjointStepFn,
 )
 
@@ -18,9 +20,9 @@ from jaxsnn.event.types import (
 def multi_layer_adjoint_step(  # pylint: disable=too-many-locals
     adjoint_step_fns: Dict[str, AdjointStepFn],
     nodes: List[str],
-    carry: Tuple[Parameters, IOData, QueueIndex, IOData, States, Parameters],
+    carry: AdjointTrajectoryCarry,
     step_idx: int,
-) -> Tuple[Tuple, int]:
+) -> Tuple[AdjointTrajectoryCarry, int]:
     """
     Perform one adjoint backward step through all layers in reverse order.
 
@@ -32,14 +34,9 @@ def multi_layer_adjoint_step(  # pylint: disable=too-many-locals
     :returns: Updated carry tuple and zero as dummy scan output.
     """
 
-    (
-        weights,
-        spikes,
-        queue_indices,
-        adjoint_spikes,
-        adjoint_states,
-        grads
-    ) = carry
+    adjoint_observables = carry.adjoint_observables
+    adjoint_states = carry.adjoint_states
+    parameters_grads = carry.parameters_grads
 
     for i in range(len(nodes) - 1, -1, -1):
         node = nodes[i]
@@ -47,28 +44,23 @@ def multi_layer_adjoint_step(  # pylint: disable=too-many-locals
 
         res = layer_step(
             (
-                weights,
-                spikes[node][step_idx],  # current spike
-                queue_indices[node][step_idx],  # queue_index
-                adjoint_spikes[node][step_idx],  # current adjoint_spike
-                adjoint_states[node],  # adjoint_state
-                grads,  # grads
-                adjoint_spikes,  # adjoint_spikes for whole layer
+                carry.parameters,
+                carry.observables[node][step_idx],  # current spike
+                carry.queue_indices[node][step_idx],  # queue_index
+                adjoint_observables[node][step_idx],  # current adjoint_observable
+                carry.adjoint_states[node],  # adjoint_state
+                parameters_grads,  # grads
+                adjoint_observables,  # adjoint_observables for whole layer
             )
         )
 
-        adjoint_spikes = res[1]
+        adjoint_observables = res[1]
         adjoint_states[node] = res[2]
-        grads = res[3]
+        parameters_grads = res[3]
 
-    carry = (
-        weights,
-        spikes,
-        queue_indices,
-        adjoint_spikes,
-        adjoint_states,
-        grads,
-    )
+    carry.adjoint_observables = adjoint_observables
+    carry.adjoint_states = adjoint_states
+    carry.parameters_grads = parameters_grads
 
     return carry, 0
 
@@ -90,14 +82,14 @@ def adjoint_step(
     t_max: float,
     adjoint_step_input: Tuple[
         Parameters,
-        EventData,
+        Observable,
         QueueIndex,
-        EventData,
+        Observable,
         StepState,
         Parameters,
-        EventData
+        Observables,
     ],
-) -> Tuple[Parameters, StepState, QueueHead, QueueIndex]:
+) -> Tuple[StepState, QueueHead, QueueIndex]:
     """
     Perform one backward adjoint step integrating dynamics and transitions.
 
@@ -111,16 +103,16 @@ def adjoint_step(
         (weights, adjoint_spikes, adjoint_state, grads).
     """
     (
-        weights,
-        spike,
+        params,
+        observable,
         queue_index,
-        adjoint_spike,
+        adjoint_observable,
         adjoint_state,
-        grads,
-        adjoint_spikes,
+        params_grad,
+        adjoint_observables,
     ) = adjoint_step_input
 
-    reversed_time = t_max - spike.time
+    reversed_time = t_max - observable.spike.time
 
     time_diff = reversed_time - adjoint_state.time
 
@@ -130,7 +122,7 @@ def adjoint_step(
     )
     adjoint_state.time = reversed_time
 
-    no_event = spike.idx == -1
+    no_event = observable.spike.idx == -1
 
     def unchanged(
         adjoint_state, spike, adjoint_spike, queue_index, grads, weights,
@@ -143,15 +135,15 @@ def adjoint_step(
         unchanged,
         adjoint_tr_dynamics,
         adjoint_state,
-        spike,
-        adjoint_spike,
+        observable,
+        adjoint_observable,
         queue_index,
-        grads,
-        weights,
-        adjoint_spikes,
+        params_grad,
+        params,
+        adjoint_observables,
     )
 
-    return (weights, adjoint_spikes, tr_states, new_grads)
+    return (params, adjoint_spikes, tr_states, new_grads)
 
 
 def wrapped_adjoint_step(
