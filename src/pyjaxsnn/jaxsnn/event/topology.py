@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from functools import partial
 
 import jax
@@ -143,13 +143,15 @@ class Topology(BaseTopology):
                     for node in scc
                 }
 
-                events, states, _, _ = trajectories[scc](
+                scc_events, scc_states = trajectories[scc](
                     parameters,
                     events,
                     external_events,
                     states,
                     queue_heads,
                 )
+                events.update(scc_events)
+                states.update(scc_states)
 
             return events
 
@@ -281,7 +283,8 @@ class Topology(BaseTopology):
             topological order.
 
         :returns: Dictionary mapping SCC tuples to their corresponding
-            trajectory functions.
+            trajectory functions, restricted to the entries each SCC needs
+            (see ``_restrict_trajectory``).
         """
         trajectories = {}
         for scc in ordered_sccs:
@@ -351,9 +354,60 @@ class Topology(BaseTopology):
                     this_adjoint_trajectory,
                 )
 
-            trajectories[scc] = this_trajectory
+            trajectories[scc] = self._restrict_trajectory(
+                this_trajectory,
+                scc,
+                pop_nodes,
+            )
 
         return trajectories
+
+    def _restrict_trajectory(
+        self,
+        scc_trajectory: Callable,
+        scc: Tuple[str, ...],
+        pop_nodes: List[str],
+    ) -> Callable:
+        """
+        Wrap an SCC trajectory such that it only sees the data it needs.
+        Particularly, the event and state dictionaries are filtered to only
+        include the nodes of the SCC plus the projections and source
+        populations feeding into its populations.
+
+        :param scc_trajectory: Trajectory of the SCC, taking (parameters,
+            events, external events, states, queue heads).
+        :param scc: Nodes of the SCC.
+        :param pop_nodes: Population nodes of the SCC.
+
+        :returns: Function mapping (parameters, events, external events,
+            states, queue heads) of the whole network to (events, states) of
+            the SCC's nodes.
+        """
+        event_nodes = set(scc)
+        for node in pop_nodes:
+            event_nodes.update(self.pre_nodes(node))
+            event_nodes.update(self.pre_population_nodes(node))
+
+        def restricted_trajectory(
+            parameters: Parameters,
+            events: IOData,
+            external_events: Optional[IOData],
+            states: States,
+            queue_heads: Dict[str, jax.Array],
+        ) -> Tuple[IOData, States]:
+            scc_events, scc_states, _, _ = scc_trajectory(
+                parameters,
+                {node: events[node] for node in event_nodes},
+                external_events,
+                {node: states[node] for node in scc},
+                queue_heads,
+            )
+            return (
+                {node: scc_events[node] for node in scc},
+                {node: scc_states[node] for node in scc},
+            )
+
+        return restricted_trajectory
 
     def _construct_hx_run(self):
         """

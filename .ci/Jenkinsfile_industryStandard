@@ -3,40 +3,52 @@ This pipeline tests the pip build of jaxsnn, which does not has any
 BSS-2-related dependencies (simulator-only)
 """
 @Library("jenlib") _
-
 import static java.util.UUID.randomUUID
+import org.electronicvisions.jenlib.MarkdownScriptExtractor
 
 List<String> pythonVersions = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
 try {
-	runOnSlave(label: "frontend") {
-		Map<String, Closure> parallelBranches = pythonVersions.collectEntries { pythonVersion ->
-			[
-				(pythonVersion): {
+	Map<String, Closure> parallelBranches = pythonVersions.collectEntries { pythonVersion ->
+		[
+			(pythonVersion): {
+				def imageName = ".ci/python${pythonVersion}.sif"
+
+				runOnSlave(label: "frontend") {
 					dir("python-${pythonVersion}") {
 						stage("Checkout") {
 							checkout scm
 						}
-						stage("Build for Python ${pythonVersion}") {
-							println("Running Python ${pythonVersion}")
-							def imageName = ".ci/python${pythonVersion}.sif"
+						stage("Container for Python ${pythonVersion}") {
 							jesh "apptainer build --disable-cache --build-arg PYTHON_VERSION=${pythonVersion} ${imageName} .ci/python.def"
+						}
+					}
+				}
+
+				// jaxlib wheels require AVX2, which the frontend lacks and are run on the cluster.
+				onSlurmResource(partition: "einc") {
+					dir("python-${pythonVersion}") {
+						stage("Build and test for Python ${pythonVersion}") {
 							inSingularity(
 								image: imageName,
 							) {
-								pipelineFromMarkdown(
-									markdownFilePath: "INSTALL_PIP.md",
-									blockType: "shell"
+								def extractor = new MarkdownScriptExtractor(this, "INSTALL_PIP.md")
+								List<String> blocks = extractor.getBlocks("shell")
+								String tempFile = "${pwd(tmp: true)}/jaxsnn_${randomUUID().toString()}.sh"
+								writeFile(
+									file: tempFile,
+									text: blocks.join("\n"),
 								)
+								jesh("cat ${tempFile} | bash -euo pipefail")
 							}
 						}
 					}
 				}
-			]
-		}
-
-		parallel(parallelBranches)
+			}
+		]
 	}
+
+	parallel(parallelBranches)
 } catch (Throwable t) {
 	notifyFailure(mattermostChannel: "#dls-software")
 	throw t
