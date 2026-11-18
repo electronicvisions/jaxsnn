@@ -3,6 +3,12 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+
+try:
+    from _pygrenade_vx_network_abstract import Calibration
+except ImportError:
+    Calibration = Any  # Fallback if the module is not available
+
 from jaxsnn import get_logger
 from jaxsnn.base.topology import BaseTopology
 try:
@@ -58,6 +64,15 @@ class Topology(BaseTopology):
             FPGA cycles.
     :params has_external_events: If True, the recordings of an externally
         performed forward pass are expected to be provided.
+    :params calibration: The calibration object defining the operation point on
+        BSS-2. If no calibration object is provided and the experiment is run
+        on BSS-2, a calibration run is performed once before the first
+        experiment run. The calibration targets are infered from the
+        calibratable network parameters, such as the synaptic or membrane time
+        constants (see `jaxsnn.event.modules.hx.NeuronParameters` for more
+        details). Changes in the calibratable network parameters will retrigger
+        a calibration run. If there network is simulated, the calibration is
+        ignored. Defaults to None.
     """
 
     # pylint: disable=too-many-arguments
@@ -68,6 +83,7 @@ class Topology(BaseTopology):
         mock: bool = True,
         inter_batch_entry_wait: int = 0,
         has_external_events: bool = False,
+        calibration: Calibration | None = None
     ):
         """Initialize an empty topology."""
         super().__init__()
@@ -83,6 +99,9 @@ class Topology(BaseTopology):
                 inter_batch_entry_wait=inter_batch_entry_wait,
             )
             self.experiment.runtime_in_s = t_max
+            if calibration is not None:
+                self.experiment.calibration = calibration
+
         self.mock = mock
         self.has_external_events = has_external_events
         self.log = get_logger("jaxsnn.event.Topology")

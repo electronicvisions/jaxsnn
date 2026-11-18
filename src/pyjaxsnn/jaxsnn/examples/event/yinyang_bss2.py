@@ -27,6 +27,7 @@ from jaxsnn.event.hardware.parameter import (
     MixedHXModelParameter,
     HXParameter,
 )
+from jaxsnn.event.hardware.utils import calib_helper
 from jaxsnn.event.loss import mse_loss
 from jaxsnn.examples.event.utils import (
     loss_wrapper,
@@ -89,6 +90,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hw-correction", type=float, default=-8.037022780627012e-08)
     parser.add_argument("--max-runtime", type=float, default=30e-6)
     parser.add_argument("--weight-scale", type=float, default=58)
+    parser.add_argument("--calib-path", type=str, default=None)
 
     return parser
 
@@ -180,6 +182,9 @@ def main(args: argparse.Namespace):
         mock=False,
         t_max=t_max,
         backprop_method="eventprop",
+        calibration=calib_helper.fixture_calibration_from_file(
+            args.calib_path,
+        )
     )
 
     # create modules

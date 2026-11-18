@@ -22,6 +22,7 @@ from jaxsnn.event.hardware.parameter import (
     MixedHXModelParameter,
     HXParameter,
 )
+from jaxsnn.event.hardware.utils import calib_helper
 from jaxsnn.event.modules.hx import (
     HXSource,
     HXLIF,
@@ -42,6 +43,11 @@ class TestYinYangExample(unittest.TestCase):
 
     def test_training(self) -> None:
         """ Run YinYang training and inference """
+
+        # Restore default nightly calib
+        jaxsnn.init_hardware()
+        calib_path = calib_helper.nightly_calib_path("spiking3")
+        jaxsnn.release_hardware()
 
         # run training
         train_args = [
@@ -64,6 +70,7 @@ class TestYinYangExample(unittest.TestCase):
             "--hw-correction=0",
             "--max-runtime=30e-6",
             "--weight-scale=58",
+            f"--calib-path={calib_path}",
         ]
 
         accuracy = yinyang_bss2.main(
@@ -112,6 +119,9 @@ class YinYangObsvTest(unittest.TestCase):
             mock=False,
             t_max=50e-6,
             backprop_method="eventprop",
+            calibration=calib_helper.fixture_calibration_from_file(
+                calib_helper.nightly_calib_path("spiking3"),
+            )
         )
 
         # create modules
