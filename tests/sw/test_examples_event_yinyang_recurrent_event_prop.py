@@ -9,7 +9,7 @@ class YinYangRecurrentEventPropExampleTest(unittest.TestCase):
         """ Run YinYang training and inference """
         # run training
         train_args = [
-            "--seed=0",
+            "--seed=1",
             "--testset-size=2944",
             "--trainset-size=4992",
             "--t-late=1e-2",
